@@ -1,0 +1,33 @@
+{
+  "name": "outer-office",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "framework",
+    "app"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "test": "node --test \"framework/engine/test/**/*.test.js\" && node --test \"framework/runtime/test/**/*.test.js\" && node --test \"framework/data/test/**/*.test.js\" && node --test \"framework/test/*.test.js\" && npm run test:shell && npm run test:app",
+    "typecheck": "tsc --noEmit -p framework && tsc --noEmit -p app",
+    "build": "npm run build:bootstrap && npm run build:app && npm run build:admin && npm run size",
+    "build:app": "vite build --config framework/build/vite.config.js --mode app",
+    "build:admin": "vite build --config framework/build/vite.config.js --mode admin",
+    "build:bootstrap": "vite build --config framework/build/vite.config.js --mode bootstrap",
+    "size": "node framework/build/size-budget.js",
+    "dev": "vite --config framework/build/vite.config.js",
+    "smoke": "node framework/build/smoke.js",
+    "two-users": "node --test framework/build/test/stand-in-folder.test.js && node framework/build/test/two-users.js",
+    "release": "node framework/build/release.js",
+    "keygen": "node framework/build/keygen.js",
+    "check:no-test-key": "node framework/build/no-test-key.js",
+    "probes": "node --test \"framework/engine/test/breaker/*.probe.js\"",
+    "test:shell": "vitest run --config framework/vitest.config.js",
+    "ci": "npm ci --no-audit --no-fund && npm run typecheck && npm test && npm run build",
+    "rubric": "node framework/build/rubric.js",
+    "test:app": "vitest run --config app/vitest.config.js"
+  }
+}

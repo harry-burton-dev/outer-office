@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+.gstack/
+.linear-link/
+framework/engine/results/
+*.log
+.claude/
+epics/

@@ -1,0 +1,81 @@
+name: Release
+# Push a tag like v1.2.0 to publish a GitHub Release holding <id>-1.2.0.zip:
+# the app's release folder (bootstrap, app bundle, signed manifest) ready to copy
+# into the shared folder, and manifest.json on its own. The next release
+# downloads that manifest.json and lists its bundles again, so a rollback is
+# only a new manifest (npm run release -- --rollback <version>). The id, name
+# and folder come from app/app.config.ts, through the release step's outputs.
+# Needs the repository variable TRELLIS_PUBLIC_KEY and the secret
+# TRELLIS_SIGNING_KEY (see framework/build/keygen.js).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm ci
+      - name: Tests
+        run: |
+          npm version --workspace app --no-git-tag-version --allow-same-version "${GITHUB_REF_NAME#v}"
+          npm run typecheck
+          npm test
+          npm run probes
+      - name: From-disk smoke test
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+          npm run smoke
+      - name: Fetch the previous manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The newest published release, pre-releases included, so v0.1.0
+          # lists the v0.1.0-rc.1 rehearsal bundle (`gh release view` alone
+          # skips pre-releases).
+          PREVIOUS="$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // empty')"
+          if [ -n "$PREVIOUS" ]; then
+            echo "Previous release: $PREVIOUS"
+            gh release download "$PREVIOUS" --pattern manifest.json --dir dist/previous
+          else
+            echo "No earlier release: this is the first."
+          fi
+      - name: Build and sign the release
+        id: release
+        env:
+          TRELLIS_PUBLIC_KEY: ${{ vars.TRELLIS_PUBLIC_KEY }}
+          TRELLIS_SIGNING_KEY: ${{ secrets.TRELLIS_SIGNING_KEY }}
+        run: |
+          if [ -f dist/previous/manifest.json ]; then
+            npm run release -- --previous dist/previous/manifest.json
+          else
+            npm run release
+          fi
+      - name: Zip the release folder
+        env:
+          FOLDER: ${{ steps.release.outputs.folder }}
+          ZIP: ${{ steps.release.outputs.zip }}
+        run: cd dist/release && zip -r "$ZIP" "$FOLDER"
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FOLDER: ${{ steps.release.outputs.folder }}
+          ZIP: ${{ steps.release.outputs.zip }}
+          TITLE: ${{ steps.release.outputs.title }}
+        # A tag with a hyphen (v0.1.0-rc.1) is a pre-release. Notes come from
+        # docs/framework/release-notes-<tag without the -suffix>.md when it exists.
+        run: |
+          FLAGS=()
+          case "$GITHUB_REF_NAME" in *-*) FLAGS+=(--prerelease) ;; esac
+          NOTES="docs/framework/release-notes-${GITHUB_REF_NAME%%-*}.md"
+          if [ -f "$NOTES" ]; then FLAGS+=(--notes-file "$NOTES"); else FLAGS+=(--generate-notes); fi
+          gh release create "$GITHUB_REF_NAME" "dist/release/$ZIP" "dist/release/$FOLDER/app/manifest.json" --title "$TITLE" "${FLAGS[@]}"
