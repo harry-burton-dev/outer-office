@@ -60,3 +60,19 @@ test("reports the line of a bad import", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("tests, testing/ and spike/ are exempt, and shipped code may not import them", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "boundary-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  for (const sub of ["src/testing", "src/spike"]) mkdirSync(join(dir, sub), { recursive: true });
+  const escape = `import { x } from "../../framework/data/test/_world.js"; import { test } from "vitest";`;
+  writeFileSync(join(dir, "src", "thing.test.ts"), escape);
+  writeFileSync(join(dir, "src", "testing", "world.ts"), escape);
+  writeFileSync(join(dir, "src", "spike", "check.js"), escape);
+  writeFileSync(join(dir, "vitest.config.js"), `import { defineConfig } from "vitest/config";`);
+  assert.deepEqual(findViolations(dir, { allowedPackages: [] }), []);
+
+  writeFileSync(join(dir, "src", "shipped.ts"), `import { w } from "./testing/world"; import "@/spike/check"; import "./thing.test";`);
+  const found = findViolations(dir, { allowedPackages: [] });
+  assert.deepEqual(found.map((v) => v.reason), ["imports test-only code", "imports test-only code", "imports test-only code"]);
+});

@@ -19,6 +19,27 @@ export function useShell(): ShellContextValue {
   return shell;
 }
 
+/** The running session, for an app that lays out its own page (chrome="app"). */
+export interface TrellisSession {
+  user: { id: string; name: string };
+  deviceId: string;
+  /** The shared folder's name. */
+  folder: string;
+  version: string;
+  builtAt: string;
+  /** Shows the shell's invite form above the app's screens. */
+  openInvite: () => void;
+}
+
+export const SessionContext = createContext<TrellisSession | null>(null);
+
+/** Who is signed in, on which device and folder; only inside a running <TrellisApp>. */
+export function useSession(): TrellisSession {
+  const session = useContext(SessionContext);
+  if (!session) throw new Error("useSession must be inside <TrellisApp>, once it is running");
+  return session;
+}
+
 const HEALTH_EVENTS = ["health"] as const;
 const readHealth = (engine: Engine): Health => engine.health();
 

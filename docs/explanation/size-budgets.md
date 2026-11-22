@@ -7,7 +7,7 @@ The build fails if the app's files are too big. This page explains the two limit
 | File | Budget | Why |
 |---|---|---|
 | The page people open, `<id>.html` | Under 50,000 bytes | It is the one file that cannot update itself. A small file has less to get wrong. |
-| The app file, `<id>-<version>.js` | Under 500,000 bytes | Every version is copied through the shared folder to every computer, and is kept there. |
+| The app file, `<id>-<version>.js` | Under 1,100,000 bytes | Every version is copied through the shared folder to every computer, and is kept there. |
 
 Sizes are of the files as written, before any compression. A file at exactly its limit fails.
 
@@ -15,11 +15,13 @@ Sizes are of the files as written, before any compression. A file at exactly its
 
 ```text
 Size budgets (uncompressed, must be under the limit):
-  bootstrap 9,548 bytes of 50,000, 40,452 bytes headroom
-  bundle    466,442 bytes of 500,000, 33,558 bytes headroom
+  bootstrap 9,539 bytes of 50,000, 40,461 bytes headroom
+  bundle    773,823 bytes of 1,100,000, 326,177 bytes headroom
 ```
 
-The second line is the whole example app: the framework, React, the sync library, and one screen. Your screens and whatever they import share what is left.
+The second line is the framework, React, the sync library and the diary calendar. Your screens and whatever they import share what is left.
+
+The app budget was 500,000 bytes until the diary calendar was added. FullCalendar 7 and the Temporal polyfill it needs cost about 287,000 bytes, so the budget went up to 1,100,000, which leaves about 300,000 bytes for the rest of the app. The calendar loads only FullCalendar's time-grid views, not its interaction, list or multi-month plugins.
 
 ## Why the app is one file
 
@@ -32,13 +34,13 @@ It also means there is no code splitting and no lazy loading. Everything the app
 The message names the file and the excess. This run had its limit lowered to show it:
 
 ```text
-  bundle    466,442 bytes of 454,142, OVER BUDGET by 12,300 bytes
+  bundle    773,823 bytes of 761,523, OVER BUDGET by 12,300 bytes
 Size budget check failed.
 ```
 
 Things to try, in order:
 
-1. **Look at what you added last.** A date library, an icon set or a chart library can cost more than every screen you have written.
+1. **Look at what you added last.** A date library, an icon set, a chart library or a calendar can cost more than every screen you have written.
 2. **Import the part, not the package.** Many packages are only small if you import a single function from them.
 3. **Use what the framework already ships.** `Button` and `Badge` are exported, and the stylesheet is already in the app file.
 

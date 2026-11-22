@@ -4,12 +4,16 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { StrictMode } from "react";
-import { TrellisApp } from "../app-shell";
+import * as Y from "yjs";
+import { TrellisApp, type TrellisAppProps } from "../app-shell";
+import { ConflictPrompt, HealthIndicator, useSession } from "../index";
 import { defaultStrings as s } from "../strings";
 import { KeyFileError } from "../../identity/keyfile.js";
 import { DEVICE, FOLDER, fakeServices, folderHandle, passportHandle, PASSPORT_FILE, USER, type Fakes } from "./helpers/fake-services";
 import type { AppDefinition } from "../../definition";
 import { useCommand, useConflicts, useRecords } from "../../../react/hooks";
+import { createData } from "../../../data/runtime";
+import { fakeEngine } from "./helpers/fake-engine";
 
 const config: AppDefinition = { id: "test-app", name: "Test App", tables: {} };
 const lapsed = { status: "needs-permission", handle: folderHandle } as const;
@@ -21,9 +25,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function show(fakes: Fakes, children = <p>the app's screen</p>) {
+type LayoutProps = Pick<TrellisAppProps, "width" | "chrome">;
+
+function show(fakes: Fakes, children = <p>the app's screen</p>, layout: LayoutProps = {}) {
   render(
-    <TrellisApp config={config} services={fakes.services}>
+    <TrellisApp config={config} services={fakes.services} {...layout}>
       {children}
     </TrellisApp>,
   );
@@ -32,6 +38,8 @@ function show(fakes: Fakes, children = <p>the app's screen</p>) {
 
 const screenShown = () => screen.findByText("the app's screen");
 const button = (name: string | RegExp) => screen.findByRole("button", { name });
+const page = () => screen.getByRole("main", { name: config.name });
+const NARROW = "mx-auto flex max-w-3xl flex-col gap-4 p-6";
 
 async function unlockWith(passphrase: string) {
   fireEvent.change(await screen.findByLabelText(s.passphraseFor(PASSPORT_FILE)), { target: { value: passphrase } });
@@ -187,8 +195,8 @@ describe("already open", () => {
 });
 
 describe("running", () => {
-  async function running(overrides = {}) {
-    const fakes = show(fakeServices({ loadPassport: async () => remembered, ...overrides }));
+  async function running(overrides = {}, layout: LayoutProps = {}) {
+    const fakes = show(fakeServices({ loadPassport: async () => remembered, ...overrides }), undefined, layout);
     await unlockWith("my own passphrase");
     await screenShown();
     return { ...fakes, engine: fakes.engines[0]! };
@@ -235,6 +243,105 @@ describe("running", () => {
     await waitFor(() => expect(calls.filter((name) => name === "startHost")).toHaveLength(2));
     expect(calls).toContain("stop");
     await screenShown();
+  });
+
+  test("narrow by default: the page keeps its width cap while running", async () => {
+    await running();
+    expect(page().classList).toContain("max-w-3xl");
+    expect(page().classList).not.toContain("max-w-none");
+  });
+
+  test('width "wide": no width cap once the app is running', async () => {
+    await running({}, { width: "wide" });
+    expect(page().classList).toContain("max-w-none");
+    expect(page().classList).not.toContain("max-w-3xl");
+  });
+});
+
+describe("width and chrome on the first-run screens", () => {
+  for (const layout of [{ width: "wide" }, { chrome: "app" }, { chrome: "app", width: "wide" }] as LayoutProps[]) {
+    test(`${JSON.stringify(layout)}: the choose-folder and unlock screens stay as they were`, async () => {
+      show(fakeServices({ loadFolder: async () => ({ status: "none" }) }), undefined, layout);
+      await button(s.chooseFolder);
+      expect(page().className).toBe(NARROW);
+      expect(screen.getByText(s.version(__APP_VERSION__, __BUILT_AT__))).toBeTruthy();
+      cleanup();
+      show(fakeServices({ loadPassport: async () => remembered }), undefined, layout);
+      await screen.findByLabelText(s.passphraseFor(PASSPORT_FILE));
+      expect(page().className).toBe(NARROW);
+    });
+  }
+});
+
+describe('chrome "app"', () => {
+  function Who() {
+    const session = useSession();
+    return (
+      <>
+        <p>{`${session.user.id} ${session.user.name} ${session.deviceId} ${session.folder} ${session.version} ${session.builtAt}`}</p>
+        <button onClick={session.openInvite}>app invite</button>
+      </>
+    );
+  }
+
+  async function appChrome(children = <p>the app's screen</p>, overrides = {}, layout: LayoutProps = {}) {
+    const fakes = show(fakeServices({ loadPassport: async () => remembered, ...overrides }), children, { chrome: "app", ...layout });
+    await unlockWith("my own passphrase");
+    await screenShown();
+    return { ...fakes, engine: fakes.engines[0]! };
+  }
+
+  test("while running the shell shows no indicator, invite button, who and where, or version, and no page padding", async () => {
+    await appChrome(undefined, {}, { width: "wide" });
+    expect(screen.queryByRole("button", { name: s.health.saved.label })).toBeNull();
+    expect(screen.queryByRole("button", { name: s.newInvite })).toBeNull();
+    expect(screen.queryByText(s.signedIn(USER, DEVICE, FOLDER))).toBeNull();
+    expect(screen.queryByText(s.version(__APP_VERSION__, __BUILT_AT__))).toBeNull();
+    for (const name of ["max-w-3xl", "max-w-none", "p-6", "gap-4", "mx-auto"]) expect(page().classList).not.toContain(name);
+  });
+
+  test("the reconnect banner still shows, above the app's screens", async () => {
+    const { engine } = await appChrome(undefined, { folderPermission: async () => "prompt" });
+    act(() => engine.setHealth({ state: "folder-disconnected" }));
+    const banner = await screen.findByRole("region", { name: s.reconnectTitle });
+    const screenText = screen.getByText("the app's screen");
+    expect(banner.compareDocumentPosition(screenText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  test("the update notice still shows", async () => {
+    const onUpdate = (listener: (result: { status: "updated"; version: string }) => void) => (listener({ status: "updated", version: "9.9.9" }), () => undefined);
+    await appChrome(undefined, { loader: () => ({ checkForUpdate: async () => ({ status: "current", version: "1" }), onUpdate }) as never });
+    expect(screen.getByText(s.updateReady("9.9.9"))).toBeTruthy();
+  });
+
+  test("the app places the health indicator itself, and it follows the engine", async () => {
+    const { engine } = await appChrome(
+      <header>
+        <HealthIndicator />
+        <p>the app's screen</p>
+      </header>,
+    );
+    expect(within(screen.getByRole("banner")).getByRole("button", { name: s.health.saved.label })).toBeTruthy();
+    act(() => engine.setHealth({ state: "offline" }));
+    expect(await within(screen.getByRole("banner")).findByRole("button", { name: s.health.offline.label })).toBeTruthy();
+  });
+
+  test("useSession gives who, which device and which folder; openInvite shows the invite form", async () => {
+    await appChrome(
+      <>
+        <Who />
+        <p>the app's screen</p>
+      </>,
+    );
+    expect(screen.getByText(`sam ${USER} ${DEVICE} ${FOLDER} ${__APP_VERSION__} ${__BUILT_AT__}`)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "app invite" }));
+    expect(screen.getByLabelText(s.inviteFile)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: s.cancel }));
+    expect(screen.queryByLabelText(s.inviteFile)).toBeNull();
+  });
+
+  test("useSession outside a running <TrellisApp> says so", () => {
+    expect(() => render(<Who />)).toThrow(/useSession/);
   });
 });
 
@@ -343,5 +450,45 @@ describe("data", () => {
     expect(screen.getByText("0 conflicts")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "add" }));
     expect(await screen.findByText("first")).toBeTruthy();
+  });
+
+  test('chrome "app": a conflict shows the prompt the app placed, and only that one', async () => {
+    const asked: AppDefinition = { ...withTable, tables: { items: { version: 1, fields: { label: "ask" } } } };
+    const write = { table: items, id: "i1" };
+    function Edit() {
+      const create = useCommand("records.create");
+      const update = useCommand("records.update");
+      return (
+        <>
+          <ConflictPrompt />
+          <p>the app's screen</p>
+          <button onClick={() => create({ ...write, fields: { label: "start" } })}>create</button>
+          <button onClick={() => update({ ...write, fields: { label: "mine" } })}>edit</button>
+        </>
+      );
+    }
+    const fakes = fakeServices({ loadPassport: async () => remembered });
+    render(
+      <TrellisApp config={asked} services={fakes.services} chrome="app">
+        <Edit />
+      </TrellisApp>,
+    );
+    await unlockWith("my own passphrase");
+    await screenShown();
+    const mine = fakes.engines[0]!;
+    const theirs = fakeEngine();
+    const other = createData({ engine: theirs, config: asked, deviceId: "d2", user: "jo", clock: { now: () => 1 }, random: { bytes: (n: number) => new Uint8Array(n).fill(7) } });
+    // The fake engine keeps a Yjs document per table; swapping their states is what syncing does.
+    const [a, b] = [mine, theirs].map((engine) => engine.table("items") as Y.Doc);
+    const exchange = () => {
+      Y.applyUpdate(b!, Y.encodeStateAsUpdate(a!));
+      Y.applyUpdate(a!, Y.encodeStateAsUpdate(b!));
+    };
+    fireEvent.click(screen.getByRole("button", { name: "create" }));
+    act(exchange);
+    fireEvent.click(screen.getByRole("button", { name: "edit" }));
+    other.run("records.update", { ...write, fields: { label: "theirs" } });
+    act(exchange);
+    expect(await screen.findAllByRole("button", { name: s.needsDecision(1) })).toHaveLength(1);
   });
 });

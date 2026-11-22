@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* FullCalendar's structural CSS. Imported here, not from event-calendar-views.tsx as
+   shipped: the bundle takes its styles only from this file (?inline), and a CSS
+   import in a component would be split off into a file nothing loads. */
+@import "@fullcalendar/react/skeleton.css";
 @source ".";
 @source "../../framework/runtime/shell";
 @source not "../../framework/runtime/shell/test";

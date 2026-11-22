@@ -34,11 +34,14 @@ function TrellisApp(props: TrellisAppProps): JSX.Element
 
 - `config`: the default export of `app/app.config.ts`.
 - `strings`: optional. Rewords any of the shell's text. See [`ShellStringOverrides`](#shellstringoverrides).
+- `width`: optional. `"narrow"` (the default) keeps the page at a readable width. `"wide"` lets your screens use the whole page once sync has started. The screens before that stay narrow.
+- `chrome`: optional. `"shell"` (the default) shows the shell's pieces around your screens. `"app"` hands you the whole page once sync has started: no padding, no width cap, and no sync status, conflict prompt, new-invite button, signed-in line or version line. Place [`HealthIndicator`](#healthindicator) and [`ConflictPrompt`](#conflictprompt) where you want them, and read who is signed in with [`useSession`](#usesession). The reconnect banner still shows above your screens, and the update notice still shows. The screens before sync has started are unchanged. `width` is ignored.
 - `children`: your screens. They render once sync has started, so every hook on this page works inside them.
 
 **Caveats**
 
-- An app can reword and restyle the shell. It cannot replace it or change its order.
+- An app can reword and restyle the shell, choose its width, and, with `chrome="app"`, lay out the running page itself. It cannot replace the screens before sync has started or change their order.
+- With `chrome="app"`, the sync status and the conflict prompt show only if you place them. Keep both on every screen.
 - Render one `<TrellisApp>` per page.
 
 ```tsx
@@ -64,8 +67,87 @@ The props of `TrellisApp`.
 interface TrellisAppProps {
   config: AppDefinition;
   strings?: ShellStringOverrides;
+  width?: "narrow" | "wide";
+  chrome?: "shell" | "app";
   children?: ReactNode;
   services?: ShellServices; // for tests: stand-ins for the shell's side effects
+}
+```
+
+### `HealthIndicator`
+
+The sync status: a badge, one plain sentence, and a menu that opens the diagnostics view. The shell shows it for you. Place it yourself only with `chrome="app"`, anywhere inside `<TrellisApp>`.
+
+```ts signature
+function HealthIndicator(): JSX.Element
+```
+
+```tsx
+// app/src/main.tsx
+import { ConflictPrompt, HealthIndicator, mount, TrellisApp } from "@trellis/framework";
+import config from "../app.config";
+import css from "./index.css?inline";
+import { ItemsScreen } from "./items-screen";
+
+export const start = mount(
+  <TrellisApp config={config} chrome="app">
+    <header className="flex items-center gap-4 border-b p-3">
+      <HealthIndicator />
+      <ConflictPrompt />
+    </header>
+    <ItemsScreen />
+  </TrellisApp>,
+  css,
+);
+```
+
+### `ConflictPrompt`
+
+The count of fields that need a decision, which opens the list of them. It shows nothing while there are none. The shell shows it for you. Place it yourself only with `chrome="app"`, anywhere inside `<TrellisApp>`.
+
+```ts signature
+function ConflictPrompt(): JSX.Element | null
+```
+
+### `useSession`
+
+Returns who is signed in, on which device and folder, and the app's version, for an app that lays out its own page with `chrome="app"`.
+
+```ts signature
+function useSession(): TrellisSession
+```
+
+**Returns** a [`TrellisSession`](#trellissession).
+
+**Caveats**
+
+- Call it only inside the children of `TrellisApp`. It throws anywhere else.
+
+```tsx
+import { useSession } from "@trellis/framework";
+
+export function SignedIn() {
+  const { user, folder, openInvite } = useSession();
+  return (
+    <p>
+      {user.name}, folder "{folder}" <button onClick={openInvite}>Open a new invite</button>
+    </p>
+  );
+}
+```
+
+### `TrellisSession`
+
+What [`useSession`](#usesession) returns.
+
+```ts signature
+interface TrellisSession {
+  user: { id: string; name: string };
+  deviceId: string;
+  folder: string; // the shared folder's name
+  version: string;
+  builtAt: string;
+  openInvite: () => void; // shows the shell's invite form above your screens
 }
 ```
 

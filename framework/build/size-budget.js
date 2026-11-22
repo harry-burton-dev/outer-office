@@ -13,7 +13,11 @@ import { parseArgs } from "node:util";
 import { appNames } from "../runtime/names.ts";
 import definition from "./app-definition.js";
 
-export const BUDGETS = { bootstrap: 50_000, bundle: 500_000 };
+// The bundle budget was 500,000 until the diary calendar. FullCalendar 7 (forma
+// flavour, time grid only) and temporal-polyfill added about 287,000 bytes,
+// taking the bundle to 773,823. Raised with Harry's agreement to 1,100,000,
+// which leaves about 326,000 bytes for the rest of the app.
+export const BUDGETS = { bootstrap: 50_000, bundle: 1_100_000 };
 
 /** Size, limit and headroom of each build output. `dist` is laid out as the build writes it. */
 export function checkBudgets({ dist, version, limits = BUDGETS }) {
