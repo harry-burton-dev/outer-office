@@ -23,15 +23,15 @@ test("diary data leaves out gone events, other principals and events without tim
   expect(data.faces.get("e1")).toEqual({ title: "Meeting", marks: [], tags: [], ownTags: "", categories: "" });
 });
 
-test("an event is coloured by its first tag, from its own tags or its Outlook categories", () => {
+test("an event is coloured by its primary tag: its first own tag leads its Outlook category tags", () => {
   const tags = [
     { id: "t1", _deleted: false, _conflicts: {}, name: "Board", colour: "#4ade80", order: 0 },
     { id: "t2", _deleted: false, _conflicts: {}, name: "Urgent", colour: "#f87171", order: 1 },
   ] as Parameters<typeof diaryData>[3];
   const overlays = [{ id: "o1", _deleted: false, _conflicts: {}, event: "e1", tags: "t2" }] as Parameters<typeof diaryData>[1];
   const data = diaryData([event({ categories: "board" }), event({ id: "e2" })], overlays, "p1", tags);
-  expect(data.faces.get("e1")?.tags.map((t) => t.name)).toEqual(["Board", "Urgent"]);
-  expect(data.events.map((e) => e.colour)).toEqual(["#4ade80", undefined]);
+  expect(data.faces.get("e1")?.tags.map((t) => t.name)).toEqual(["Urgent", "Board"]);
+  expect(data.events.map((e) => e.colour)).toEqual(["#f87171", undefined]);
 });
 
 test("the latest import is the principal's newest", () => {

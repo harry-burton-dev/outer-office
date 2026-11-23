@@ -40,6 +40,8 @@ export interface DiaryCalendarProps {
   onViewChange: (view: DiaryView) => void;
   /** Custom content inside an event; the default is FullCalendar's time and title. */
   renderEvent?: (event: DiaryEvent) => ReactNode;
+  /** Extra toolbar controls, shown before the day and week tabs. */
+  toolbarExtra?: ReactNode;
 }
 
 const VIEW_TYPES: Record<DiaryView, string> = { day: "timeGridDay", week: "timeGridWeek" };
@@ -81,7 +83,7 @@ function shows(info: { currentStart: Date; currentEnd: Date }, date: string, tim
   return date >= first && date < end;
 }
 
-export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent }: DiaryCalendarProps) {
+export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra }: DiaryCalendarProps) {
   const controller = useCalendarController();
   const byId = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
   const inputs = useMemo<EventInput[]>(() => events.map((event) => toInput(event, timeZone)), [events, timeZone]);
@@ -115,7 +117,9 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="">
-      <EventCalendarToolbar className="border-b p-3" controller={controller} availableViews={AVAILABLE_VIEWS} />
+      <EventCalendarToolbar className="border-b p-3" controller={controller} availableViews={AVAILABLE_VIEWS}>
+        {toolbarExtra}
+      </EventCalendarToolbar>
       <div className="min-h-0 grow">
         <EventCalendarViews
           controller={controller}

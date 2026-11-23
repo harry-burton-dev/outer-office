@@ -35,6 +35,33 @@ await tab.waitForTimeout(500);
 const scroll = await tab.evaluate(() => [...document.querySelectorAll("*")].filter((e) => e.scrollHeight > e.clientHeight + 1 && ["auto", "scroll"].includes(getComputedStyle(e).overflowY)).map((e) => e.className.toString().slice(0, 60)));
 process.stdout.write(`scrolling containers: ${JSON.stringify(scroll)}\n`);
 await tab.screenshot({ path: process.env.OUT ?? here("./diary.png") });
+if (process.env.PROBE_RIGHT_CLICK) {
+  // Right-click each meeting near its bottom-right corner, away from the text, and count the menus that open.
+  const blocks = await tab.locator("[data-event-face]").evaluateAll((faces) => faces.map((f) => { let e = f; for (let i = 0; i < 6 && e.parentElement; i++) { e = e.parentElement; if (["A","BUTTON"].includes(e.tagName) || e.getAttribute("role") === "button") break; } e.setAttribute("data-probe", ""); return e.tagName + "." + e.className.toString().slice(0, 80); }));
+  process.stdout.write(`event element: ${blocks[0]}\n`);
+  const blocks2 = await tab.locator("[data-probe]").all();
+  let opened = 0;
+  for (const block of blocks2) {
+    const box = await block.boundingBox();
+    if (!box) continue;
+    await tab.mouse.click(box.x + box.width - 3, box.y + box.height - 3, { button: "right" });
+    if (await tab.locator("[data-slot=context-menu-content]").count()) opened += 1;
+    await tab.keyboard.press("Escape");
+    await tab.waitForTimeout(50);
+  }
+  process.stdout.write(`right-click opened a menu on ${opened} of ${blocks2.length} meetings\n`);
+}
+if (process.env.LENS) {
+  // LENS="Place/Location": open the lens menu, pick the tab and the lens, and save the menu and the diary.
+  const [category, name] = process.env.LENS.split("/");
+  await tab.getByRole("button", { name: "Lens" }).click();
+  await tab.getByRole("tab", { name: category }).click();
+  await tab.screenshot({ path: process.env.OUT_MENU ?? here("./diary-lens-menu.png") });
+  await tab.getByRole("menuitemradio", { name: new RegExp(`^${name}`) }).click();
+  await tab.keyboard.press("Escape");
+  await tab.waitForTimeout(200);
+  await tab.screenshot({ path: process.env.OUT_LENS ?? here("./diary-lens.png") });
+}
 if (process.env.RIGHT_CLICK) {
   await tab.getByText(process.env.RIGHT_CLICK).first().click({ button: "right" });
   await tab.waitForTimeout(400);

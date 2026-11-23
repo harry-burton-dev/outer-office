@@ -1,7 +1,8 @@
 // Tags: the office's own labels with a colour, shared by tasks and events.
 // An event carries the tags set on its overlay, plus any tag whose name
 // matches one of its Outlook categories, so categories set in Outlook show
-// up without anyone tagging by hand.
+// up without anyone tagging by hand. The first of the overlay's (or task's)
+// own tags is the primary one: it comes first and gives the colour.
 import type { RowOf } from "@trellis/framework";
 
 export type Tag = RowOf<"tags">;
@@ -30,18 +31,29 @@ export const sortedTags = (tags: readonly Tag[]): Tag[] =>
 
 const key = (name: string): string => name.trim().toLowerCase();
 
-/** The tags on an event: its own, then those named by its Outlook categories, in tag order, without repeats. */
+/** `list` with the tag `primary` moved to the front, when it is there. */
+const primaryFirst = (list: Tag[], primary: string | undefined): Tag[] => {
+  const lead = list.find((t) => t.id === primary);
+  return lead ? [lead, ...list.filter((t) => t !== lead)] : list;
+};
+
+/** The tags on an event: its own and those named by its Outlook categories, the primary first, then in tag order, without repeats. */
 export function eventTags(categories: string | undefined, own: string | undefined, tags: readonly Tag[]): Tag[] {
-  const ownIds = new Set(tagIdsOf(own));
+  const ownIds = tagIdsOf(own);
   const named = new Set((categories ?? "").split(",").map(key).filter(Boolean));
-  return sortedTags(tags).filter((t) => ownIds.has(t.id) || named.has(key(t.name ?? "")));
+  const ids = new Set(ownIds);
+  return primaryFirst(sortedTags(tags).filter((t) => ids.has(t.id) || named.has(key(t.name ?? ""))), ownIds[0]);
 }
 
-/** The tags on a task, in tag order. */
+/** The tags on a task: the primary first, then in tag order. */
 export function taskTags(own: string | undefined, tags: readonly Tag[]): Tag[] {
-  const ids = new Set(tagIdsOf(own));
-  return sortedTags(tags).filter((t) => ids.has(t.id));
+  const ownIds = tagIdsOf(own);
+  const ids = new Set(ownIds);
+  return primaryFirst(sortedTags(tags).filter((t) => ids.has(t.id)), ownIds[0]);
 }
+
+/** Own tag ids with `primary` first. A tag carried only through a category joins the own tags, so it can lead. */
+export const makePrimary = (own: string | undefined, primary: string): string[] => [primary, ...tagIdsOf(own).filter((id) => id !== primary)];
 
 /** True when the event has this tag only through an Outlook category, so it can't be taken off here. */
 export const fromCategory = (tag: Tag, categories: string | undefined): boolean =>

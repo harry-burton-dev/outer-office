@@ -5,6 +5,7 @@ import type { DiaryEvent } from "@/calendar/diary-calendar";
 import { addDays, weekdayOf } from "@/domain/dates";
 import { eventsForPrincipal, type Event, type Overlay } from "@/domain/selectors";
 import { eventTags, type Tag } from "@/domain/tags";
+import { LENS_COLOUR, lensFill, type Lens } from "@/domain/lenses";
 
 const SATURDAY = 6;
 const SUNDAY = 0;
@@ -34,6 +35,10 @@ export interface EventFace {
   /** Its own tag ids and Outlook categories, for the right-click menu. */
   ownTags: string;
   categories: string;
+  /** With a lens on: what it says in place of the title, if anything. */
+  lensText?: string;
+  /** With a lens on: the fill laid over the event, its strength as colour. */
+  lensFill?: string;
 }
 
 /** Up to two marks, in the order prep needed, flagged, moved. A masked event has none. */
@@ -54,17 +59,34 @@ export interface DiaryData {
 const hasTimes = (event: Event): event is Event & { start: string; end: string } =>
   typeof event.start === "string" && event.start !== "" && typeof event.end === "string" && event.end !== "";
 
+/** With a lens on, it decides each event's colour and may swap its text. */
+export interface LensOn {
+  lens: Lens;
+  now: Date;
+}
+
 /** The principal's non-gone events for the diary, and each one's face. */
-export function diaryData(events: readonly Event[], overlays: readonly Overlay[], principal: string, tags: readonly Tag[] = []): DiaryData {
+export function diaryData(events: readonly Event[], overlays: readonly Overlay[], principal: string, tags: readonly Tag[] = [], lensOn?: LensOn): DiaryData {
   const overlayOf = new Map(overlays.filter((o) => !o._deleted).map((o) => [o.event ?? "", o]));
   const shown = eventsForPrincipal(events, principal).filter(hasTimes);
   const faces = new Map(shown.map((e) => {
     const overlay = overlayOf.get(e.id);
     const own = e.masked === true ? [] : eventTags(e.categories, overlay?.tags, tags);
-    return [e.id, { title: titleOf(e), marks: marksFor(e, overlay), tags: own, ownTags: overlay?.tags ?? "", categories: e.categories ?? "" }];
+    const face: EventFace = { title: titleOf(e), marks: marksFor(e, overlay), tags: own, ownTags: overlay?.tags ?? "", categories: e.categories ?? "" };
+    return [e.id, face];
   }));
+  const colours = new Map(shown.map((e) => [e.id, faces.get(e.id)?.tags[0]?.colour]));
+  if (lensOn) {
+    for (const e of shown) {
+      // A masked event tells the lens nothing, so it stays faint.
+      const reading = e.masked === true ? { strength: 0 } : lensOn.lens.read(e, overlayOf.get(e.id), lensOn.now);
+      colours.set(e.id, LENS_COLOUR);
+      const face = faces.get(e.id);
+      if (face) faces.set(e.id, { ...face, lensText: reading.text, lensFill: lensFill(reading.strength) });
+    }
+  }
   return {
-    events: shown.map((e) => ({ id: e.id, title: titleOf(e), start: e.start, end: e.end, allDay: e.allDay === true, colour: faces.get(e.id)?.tags[0]?.colour })),
+    events: shown.map((e) => ({ id: e.id, title: titleOf(e), start: e.start, end: e.end, allDay: e.allDay === true, colour: colours.get(e.id) })),
     faces,
   };
 }

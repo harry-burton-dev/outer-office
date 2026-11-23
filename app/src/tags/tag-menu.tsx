@@ -1,12 +1,13 @@
 // The right-click menu on an event or a task: tick tags on and off, and open it.
 // Tags an event carries through its Outlook categories show ticked and can't be
-// taken off here; change the category in Outlook instead.
+// taken off here; change the category in Outlook instead. With two or more
+// tags on, "Primary colour" picks the one that colours it.
 import type { ReactElement } from "react";
 import { useCommand, useRecords } from "@trellis/framework";
-import { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuRadioGroup, ContextMenuRadioItem, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useApp } from "@/app/app-state";
 import { commands } from "@/domain/commands";
-import { fromCategory, sortedTags, tagIdsOf } from "@/domain/tags";
+import { eventTags, fromCategory, makePrimary, sortedTags, tagIdsOf, taskTags } from "@/domain/tags";
 import { TagDot } from "./tag-dot";
 
 export interface TagMenuProps {
@@ -23,7 +24,9 @@ export interface TagMenuProps {
 
 export function TagMenu({ target, id, own, categories, onOpen, children }: TagMenuProps) {
   const { now, isViewer, go } = useApp();
-  const tags = sortedTags(useRecords("tags"));
+  const allTags = useRecords("tags");
+  const tags = sortedTags(allTags);
+  const carried = target === "event" ? eventTags(categories, own, allTags) : taskTags(own, allTags);
   const run = useCommand(commands.tagsSet);
   const ownIds = tagIdsOf(own);
   const toggle = (tagId: string, on: boolean) =>
@@ -53,6 +56,20 @@ export function TagMenu({ target, id, own, categories, onOpen, children }: TagMe
                 </ContextMenuCheckboxItem>
               );
             })}
+            {carried.length > 1 && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuLabel>Primary colour</ContextMenuLabel>
+                <ContextMenuRadioGroup value={carried[0]?.id} onValueChange={(tagId: string) => run({ now, target, id, tags: makePrimary(own, tagId) })}>
+                  {carried.map((tag) => (
+                    <ContextMenuRadioItem key={tag.id} value={tag.id} closeOnClick>
+                      <TagDot colour={tag.colour} />
+                      <span>{tag.name}</span>
+                    </ContextMenuRadioItem>
+                  ))}
+                </ContextMenuRadioGroup>
+              </>
+            )}
           </>
         )}
       </ContextMenuContent>

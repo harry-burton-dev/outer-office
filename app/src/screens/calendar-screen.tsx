@@ -13,6 +13,8 @@ import { formatDay, formatTime } from "@/domain/dates";
 import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, hasAnyEvent, latestImport, openingDate } from "./calendar/calendar-data";
 import { EventFaceView } from "./calendar/event-face";
 import { TagMenu } from "@/tags/tag-menu";
+import { LensMenu } from "./calendar/lens-menu";
+import { lensById } from "@/domain/lenses";
 
 const TITLE = "Calendar";
 
@@ -31,14 +33,18 @@ interface DiaryProps {
 }
 
 function Diary({ principalId }: DiaryProps) {
-  const { timezone, today, openPanel } = useApp();
+  const { timezone, today, now, openPanel } = useApp();
   const office = useOffice();
   const events = useRecords("events");
   const overlays = useRecords("overlays");
   const tags = useRecords("tags");
   const [view, setView] = useState<DiaryView>("week");
   const [date, setDate] = useState(() => openingDate(today));
-  const data = useMemo(() => diaryData(events, overlays, principalId, tags), [events, overlays, principalId, tags]);
+  const [lensId, setLensId] = useState<string | null>(null);
+  const data = useMemo(() => {
+    const lens = lensById(lensId);
+    return diaryData(events, overlays, principalId, tags, lens ? { lens, now: new Date(now) } : undefined);
+  }, [events, overlays, principalId, tags, lensId, now]);
   const renderEvent = (event: DiaryEvent) => {
     const face = data.faces.get(event.id);
     if (!face) return undefined;
@@ -46,7 +52,11 @@ function Diary({ principalId }: DiaryProps) {
     return (
       <TagMenu target="event" id={event.id} own={face.ownTags} categories={face.categories} onOpen={open}>
         <div className="min-w-0">
-          <EventFaceView face={face} />
+          {/* Spreads the right-click target over the whole meeting, not just its text, and carries a lens's fill. */}
+          <span aria-hidden className="absolute inset-0" style={face.lensFill ? { background: face.lensFill } : undefined} />
+          <div className="relative min-w-0">
+            <EventFaceView face={face} />
+          </div>
         </div>
       </TagMenu>
     );
@@ -63,6 +73,7 @@ function Diary({ principalId }: DiaryProps) {
       onNavigate={setDate}
       onViewChange={setView}
       renderEvent={renderEvent}
+      toolbarExtra={<LensMenu value={lensId} onChange={setLensId} />}
     />
   );
 }

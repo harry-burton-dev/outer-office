@@ -1,3 +1,4 @@
+import type * as React from 'react'
 import { CalendarController } from '@fullcalendar/react'
 import { EventCalendarNextIcon, EventCalendarPrevIcon } from '@/components/event-calendar-icons'
 import { Button } from '@/components/ui/button'
@@ -8,6 +9,8 @@ export interface EventCalendarToolbarProps {
   className?: string
   controller: CalendarController
   availableViews: string[]
+  /** Extra controls, shown just before the view tabs. */
+  children?: React.ReactNode
   addButton?: {
     isPrimary?: boolean
     text?: string
@@ -20,6 +23,7 @@ export function EventCalendarToolbar({
   className,
   controller,
   availableViews,
+  children,
   addButton,
 }: EventCalendarToolbarProps) {
   const buttons = controller.getButtonState()
@@ -60,6 +64,8 @@ export function EventCalendarToolbar({
         </div>
         <div className="text-xl">{controller.view?.title}</div>
       </div>
+      <div className="flex items-center gap-3">
+      {children}
       <Tabs value={controller.view?.type ?? availableViews[0]}>
         <TabsList>
           {availableViews.map((availableView) => (
@@ -72,6 +78,7 @@ export function EventCalendarToolbar({
           ))}
         </TabsList>
       </Tabs>
+      </div>
     </div>
   )
 }

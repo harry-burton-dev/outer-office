@@ -11,7 +11,7 @@ export function EventFaceView({ face }: EventFaceViewProps) {
     <div className="flex min-w-0 flex-col gap-1 overflow-hidden" data-event-face="">
       <span className="flex min-w-0 items-center gap-1">
         {face.tags.slice(1).map((tag) => <TagDot key={tag.id} colour={tag.colour} />)}
-        <span className="truncate">{face.title}</span>
+        <span className="truncate">{face.lensText ?? face.title}</span>
       </span>
       {face.marks.length > 0 && (
         <span className="flex flex-wrap gap-1">

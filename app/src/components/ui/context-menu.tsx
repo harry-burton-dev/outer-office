@@ -45,6 +45,23 @@ function ContextMenuCheckboxItem({ className, children, ...props }: ContextMenuP
   )
 }
 
+function ContextMenuRadioGroup({ ...props }: ContextMenuPrimitive.RadioGroup.Props) {
+  return <ContextMenuPrimitive.RadioGroup data-slot="context-menu-radio-group" {...props} />
+}
+
+function ContextMenuRadioItem({ className, children, ...props }: ContextMenuPrimitive.RadioItem.Props) {
+  return (
+    <ContextMenuPrimitive.RadioItem data-slot="context-menu-radio-item" className={cn(ITEM, "pr-8", className)} {...props}>
+      <span className="pointer-events-none absolute right-2 flex items-center justify-center">
+        <ContextMenuPrimitive.RadioItemIndicator>
+          <CheckIcon />
+        </ContextMenuPrimitive.RadioItemIndicator>
+      </span>
+      {children}
+    </ContextMenuPrimitive.RadioItem>
+  )
+}
+
 function ContextMenuLabel({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="context-menu-label" className={cn("px-1.5 py-1 text-xs font-medium text-muted-foreground", className)} {...props} />
 }
@@ -53,4 +70,4 @@ function ContextMenuSeparator({ className, ...props }: ContextMenuPrimitive.Sepa
   return <ContextMenuPrimitive.Separator data-slot="context-menu-separator" className={cn("-mx-1 my-1 h-px bg-border", className)} {...props} />
 }
 
-export { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuCheckboxItem, ContextMenuLabel, ContextMenuSeparator }
+export { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuCheckboxItem, ContextMenuRadioGroup, ContextMenuRadioItem, ContextMenuLabel, ContextMenuSeparator }
