@@ -93,11 +93,14 @@ describe("proposed new meetings and archiving", () => {
 
   test("archiving moves a meeting to the graveyard, and it can come back", async () => {
     const { a, principal, event } = await setUp();
-    ok(a, overlaySet, { now: NOW, event, archived: true });
+    ok(a, overlaySet, { now: NOW, event, archived: true, archiveReason: "cancelled" });
     const at = (layer: "live" | "graveyard") => diaryData(rows(a, "events"), rows(a, "overlays"), principal, [], undefined, { layer, proposals: [] });
     expect(at("live").events).toEqual([]);
-    expect(at("graveyard").faces.get(event)).toMatchObject({ archived: true, marks: ["Archived"] });
+    expect(at("graveyard").faces.get(event)).toMatchObject({ archived: true, marks: ["Archived: Cancelled"] });
+    expect(rows(a, "log").find((l) => l.kind === "archived")?.note).toBe("Reason: Cancelled");
+    expect(fails(a, overlaySet, { now: NOW, event, archived: true, archiveReason: "bored" })).toContain("Choose why");
     ok(a, overlaySet, { now: NOW, event, archived: false });
+    expect(byId(a, "overlays", rows(a, "overlays")[0]!.id)?.archiveReason).toBe("");
     expect(at("live").events.map((e) => e.id)).toEqual([event]);
     expect(rows(a, "log").filter((l) => l.kind === "archived" || l.kind === "unarchived")).toHaveLength(2);
   });
