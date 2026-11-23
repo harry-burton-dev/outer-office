@@ -101,7 +101,7 @@ export function AppProvider({ children }: { children: ReactNode }): ReactElement
   );
   return (
     <AppContext.Provider value={value}>
-      <DiaryInboxProvider>{children}</DiaryInboxProvider>
+      <DiaryInboxProvider canApply={!isViewer} timeZone={timezone} now={now}>{children}</DiaryInboxProvider>
     </AppContext.Provider>
   );
 }

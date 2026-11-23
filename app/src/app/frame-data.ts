@@ -46,9 +46,9 @@ export function useNeedsAction(): NeedsAction {
 export const needsActionCount = (lists: NeedsAction): number =>
   lists.overdue.length + lists.dueToday.length + lists.prepNeeded.length + lists.goneWithData.length;
 
-/** The chosen principal's diary update from Power Automate, for people who can import; null otherwise. */
+/** The chosen principal's diary update from Power Automate that could not be applied, for people who can import; null otherwise. */
 export function useDiaryForNeedsAction(): InboxEntry | null {
   const { principalId, isViewer } = useApp();
   const entry = useDiaryEntry(principalId);
-  return isViewer ? null : entry;
+  return isViewer || !entry || entry.ok ? null : entry;
 }

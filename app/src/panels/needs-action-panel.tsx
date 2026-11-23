@@ -21,7 +21,7 @@ function Lists() {
   if (needsActionCount(lists) === 0 && !diary) return <EmptyState title="Nothing needs action" />;
   return (
     <div className="flex flex-col gap-4 overflow-y-auto px-2 pb-4">
-      {diary && <Section title="Diary"><DiaryRow entry={diary} /></Section>}
+      {diary && <Section title="Diary"><DiaryRow /></Section>}
       {lists.overdue.length > 0 && <Section title="Overdue">{lists.overdue.map((t) => <TaskRow key={t.id} task={t} overdue />)}</Section>}
       {lists.dueToday.length > 0 && <Section title="Due today">{lists.dueToday.map((t) => <TaskRow key={t.id} task={t} overdue={false} />)}</Section>}
       {lists.prepNeeded.length > 0 && <Section title="Prep needed">{lists.prepNeeded.map((e) => <EventRow key={e.id} event={e} withDay={false} />)}</Section>}

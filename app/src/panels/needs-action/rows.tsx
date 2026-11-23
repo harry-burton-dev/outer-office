@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { useApp } from "@/app/app-state";
 import { usePeople } from "@/app/people";
 import { DateText, TimeText } from "@/app/ui";
-import type { InboxEntry } from "@/automate/diary-inbox";
 import type { Event, Task } from "@/domain/selectors";
 import { titleOf } from "@/screens/calendar/calendar-data";
 
@@ -68,22 +67,13 @@ export function EventRow({ event, withDay }: EventRowProps) {
   );
 }
 
-export interface DiaryRowProps {
-  entry: InboxEntry;
-}
-
-/** The diary update from Power Automate: opens the Import screen, where it is reviewed. */
-export function DiaryRow({ entry }: DiaryRowProps) {
+/** A diary update from Power Automate that could not be applied: opens the Import screen, which says why. */
+export function DiaryRow() {
   const { go, closePanel } = useApp();
   return (
     <li>
       <button type="button" className={ROW_CLASS} onClick={() => { closePanel(); go("import"); }}>
-        <span className="min-w-0 flex-1 truncate">{entry.ok ? "Diary update ready" : "Diary update can't be used"}</span>
-        {entry.ok && (
-          <span className="shrink-0 text-xs text-muted-foreground">
-            <DateText value={entry.update.generatedAt} /> <TimeText value={entry.update.generatedAt} />
-          </span>
-        )}
+        <span className="min-w-0 flex-1 truncate">Diary update can't be used</span>
       </button>
     </li>
   );
