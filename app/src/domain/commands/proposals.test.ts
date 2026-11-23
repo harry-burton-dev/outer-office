@@ -3,7 +3,8 @@ import type { ImportDiff } from "../../import/types";
 import { diaryData } from "../../screens/calendar/calendar-data";
 import { importApply } from "./import";
 import { principalSave } from "./office";
-import { proposalMove, proposalWithdraw } from "./proposals";
+import { overlaySet } from "./overlay";
+import { proposalMove, proposalNew, proposalWithdraw } from "./proposals";
 import { byId, fails, idOf, NOW, ok, oneDevice, rows } from "./testing/world";
 
 const START = "2026-11-24T14:00:00Z";
@@ -66,5 +67,48 @@ describe("diary layers", () => {
     const graveyard = diaryData(rows(a, "events"), [], principal, [], undefined, { layer: "graveyard", proposals: [] });
     expect(graveyard.events.map((e) => e.id)).toEqual([event]);
     expect(graveyard.faces.get(event)?.marks).toEqual(["Gone from Outlook"]);
+  });
+});
+
+describe("proposed new meetings and archiving", () => {
+  test("a new meeting is proposed with its fields, and an import that finds it settles it", async () => {
+    const { a, principal } = await setUp();
+    const id = ok(a, proposalNew, { now: NOW, principal, subject: "Regulator catch-up", start: "2026-11-26T13:00:00Z", end: "2026-11-26T14:00:00Z", online: true, importance: "high" });
+    expect(byId(a, "proposals", id)).toMatchObject({ kind: "new", subject: "Regulator catch-up", online: true, importance: "high", showAs: "busy", sensitivity: "normal" });
+    expect(fails(a, proposalNew, { now: NOW, principal, subject: "", start: "2026-11-26T13:00:00Z", end: "2026-11-26T14:00:00Z" })).toMatch(/subject/i);
+    expect(fails(a, proposalNew, { now: NOW, principal, subject: "X", start: "2026-11-26T13:00:00Z", end: "2026-11-26T14:00:00Z", showAs: "away" as never })).toMatch(/Show as/);
+    const found = { ...DIFF.added[0]!, uid: "e2", subject: "regulator catch-up ", start: "2026-11-26T13:00:00Z", end: "2026-11-26T14:00:00Z" };
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: { ...DIFF, added: [found] } });
+    expect(rows(a, "proposals")).toEqual([]);
+    expect(rows(a, "log").some((l) => l.kind === "settled")).toBe(true);
+  });
+
+  test("a move settles once Outlook has the meeting at the new time", async () => {
+    const { a, principal, event } = await setUp();
+    ok(a, proposalMove, { now: NOW, event, ...LATER });
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: { ...DIFF, added: [], changed: [{ id: event, before: DIFF.added[0], after: { ...DIFF.added[0]!, ...LATER, sourceModified: "2026-11-23T10:00:00Z" } }] } as unknown as ImportDiff });
+    expect(byId(a, "events", event)).toMatchObject(LATER);
+    expect(rows(a, "proposals")).toEqual([]);
+  });
+
+  test("archiving moves a meeting to the graveyard, and it can come back", async () => {
+    const { a, principal, event } = await setUp();
+    ok(a, overlaySet, { now: NOW, event, archived: true });
+    const at = (layer: "live" | "graveyard") => diaryData(rows(a, "events"), rows(a, "overlays"), principal, [], undefined, { layer, proposals: [] });
+    expect(at("live").events).toEqual([]);
+    expect(at("graveyard").faces.get(event)).toMatchObject({ archived: true, marks: ["Archived"] });
+    ok(a, overlaySet, { now: NOW, event, archived: false });
+    expect(at("live").events.map((e) => e.id)).toEqual([event]);
+    expect(rows(a, "log").filter((l) => l.kind === "archived" || l.kind === "unarchived")).toHaveLength(2);
+  });
+
+  test("the Proposed layer veils the unchanged live diary by the slider, not the proposals", async () => {
+    const { a, principal } = await setUp();
+    ok(a, proposalNew, { now: NOW, principal, subject: "New one", start: "2026-11-26T13:00:00Z", end: "2026-11-26T14:00:00Z" });
+    const data = diaryData(rows(a, "events"), [], principal, [], undefined, { layer: "proposed", proposals: rows(a, "proposals"), liveAlpha: 0.25 });
+    const faces = [...data.faces.values()];
+    expect(faces.find((f) => f.title === "Meeting")?.veil).toBe(0.75);
+    expect(faces.find((f) => f.title === "New one")?.marks).toEqual(["New"]);
+    expect(faces.find((f) => f.title === "New one")?.veil).toBeUndefined();
   });
 });

@@ -15,6 +15,8 @@ export interface OverlaySetInput {
   prepOwner?: string;
   notes?: string;
   outcome?: string;
+  /** True archives the event (it moves to the graveyard); false brings it back. */
+  archived?: boolean;
 }
 
 export const overlayId = (tx: Tx, eventId: string): string => tx.id("overlay", eventId);
@@ -47,6 +49,7 @@ export const overlaySet = defineCommand("overlay.set", (tx: Tx, input: OverlaySe
     prepOwner: optionalText(tx, input.prepOwner, "The prep owner"),
     notes: optionalText(tx, input.notes, "The notes") === undefined ? undefined : input.notes,
     outcome: optionalText(tx, input.outcome, "The outcome") === undefined ? undefined : input.outcome,
+    archived: optionalBoolean(tx, input.archived, "Archived") === undefined ? undefined : input.archived ? now : "",
   });
   const id = overlayId(tx, eventId);
   const current = tx.get("overlays", id);
@@ -55,5 +58,9 @@ export const overlaySet = defineCommand("overlay.set", (tx: Tx, input: OverlaySe
   const after = { prep: fields.prep ?? before.prep, flagged: fields.flagged ?? before.flagged };
   tx.put("overlays", id, current ? fields : { prep: "none", flagged: false, ...fields, event: eventId });
   logChange(tx, now, event, before, after);
+  const wasArchived = Boolean(current?.archived);
+  if (input.archived !== undefined && input.archived !== wasArchived) {
+    writeLog(tx, now, { area: "overlay", kind: input.archived ? "archived" : "unarchived", principal: event.principal ?? "", event: eventId });
+  }
   return id;
 });

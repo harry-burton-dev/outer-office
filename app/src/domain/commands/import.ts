@@ -5,6 +5,7 @@
 import { defineCommand, type RowOf, type Tx } from "@trellis/framework";
 import type { ImportDiff, ImportedEvent, StoredEvent } from "../../import/types";
 import { isIsoInstant, requireNow, requireText, writeLog } from "./shared";
+import { settleProposals } from "./proposals";
 
 export interface ImportApplyInput {
   now: string;
@@ -120,7 +121,8 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
   const file = typeof input.file === "string" ? input.file : "";
   checkDiff(tx, input.diff);
   const importId = tx.newId();
-  const kinds = incomingOf(tx, principal, input.diff).map((event) => applyIncoming(tx, now, principal, importId, event));
+  const incoming = incomingOf(tx, principal, input.diff);
+  const kinds = incoming.map((event) => applyIncoming(tx, now, principal, importId, event));
   const gone = input.diff.gone.filter((event) => applyGone(tx, now, principal, importId, event)).length;
   const count = (kind: Kind) => kinds.filter((k) => k === kind).length;
   const result = { importId, added: count("added"), changed: count("changed") + count("moved"), gone, returned: count("returned") };
@@ -130,5 +132,8 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
     area: "import", kind: "applied", principal,
     note: `${file || "Import"}: ${result.added} added, ${result.changed} changed, ${gone} gone, ${result.returned} returned`,
   });
+  // Proposals Outlook now shows are done.
+  const landed = incoming.map((e) => ({ id: eventId(tx, principal, e), start: e.start, end: e.end, subject: e.subject }));
+  settleProposals(tx, now, principal, landed, new Set(input.diff.gone.map((e) => eventId(tx, principal, e))));
   return result;
 });

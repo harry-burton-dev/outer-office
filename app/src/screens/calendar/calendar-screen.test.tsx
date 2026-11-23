@@ -44,7 +44,7 @@ test("a gone event is not on the calendar", async () => {
   expect(screen.queryByText("Cancelled meeting")).toBeNull();
 });
 
-test("an event shows at most two marks, prep needed and flagged before moved", async () => {
+test("an event shows at most two marks, flagged before moved, and prep is not marked", async () => {
   await renderApp({
     now: MONDAY_NOW,
     seed: (s) => {
@@ -59,7 +59,7 @@ test("an event shows at most two marks, prep needed and flagged before moved", a
     },
     children: ui,
   });
-  expect(marksOn("Everything")).toEqual(["Prep needed", "Flagged"]);
+  expect(marksOn("Everything")).toEqual(["Flagged", "Moved"]);
   expect(marksOn("Flagged and moved")).toEqual(["Flagged", "Moved"]);
 });
 

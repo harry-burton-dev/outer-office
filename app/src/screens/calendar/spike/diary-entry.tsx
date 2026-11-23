@@ -7,7 +7,7 @@ import { ShellProvider } from "../../../../../framework/runtime/shell/provider";
 import { SessionContext } from "../../../../../framework/runtime/shell/context";
 import { fakeEngine } from "../../../../../framework/runtime/shell/test/helpers/fake-engine";
 import { makeTestWorld, ok, NOW } from "../../../domain/commands/testing/world";
-import { importApply, officeSave, principalSave, proposalMove, tagSave } from "../../../domain/commands";
+import { importApply, officeSave, principalSave, proposalMove, proposalNew, tagSave } from "../../../domain/commands";
 import { toStored } from "../../import/import-model";
 import { rows } from "../../../domain/commands/testing/world";
 import { TAG_COLOURS } from "../../../domain/tags";
@@ -34,6 +34,10 @@ const window = { timeZone: "Europe/London", privatePolicy: "mask" as const, wind
 ok(device, importApply, { now: NOW, principal: a, file: update.fileName, diff: diffImport(toStored(rows(device, "events"), a), parseIcs(update.text, window)) });
 // One proposed move this week: the board meeting, an hour later.
 const board = rows(device, "events").find((e) => e.subject === "Board meeting" && !e.gone && (e.start ?? "") > NOW);
+// And one proposed new meeting on Wednesday afternoon.
+const wednesday = new Date(Date.parse(NOW)); wednesday.setUTCDate(wednesday.getUTCDate() + ((3 - wednesday.getUTCDay() + 7) % 7));
+const wed = wednesday.toISOString().slice(0, 10);
+ok(device, proposalNew, { now: NOW, principal: a, subject: "Catch-up with the regulator", start: `${wed}T13:00:00.000Z`, end: `${wed}T14:00:00.000Z`, location: "Room 2.01", categories: "External" });
 if (board?.start && board.end) ok(device, proposalMove, { now: NOW, event: board.id, start: new Date(Date.parse(board.start) + 3600_000).toISOString(), end: new Date(Date.parse(board.end) + 3600_000).toISOString() });
 // Tags named after the synthetic diaries' Outlook categories, so they colour the diary.
 const TAGS: [string, number][] = [["Ministerial", 0], ["Board", 6], ["External", 2], ["Stakeholder", 4], ["Internal", 9]];

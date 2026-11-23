@@ -18,7 +18,7 @@ export function openingDate(today: string): string {
   return today;
 }
 
-export type Mark = "Move proposed" | "Proposed" | "Gone from Outlook" | "Prep needed" | "Flagged" | "Moved";
+export type Mark = "Move proposed" | "Proposed" | "New" | "Gone from Outlook" | "Archived" | "Flagged" | "Moved";
 export type Proposal = RowOf<"proposals">;
 
 /** The diary's layers, top to bottom: proposed changes, the live diary, and the graveyard of events gone from Outlook. */
@@ -29,6 +29,11 @@ export const LAYER_NAMES: Record<Layer, string> = { proposed: "Proposed", live: 
 /** A ghost's id: the event's id, marked so it can't clash with a real one. */
 const GHOST = "::was";
 export const ghostId = (eventId: string): string => `${eventId}${GHOST}`;
+/** A proposed new meeting's diary id. */
+const NEW = "proposal::";
+export const newId = (proposalId: string): string => `${NEW}${proposalId}`;
+/** The proposal behind a diary entry for a proposed new meeting, or undefined. */
+export const proposalIdOf = (entryId: string): string | undefined => (entryId.startsWith(NEW) ? entryId.slice(NEW.length) : undefined);
 /** The event behind a diary entry, ghost or not. */
 export const eventIdOf = (entryId: string): string => (entryId.endsWith(GHOST) ? entryId.slice(0, -GHOST.length) : entryId);
 export type ImportRow = RowOf<"imports">;
@@ -55,13 +60,17 @@ export interface EventFace {
   ghost?: boolean;
   /** Whether the event has a proposal, for the right-click menu. */
   proposed?: boolean;
+  /** Archived by the office: in the graveyard, and can be brought back. */
+  archived?: boolean;
+  /** On the Proposed layer: how much the live diary behind is veiled, 0 to 1. */
+  veil?: number;
 }
 
-/** Up to two marks, in the order prep needed, flagged, moved. A masked event has none. */
+/** Up to two marks, in the order flagged, moved. A masked event has none. Prep is no longer marked: cards replace it (OUT-62). */
 export function marksFor(event: Event, overlay: Overlay | undefined): Mark[] {
   if (event.masked === true) return [];
   const live = overlay && !overlay._deleted ? overlay : undefined;
-  const all: Array<Mark | false> = [live?.prep === "needed" && "Prep needed", live?.flagged === true && "Flagged", (event.moves ?? 0) > 0 && "Moved"];
+  const all: Array<Mark | false> = [live?.flagged === true && "Flagged", (event.moves ?? 0) > 0 && "Moved"];
   return all.filter((mark): mark is Mark => mark !== false).slice(0, MAX_MARKS);
 }
 
@@ -85,11 +94,24 @@ export interface LensOn {
 export interface LayerOn {
   layer: Layer;
   proposals: readonly Proposal[];
+  /** On the Proposed layer: how strongly the unchanged live diary shows, 0 to 1 (default 1). */
+  liveAlpha?: number;
 }
 
-/** The principal's events gone from Outlook (deleted or cancelled there), by start. */
-const graveyardOf = (events: readonly Event[], principal: string): Event[] =>
-  events.filter((e) => !e._deleted && e.principal === principal && e.gone === true).sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
+const isArchived = (overlay: Overlay | undefined): boolean => Boolean(overlay?.archived);
+
+/** The principal's events gone from Outlook (deleted or cancelled there) or archived by the office, by start. */
+const graveyardOf = (events: readonly Event[], principal: string, overlayOf: ReadonlyMap<string, Overlay>): Event[] =>
+  events
+    .filter((e) => !e._deleted && e.principal === principal && (e.gone === true || isArchived(overlayOf.get(e.id))))
+    .sort((a, b) => (a.start ?? "").localeCompare(b.start ?? ""));
+
+/** A proposed new meeting as a diary event row, so it is drawn like the rest. */
+const asEvent = (p: Proposal): Event => ({
+  id: newId(p.id), _deleted: false, _conflicts: {}, principal: p.principal, start: p.start, end: p.end, allDay: p.allDay,
+  subject: p.subject, location: p.location, categories: p.categories, importance: p.importance, sensitivity: p.sensitivity,
+  requiredAttendees: p.requiredAttendees, optionalAttendees: p.optionalAttendees,
+}) as Event;
 
 /**
  * The diary on one layer, and each entry's face. Live: the principal's events, with any
@@ -98,10 +120,15 @@ const graveyardOf = (events: readonly Event[], principal: string): Event[] =>
  */
 export function diaryData(events: readonly Event[], overlays: readonly Overlay[], principal: string, tags: readonly Tag[] = [], lensOn?: LensOn, layerOn: LayerOn = { layer: "live", proposals: [] }): DiaryData {
   const overlayOf = new Map(overlays.filter((o) => !o._deleted).map((o) => [o.event ?? "", o]));
-  const proposalOf = new Map(layerOn.proposals.filter((p) => !p._deleted && p.start && p.end).map((p) => [p.event ?? "", p]));
+  const live = layerOn.proposals.filter((p) => !p._deleted && p.start && p.end);
+  const proposalOf = new Map(live.filter((p) => p.kind !== "new" && p.event).map((p) => [p.event ?? "", p]));
+  const newOnes = live.filter((p) => p.kind === "new" && p.principal === principal).map(asEvent);
   const { layer } = layerOn;
-  const base = layer === "graveyard" ? graveyardOf(events, principal) : eventsForPrincipal(events, principal);
-  const real = base.filter(hasTimes).map((e) => {
+  const veil = layer === "proposed" ? 1 - Math.min(Math.max(layerOn.liveAlpha ?? 1, 0), 1) : 0;
+  const base = layer === "graveyard"
+    ? graveyardOf(events, principal, overlayOf)
+    : eventsForPrincipal(events, principal).filter((e) => !isArchived(overlayOf.get(e.id)));
+  const real = [...base, ...(layer === "proposed" ? newOnes : [])].filter(hasTimes).map((e) => {
     const proposal = layer === "proposed" ? proposalOf.get(e.id) : undefined;
     return proposal ? { ...e, start: proposal.start ?? e.start, end: proposal.end ?? e.end } : e;
   });
@@ -112,11 +139,15 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
     const id = eventIdOf(e.id);
     const overlay = overlayOf.get(id);
     const own = e.masked === true ? [] : eventTags(e.categories, overlay?.tags, tags);
-    const proposed = proposalOf.has(id);
+    const isNew = proposalIdOf(e.id) !== undefined;
+    const proposed = isNew || proposalOf.has(id);
     const ghost = e.id !== id || (layer === "live" && proposed);
-    const lead: Mark[] = layer === "graveyard" ? ["Gone from Outlook"] : !proposed ? [] : ghost ? ["Move proposed"] : ["Proposed"];
+    const archived = isArchived(overlay);
+    const lead: Mark[] = layer === "graveyard" ? [archived ? "Archived" : "Gone from Outlook"] : isNew ? ["New"] : !proposed ? [] : ghost ? ["Move proposed"] : ["Proposed"];
     const marks = [...lead, ...marksFor(e, overlay)].slice(0, MAX_MARKS);
-    const face: EventFace = { title: titleOf(e), marks, tags: own, ownTags: overlay?.tags ?? "", categories: e.categories ?? "", ghost, proposed };
+    const face: EventFace = { title: titleOf(e), marks, tags: own, ownTags: overlay?.tags ?? "", categories: e.categories ?? "", ghost, proposed, archived };
+    // The slider veils the live diary behind the proposals, not the proposals themselves.
+    if (veil > 0 && !proposed) face.veil = veil;
     return [e.id, face];
   }));
   const colours = new Map(shown.map((e) => [e.id, faces.get(e.id)?.tags[0]?.colour]));
