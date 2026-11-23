@@ -9,16 +9,6 @@ const config = {
   id: "outer-office",
   name: "Outer Office",
   tables: {
-    // One of each field kind (spec S2): last write wins, merged text, ask on conflict.
-    items: {
-      version: 1,
-      fields: {
-        title: { kind: "latest", type: "string" },
-        done: { kind: "latest", type: "boolean" },
-        notes: "text",
-        owner: { kind: "ask", type: "string" },
-      },
-    },
     // The data model of design/v0.1-brief.md.
     office: {
       version: 1,

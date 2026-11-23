@@ -1,0 +1,45 @@
+// Reads the frame shares with the screens: the office, the shared project, and
+// the Needs action lists for the chosen principal.
+import { useMemo } from "react";
+import { useRecord, useRecords, type RowOf } from "@trellis/framework";
+import { OFFICE_ID } from "@/domain/commands";
+import { byOrder, needsAction, type NeedsAction } from "@/domain/selectors";
+import { useApp } from "./app-state";
+
+export type Office = RowOf<"office">;
+export type Project = RowOf<"projects">;
+
+export const APP_NAME = "Outer Office";
+
+/** The office record, or undefined until it exists (or when removed). */
+export function useOffice(): Office | undefined {
+  const office = useRecord("office", OFFICE_ID);
+  return office && !office._deleted ? office : undefined;
+}
+
+/** The shared project: the first live project, by order, that is not an Inbox and not archived. */
+export function sharedProject(projects: readonly Project[]): Project | undefined {
+  return projects.filter((p) => !p._deleted && p.inbox !== true && p.archived !== true).sort(byOrder)[0];
+}
+
+export function useSharedProject(): Project | undefined {
+  const projects = useRecords("projects");
+  return useMemo(() => sharedProject(projects), [projects]);
+}
+
+const EMPTY: NeedsAction = { overdue: [], dueToday: [], prepNeeded: [], goneWithData: [] };
+
+/** The Needs action lists for the chosen principal; all empty when there is none. */
+export function useNeedsAction(): NeedsAction {
+  const { principalId, now, timezone } = useApp();
+  const tasks = useRecords("tasks");
+  const events = useRecords("events");
+  const overlays = useRecords("overlays");
+  return useMemo(
+    () => (principalId === null ? EMPTY : needsAction({ principal: principalId, tasks, events, overlays, now, timezone })),
+    [principalId, tasks, events, overlays, now, timezone],
+  );
+}
+
+export const needsActionCount = (lists: NeedsAction): number =>
+  lists.overdue.length + lists.dueToday.length + lists.prepNeeded.length + lists.goneWithData.length;
