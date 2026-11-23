@@ -12,6 +12,7 @@ import { EmptyState, PageHeader } from "@/app/ui";
 import { formatDay, formatTime } from "@/domain/dates";
 import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, hasAnyEvent, latestImport, openingDate } from "./calendar/calendar-data";
 import { EventFaceView } from "./calendar/event-face";
+import { TagMenu } from "@/tags/tag-menu";
 
 const TITLE = "Calendar";
 
@@ -34,12 +35,21 @@ function Diary({ principalId }: DiaryProps) {
   const office = useOffice();
   const events = useRecords("events");
   const overlays = useRecords("overlays");
+  const tags = useRecords("tags");
   const [view, setView] = useState<DiaryView>("week");
   const [date, setDate] = useState(() => openingDate(today));
-  const data = useMemo(() => diaryData(events, overlays, principalId), [events, overlays, principalId]);
+  const data = useMemo(() => diaryData(events, overlays, principalId, tags), [events, overlays, principalId, tags]);
   const renderEvent = (event: DiaryEvent) => {
     const face = data.faces.get(event.id);
-    return face ? <EventFaceView face={face} /> : undefined;
+    if (!face) return undefined;
+    const open = () => openPanel({ kind: "engagement", id: event.id });
+    return (
+      <TagMenu target="event" id={event.id} own={face.ownTags} categories={face.categories} onOpen={open}>
+        <div className="min-w-0">
+          <EventFaceView face={face} />
+        </div>
+      </TagMenu>
+    );
   };
   return (
     <DiaryCalendar

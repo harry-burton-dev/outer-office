@@ -4,6 +4,7 @@ import type { RowOf } from "@trellis/framework";
 import type { DiaryEvent } from "@/calendar/diary-calendar";
 import { addDays, weekdayOf } from "@/domain/dates";
 import { eventsForPrincipal, type Event, type Overlay } from "@/domain/selectors";
+import { eventTags, type Tag } from "@/domain/tags";
 
 const SATURDAY = 6;
 const SUNDAY = 0;
@@ -28,6 +29,11 @@ export const DEFAULT_DAY_END = "18:00";
 export interface EventFace {
   title: string;
   marks: readonly Mark[];
+  /** Its tags, first one colours the event. A masked event has none. */
+  tags: readonly Tag[];
+  /** Its own tag ids and Outlook categories, for the right-click menu. */
+  ownTags: string;
+  categories: string;
 }
 
 /** Up to two marks, in the order prep needed, flagged, moved. A masked event has none. */
@@ -49,12 +55,17 @@ const hasTimes = (event: Event): event is Event & { start: string; end: string }
   typeof event.start === "string" && event.start !== "" && typeof event.end === "string" && event.end !== "";
 
 /** The principal's non-gone events for the diary, and each one's face. */
-export function diaryData(events: readonly Event[], overlays: readonly Overlay[], principal: string): DiaryData {
+export function diaryData(events: readonly Event[], overlays: readonly Overlay[], principal: string, tags: readonly Tag[] = []): DiaryData {
   const overlayOf = new Map(overlays.filter((o) => !o._deleted).map((o) => [o.event ?? "", o]));
   const shown = eventsForPrincipal(events, principal).filter(hasTimes);
+  const faces = new Map(shown.map((e) => {
+    const overlay = overlayOf.get(e.id);
+    const own = e.masked === true ? [] : eventTags(e.categories, overlay?.tags, tags);
+    return [e.id, { title: titleOf(e), marks: marksFor(e, overlay), tags: own, ownTags: overlay?.tags ?? "", categories: e.categories ?? "" }];
+  }));
   return {
-    events: shown.map((e) => ({ id: e.id, title: titleOf(e), start: e.start, end: e.end, allDay: e.allDay === true })),
-    faces: new Map(shown.map((e) => [e.id, { title: titleOf(e), marks: marksFor(e, overlayOf.get(e.id)) }])),
+    events: shown.map((e) => ({ id: e.id, title: titleOf(e), start: e.start, end: e.end, allDay: e.allDay === true, colour: faces.get(e.id)?.tags[0]?.colour })),
+    faces,
   };
 }
 

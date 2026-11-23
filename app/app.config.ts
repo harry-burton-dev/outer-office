@@ -33,8 +33,15 @@ const config = {
       },
     },
     overlays: {
+      version: 2,
+      // Version 2: tags, comma-separated tag ids (OUT-76).
+      fields: { event: str, prep: str, flagged: bool, prepOwner: askStr, notes: "text", outcome: "text", tags: str },
+    },
+    // The office's tags, shared by tasks and events (OUT-76). An event also
+    // carries a tag when one of its Outlook categories has the tag's name.
+    tags: {
       version: 1,
-      fields: { event: str, prep: str, flagged: bool, prepOwner: askStr, notes: "text", outcome: "text" },
+      fields: { name: str, colour: str, order: num },
     },
     projects: {
       version: 1,
@@ -45,12 +52,14 @@ const config = {
       fields: { project: str, name: str, order: num },
     },
     tasks: {
-      version: 1,
+      version: 2,
       fields: {
         title: str, notes: "text", project: str, section: str, order: num, priority: num,
         due: str, deadline: askStr, done: bool, doneAt: str, doneBy: str,
         assignee: askStr, assignedBy: str, assignment: str, principal: str, event: str,
         createdAt: str, createdBy: str,
+        // Version 2: tags, comma-separated tag ids (OUT-76).
+        tags: str,
       },
     },
     log: {
@@ -69,6 +78,8 @@ const config = {
     },
   },
   migrations: {
+    overlays: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
+    tasks: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
     events: {
       1: (record) => ({
         ...record,

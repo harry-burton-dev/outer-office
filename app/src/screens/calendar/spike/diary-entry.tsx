@@ -7,7 +7,8 @@ import { ShellProvider } from "../../../../../framework/runtime/shell/provider";
 import { SessionContext } from "../../../../../framework/runtime/shell/context";
 import { fakeEngine } from "../../../../../framework/runtime/shell/test/helpers/fake-engine";
 import { makeTestWorld, ok, NOW } from "../../../domain/commands/testing/world";
-import { importApply, officeSave, principalSave } from "../../../domain/commands";
+import { importApply, officeSave, principalSave, tagSave } from "../../../domain/commands";
+import { TAG_COLOURS } from "../../../domain/tags";
 import { parseIcs } from "../../../import/parse-ics";
 import { diffImport } from "../../../import/diff";
 import { syntheticDiaries } from "../../../import/testing/synthetic-diaries";
@@ -25,6 +26,9 @@ const a = ok(device, principalSave, { now: NOW, code: "PRINCIPAL-A", title: "Chi
 const file = syntheticDiaries(new Date(NOW))[0];
 const parsed = parseIcs(file.text, { timeZone: "Europe/London", privatePolicy: "mask", windowStart: "2000-01-01T00:00:00.000Z", windowEnd: "2100-01-01T00:00:00.000Z" });
 ok(device, importApply, { now: NOW, principal: a, file: file.fileName, diff: diffImport([], parsed) });
+// Tags named after the synthetic diaries' Outlook categories, so they colour the diary.
+const TAGS: [string, number][] = [["Ministerial", 0], ["Board", 6], ["External", 2], ["Stakeholder", 4], ["Internal", 9]];
+if (!new URLSearchParams(location.search).has("notags")) for (const [name, c] of TAGS) ok(device, tagSave, { now: NOW, name, colour: TAG_COLOURS[c].value });
 const session = { user: { id: "user-a", name: "User A" }, deviceId: "usera-1", folder: "Test", version: "0", builtAt: NOW, openInvite: () => undefined };
 
 createRoot(document.getElementById("root")!).render(

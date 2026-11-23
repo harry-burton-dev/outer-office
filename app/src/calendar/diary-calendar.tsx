@@ -17,6 +17,8 @@ export interface DiaryEvent {
   start: string;
   end: string;
   allDay: boolean;
+  /** The event's colour, from its first tag. */
+  colour?: string;
 }
 
 export type DiaryView = "day" | "week";
@@ -66,9 +68,10 @@ export function dayIn(instant: Date, timeZone: string): string {
 }
 
 /** Timed events keep their UTC instants (FullCalendar shifts them into the zone); all-day events become the zone's calendar days. */
-function toInput({ id, title, start, end, allDay }: DiaryEvent, timeZone: string): EventInput {
-  if (!allDay) return { id, title, start, end, allDay };
-  return { id, title, start: dayIn(new Date(start), timeZone), end: dayIn(new Date(end), timeZone), allDay };
+function toInput({ id, title, start, end, allDay, colour }: DiaryEvent, timeZone: string): EventInput {
+  const look = colour ? { color: colour, textColor: "#0a0a0a" } : {};
+  if (!allDay) return { id, title, start, end, allDay, ...look };
+  return { id, title, start: dayIn(new Date(start), timeZone), end: dayIn(new Date(end), timeZone), allDay, ...look };
 }
 
 /** True when the YYYY-MM-DD `date` falls in the view's current range, read in `timeZone`. */

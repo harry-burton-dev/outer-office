@@ -35,6 +35,13 @@ await tab.waitForTimeout(500);
 const scroll = await tab.evaluate(() => [...document.querySelectorAll("*")].filter((e) => e.scrollHeight > e.clientHeight + 1 && ["auto", "scroll"].includes(getComputedStyle(e).overflowY)).map((e) => e.className.toString().slice(0, 60)));
 process.stdout.write(`scrolling containers: ${JSON.stringify(scroll)}\n`);
 await tab.screenshot({ path: process.env.OUT ?? here("./diary.png") });
+if (process.env.RIGHT_CLICK) {
+  await tab.getByText(process.env.RIGHT_CLICK).first().click({ button: "right" });
+  await tab.waitForTimeout(400);
+  process.stdout.write(`menus open: ${await tab.locator('[role="menu"]').count()}, triggers: ${await tab.locator('[data-slot="context-menu-trigger"]').count()}\n`);
+  await tab.screenshot({ path: process.env.OUT_MENU ?? here("./diary-menu.png") });
+  await tab.keyboard.press("Escape");
+}
 if (process.env.CLICK) {
   await tab.getByText(process.env.CLICK).first().click();
   await tab.waitForTimeout(500);
