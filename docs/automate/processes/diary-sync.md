@@ -17,7 +17,7 @@
 
 - `principal`, `windowStart`, `windowEnd`: the window that was read. The app's diff leaves stored events outside it alone.
 - `count`: the number of events. The app refuses a payload whose `events` array has a different length.
-- `masters`: one `{ id, iCalUId }` for each recurring series in the window. The master's `iCalUId` is the UID the same series has in an `.ics` export.
+- `masters`: required, and may be `[]`. One `{ id, iCalUId }` for each recurring series in the window. The master's `iCalUId` is the UID the same series has in an `.ics` export.
 - `events`: one per occurrence, as Graph's `calendarView` returns it with `Prefer: outlook.timezone="UTC"`. The fields that matter for matching:
   - `type`: `singleInstance`, `occurrence` or `exception`.
   - `seriesMasterId` and `originalStart`, for occurrences and exceptions.
@@ -25,6 +25,16 @@
   - `start` and `end`: Graph's `dateTime` strings in UTC, without a `Z`. `timeZone` says `UTC`.
   - `isAllDay`, `isCancelled`, `showAs`, `sensitivity` and `lastModifiedDateTime`.
   - `subject`, `location`, `organizer`, `categories` and `attendees`. These are already masked for private and confidential items.
+
+**Every event has exactly these keys**, with `null` where Graph has nothing. A missing key or an extra one (such as `body`) fails the schema, so a connector that quietly drops `type` or `originalStart` is caught. The schema also checks four more things:
+- `originalStart` is set whenever `seriesMasterId` is.
+- `timeZone` is always `UTC`.
+- `showAs` is one of `free`, `tentative`, `busy`, `oof`, `workingElsewhere` or `unknown`.
+- Private and confidential items are masked: `subject` is `"Private"`, `location` and `organizer` are `null`, and `categories` and `attendees` are empty.
+
+The app's adapter (`app/src/import/parse-automate.ts`, OUT-55) checks what a schema can't: that `count` matches, that every series is listed in `masters`, and that every time can be read. It refuses the whole file if any check fails.
+
+[diary-payload-outlook-fixture.json](../examples/diary-payload-outlook-fixture.json) is the same made-up diary as the app's `.ics` test file, so the two sources can be compared side by side.
 
 **Why Graph and not "Get calendar view of events (V3)".** The V3 connector action doesn't return `type` or `originalStart`, and without them a moved occurrence of a series can't be matched. The flow uses the Office 365 Outlook action **Send an HTTP request** against Graph instead. If a tenant's data policy blocks that action, this process can't keep notes on moved recurring meetings. The spike records whether it's allowed.
 

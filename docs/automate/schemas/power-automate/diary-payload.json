@@ -1,6 +1,6 @@
 {
   "title": "Diary payload: diary-sync event data, and diary.fetch result",
-  "description": "Events are as Graph calendarView returns them (with Prefer: outlook.timezone=\"UTC\"), shaped by the flow \"Diary · read window\". Private and confidential items are already masked. Field names are confirmed against the spike capture before processVersion 1 is frozen.",
+  "description": "Field names follow Microsoft Graph calendarView as flow F1 path B selects them, read with the header Prefer: outlook.timezone=\"UTC\". Rules a schema can't check (count equals events length, every seriesMasterId listed in masters) are checked by the app's adapter, parse-automate.ts. Confirm against the spike's raw capture (S1).",
   "type": "object",
   "properties": {
     "principal": {
@@ -27,28 +27,31 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Graph id of the series master; null for a single event. Must appear in masters."
           },
           "type": {
+            "description": "Graph event type. calendarView never returns seriesMaster; the adapter skips one if it does.",
             "type": "string"
           },
           "originalStart": {
+            "description": "Graph DateTimeOffset of the occurrence's original start. Required (not null) when seriesMasterId is set: it becomes the .ics RECURRENCE-ID.",
             "type": [
               "string",
               "null"
             ]
           },
           "start": {
-            "type": "string"
+            "type": "string",
+            "description": "Graph dateTime with no zone designator, e.g. 2026-10-22T13:00:00.0000000. Read in timeZone (always UTC). For an all-day event, the day's midnight."
           },
           "end": {
-            "type": "string"
+            "type": "string",
+            "description": "As start. Exclusive; an all-day event ends at the next day's midnight."
           },
           "timeZone": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "description": "start/timeZone. Always UTC, because F1 sends Prefer: outlook.timezone=\"UTC\". The adapter refuses anything else.",
+            "type": "string"
           },
           "isAllDay": {
             "type": "boolean"
@@ -60,7 +63,8 @@
             ]
           },
           "subject": {
-            "type": "string"
+            "type": "string",
+            "description": "\"Private\" when sensitivity is private or confidential (F1 masks)."
           },
           "location": {
             "type": [
@@ -84,6 +88,7 @@
             }
           },
           "showAs": {
+            "description": "workingElsewhere and unknown read as busy, as in Outlook's .ics export.",
             "type": "string"
           },
           "sensitivity": {
@@ -97,24 +102,58 @@
               "array",
               "null"
             ],
+            "description": "Graph attendees, kept for OO2 (OUT-67, OUT-60). The adapter does not read them yet.",
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "object"
+                },
+                "emailAddress": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "address": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
             }
-          },
-          "body": false,
-          "bodyPreview": false
+          }
         },
         "required": [
           "iCalUId",
+          "seriesMasterId",
+          "type",
+          "originalStart",
           "start",
           "end",
+          "timeZone",
           "isAllDay",
+          "isCancelled",
           "subject",
+          "location",
+          "organizer",
+          "categories",
           "showAs",
           "sensitivity",
-          "lastModifiedDateTime"
+          "lastModifiedDateTime",
+          "attendees"
         ],
-        "description": "One occurrence. body and bodyPreview are forbidden: the flow must never write meeting bodies to the folder."
+        "additionalProperties": false,
+        "description": "Exactly the keys F1's Select writes. No body or bodyPreview: additionalProperties is false."
       }
     },
     "masters": {
@@ -143,6 +182,7 @@
     "windowStart",
     "windowEnd",
     "count",
+    "masters",
     "events"
   ]
 }
