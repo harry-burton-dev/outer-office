@@ -58,7 +58,7 @@ if (exec) {
   ok(device, cardSet, { now: NOW, id: c, values: { name: "Avery Stone", phone: "07700 900123" } });
   ok(device, cardAdd, { now: NOW, event: exec.id, template: dial });
 }
-const session = { user: { id: "user-a", name: "User A" }, deviceId: "usera-1", folder: "Test", version: "0", builtAt: NOW, openInvite: () => undefined };
+const session = { user: { id: "user-a", name: "User A" }, deviceId: "usera-1", folder: "Test", version: "0", builtAt: NOW, openInvite: () => undefined, plainFiles: () => { throw new Error("no plain files in the diary spike"); }, onTick: () => () => undefined };
 
 createRoot(document.getElementById("root")!).render(
   <ShellProvider engine={fakeEngine()}>
