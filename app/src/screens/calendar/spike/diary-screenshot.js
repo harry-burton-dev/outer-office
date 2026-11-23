@@ -35,6 +35,11 @@ await tab.waitForTimeout(500);
 const scroll = await tab.evaluate(() => [...document.querySelectorAll("*")].filter((e) => e.scrollHeight > e.clientHeight + 1 && ["auto", "scroll"].includes(getComputedStyle(e).overflowY)).map((e) => e.className.toString().slice(0, 60)));
 process.stdout.write(`scrolling containers: ${JSON.stringify(scroll)}\n`);
 await tab.screenshot({ path: process.env.OUT ?? here("./diary.png") });
+if (process.env.CLICK) {
+  await tab.getByText(process.env.CLICK).first().click();
+  await tab.waitForTimeout(500);
+  await tab.screenshot({ path: process.env.OUT_PANEL ?? here("./diary-panel.png") });
+}
 await browser.close();
 rmSync(out, { recursive: true, force: true });
 process.stdout.write(errors.length ? `errors:\n${errors.join("\n")}\n` : "no page errors\n");

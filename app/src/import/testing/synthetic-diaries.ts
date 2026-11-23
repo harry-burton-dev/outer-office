@@ -122,6 +122,7 @@ function meetingLines(m: Meeting, rand: () => number, organizer: string): readon
     tz("DTEND", localTime(m.day, m.at, m.minutes)),
     `LOCATION:${m.location}`,
     `CATEGORIES:${m.category}`,
+    `PRIORITY:${m.category === "Ministerial" ? 1 : m.category === "Internal" && m.minutes <= 30 ? 9 : 5}`,
     `LAST-MODIFIED:${stamp(m.modified)}`,
     `ORGANIZER;CN="${organizer}":mailto:${email(organizer)}`,
     ...m.attendees.map((name, i) =>

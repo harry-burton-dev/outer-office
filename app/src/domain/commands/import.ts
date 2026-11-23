@@ -75,7 +75,11 @@ function planEvent(stored: StoredRow | undefined, event: ImportedEvent): { kind:
 
 function eventFields(event: ImportedEvent, principal: string, importId: string, moves: number) {
   const { uid, recurrenceId, start, end, allDay, subject, location, organizer, categories, showAs, masked, sourceModified } = event;
-  return { principal, uid, recurrenceId, start, end, allDay, subject, location, organizer, categories, showAs, masked, sourceModified, gone: false, moves, importId };
+  const { requiredAttendees = "", optionalAttendees = "", importance = "", sensitivity = "", created = "" } = event;
+  return {
+    principal, uid, recurrenceId, start, end, allDay, subject, location, organizer, categories, showAs, masked, sourceModified,
+    requiredAttendees, optionalAttendees, importance, sensitivity, created, gone: false, moves, importId,
+  };
 }
 
 function applyIncoming(tx: Tx, now: string, principal: string, importId: string, event: ImportedEvent): Kind | undefined {

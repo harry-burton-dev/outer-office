@@ -23,6 +23,17 @@ describe("synthetic diaries", () => {
     }
   });
 
+  it("carries the sync fields: attendees with responses, importance, sensitivity, created", () => {
+    const events = parseIcs(files[0].text, { ...window, privatePolicy: "mask" }).events;
+    const bilateral = events.find((e) => e.subject === "Ministerial bilateral");
+    expect(bilateral?.requiredAttendees).toMatch(/^Avery Stone <avery\.stone@example\.invalid> · \w/);
+    expect(bilateral?.optionalAttendees?.split("\n")).toHaveLength(2);
+    expect(bilateral).toMatchObject({ importance: "high", sensitivity: "normal" });
+    expect(bilateral?.created).toMatch(/^2026-/);
+    const masked = events.find((e) => e.masked);
+    expect(masked).toMatchObject({ requiredAttendees: "", sensitivity: "private" });
+  });
+
   it("is the same for the same date", () => {
     expect(syntheticDiaries(NOW)).toEqual(files);
   });

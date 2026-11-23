@@ -23,11 +23,13 @@ const config = {
       fields: { userId: str, mode: str, privacyAckAt: str },
     },
     events: {
-      version: 1,
+      version: 2,
       fields: {
         principal: str, uid: str, recurrenceId: str, start: str, end: str, allDay: bool,
         subject: str, location: str, organizer: str, categories: str, showAs: str,
         masked: bool, gone: bool, sourceModified: str, moves: num, importId: str,
+        // Version 2: the rest of what the diary sync carries (OUT-78).
+        requiredAttendees: str, optionalAttendees: str, importance: str, sensitivity: str, created: str,
       },
     },
     overlays: {
@@ -64,6 +66,15 @@ const config = {
         principal: str, at: str, by: str, rangeStart: str, rangeEnd: str,
         added: num, changed: num, gone: num,
       },
+    },
+  },
+  migrations: {
+    events: {
+      1: (record) => ({
+        ...record,
+        requiredAttendees: record.requiredAttendees ?? "", optionalAttendees: record.optionalAttendees ?? "",
+        importance: record.importance ?? "", sensitivity: record.sensitivity ?? "", created: record.created ?? "",
+      }),
     },
   },
 } satisfies AppDefinition;
