@@ -21,6 +21,7 @@ Most apps use the first four groups: the app shell, hooks, commands, and rows. T
 - [Updates](#updates)
 - [Folder and passport](#folder-and-passport)
 - [Data runtime](#data-runtime)
+- [Plain files](#plain-files)
 - [Admin page](#admin-page)
 
 ## App shell
@@ -155,8 +156,12 @@ interface TrellisSession {
   version: string;
   builtAt: string;
   openInvite: () => void; // shows the shell's invite form above your screens
+  plainFiles: (folder: string) => PlainFiles; // unencrypted files under one subfolder
+  onTick: (listener: () => void | Promise<void>) => () => void; // runs after each sync tick; returns a remover
 }
 ```
+
+`plainFiles` and `onTick` are explained in [Read and write plain files](../guides/read-and-write-plain-files.md).
 
 ### `mount`
 
@@ -1158,6 +1163,65 @@ Makes the [`Data`](#data) for a running sync engine. The shell calls it once syn
 **Caveats**
 
 - It needs the sync engine, and no export gives an app one. App code has no way to call it. It is exported for the shell.
+
+## Plain files
+
+Unencrypted files under one subfolder of the shared folder, for tools outside the app. Get them from [`useSession`](#usesession). See [Read and write plain files](../guides/read-and-write-plain-files.md).
+
+### `PlainFiles`
+
+What `useSession().plainFiles(folder)` returns. Paths are relative to the subfolder, with `/` between the parts.
+
+```ts signature
+interface PlainFiles {
+  readonly folder: string;
+  list(dir?: string): Promise<PlainFile[]>; // files directly in dir, sorted; temp files left out
+  listDirs(dir?: string): Promise<string[]>;
+  read(path: string): Promise<ReadResult>;
+  readJson(path: string): Promise<JsonResult>;
+  write(path: string, content: string | Uint8Array<ArrayBuffer>): Promise<void>; // creates the folders on the path
+  writeJson(path: string, value: unknown): Promise<void>; // indented UTF-8 JSON, no byte-order mark
+  delete(path: string): Promise<boolean>; // false when already gone
+}
+```
+
+**Caveats**
+
+- `folder` must be lower-case letters, digits and hyphens, and not `app`, `backups`, `data` or `status`. `plainFiles` throws a `TypeError` otherwise.
+- Each part of a path must be a name Windows and OneDrive accept: no `\ / : * ? " < > |`, no leading or trailing space, and no trailing dot. The methods reject with a `TypeError` otherwise.
+
+### `PlainFile`
+
+One entry from `list`.
+
+```ts signature
+interface PlainFile {
+  name: string; // "x.json"
+  path: string; // "calls/x.json"
+  size: number;
+  lastModified: number; // milliseconds since 1970
+}
+```
+
+### `ReadResult`
+
+What `read` resolves to. It never rejects for a missing or unreadable file.
+
+```ts signature
+type ReadResult =
+  | { ok: true; text: string; size: number; lastModified: number }
+  | { ok: false; reason: "missing" | "unreadable" };
+```
+
+### `JsonResult`
+
+What `readJson` resolves to. `"incomplete"` means the text is not valid JSON yet, usually because the file is still arriving. Try again on a later tick.
+
+```ts signature
+type JsonResult =
+  | { ok: true; value: unknown; size: number; lastModified: number }
+  | { ok: false; reason: "missing" | "unreadable" | "incomplete" };
+```
 
 ## Admin page
 

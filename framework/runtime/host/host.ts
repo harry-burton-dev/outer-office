@@ -30,8 +30,20 @@ export interface HostConfig {
 
 export type HostStart =
   /** clock and random are the ones the engine was given, for the data runtime (createData). */
-  | { ok: true; engine: Engine; deviceId: string; clock: { now(): number }; random: { bytes(n: number): Uint8Array }; stop: () => Promise<void> }
+  | {
+      ok: true;
+      engine: Engine;
+      deviceId: string;
+      clock: { now(): number };
+      random: { bytes(n: number): Uint8Array };
+      /** Runs listener after each engine tick, never two ticks at once. Returns a function that removes it. */
+      onTick: (listener: TickListener) => () => void;
+      stop: () => Promise<void>;
+    }
   | { ok: false; reason: "already-open" };
+
+/** Work an app does on each tick, such as reading its plain files. A throw is logged and the next tick runs as usual. */
+export type TickListener = () => void | Promise<void>;
 
 function randomBytes(length: number): Uint8Array {
   return crypto.getRandomValues(new Uint8Array(length));
@@ -113,12 +125,25 @@ export async function startHost(config: HostConfig): Promise<HostStart> {
   const engine = (await createEngine({ root: config.root, ...engineConfig(config, deviceId) })) as unknown as Engine;
   engine.setOffline(!navigator.onLine);
 
+  const listeners = new Set<TickListener>();
+  const onTick = (listener: TickListener): (() => void) => {
+    listeners.add(listener);
+    return () => void listeners.delete(listener);
+  };
+
   let ticking = false;
   const tick = async (): Promise<void> => {
     if (ticking) return; // a slow folder must not queue ticks up behind each other
     ticking = true;
     try {
       await engine.tick();
+      for (const listener of [...listeners]) {
+        try {
+          await listener();
+        } catch (error) {
+          console.error("Tick listener failed", error);
+        }
+      }
     } finally {
       ticking = false;
     }
@@ -137,6 +162,7 @@ export async function startHost(config: HostConfig): Promise<HostStart> {
 
   const stop = async (): Promise<void> => {
     window.clearInterval(interval);
+    listeners.clear();
     document.removeEventListener("visibilitychange", onVisibility);
     window.removeEventListener("pagehide", onVisibility);
     window.removeEventListener("online", onOnline);
@@ -145,7 +171,7 @@ export async function startHost(config: HostConfig): Promise<HostStart> {
     lock.release();
   };
 
-  return { ok: true, engine, deviceId, clock, random, stop };
+  return { ok: true, engine, deviceId, clock, random, onTick, stop };
 }
 
 /**

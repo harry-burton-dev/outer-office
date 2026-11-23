@@ -16,6 +16,8 @@ export interface Session {
   /** The data runtime the screens read and write through; made once per engine. */
   data: Data;
   stop: () => Promise<void>;
+  /** Adds work to run after each engine tick; see HostStart. */
+  onTick: Extract<HostStart, { ok: true }>["onTick"];
   deviceId: string;
   user: Identity["user"];
 }
@@ -69,7 +71,7 @@ export function reduce(state: ShellState, event: ShellEvent): ShellState {
       const { db, root } = state;
       const { identity, result } = event;
       if (!result.ok) return { phase: "already-open", db, root, identity };
-      return { phase: "running", db, root, session: { engine: result.engine, data: result.data, stop: result.stop, deviceId: result.deviceId, user: identity.user }, reconnect: "none" };
+      return { phase: "running", db, root, session: { engine: result.engine, data: result.data, stop: result.stop, onTick: result.onTick, deviceId: result.deviceId, user: identity.user }, reconnect: "none" };
     }
     case "message":
       return state.phase === "starting" || state.phase === "failed" || state.phase === "already-open" ? state : { ...state, message: event.message };
