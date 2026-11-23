@@ -1,0 +1,21 @@
+{
+  "title": "diary.fetch v1 input",
+  "type": "object",
+  "properties": {
+    "principal": {
+      "type": "string",
+      "description": "The principal's id on the admin page. Must be in automate/config/principals.json."
+    },
+    "windowStart": {
+      "type": "string"
+    },
+    "windowEnd": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "principal",
+    "windowStart",
+    "windowEnd"
+  ]
+}

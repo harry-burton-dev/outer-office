@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/harry-burton-dev/outer-office/blob/main/docs/automate/schemas/reply.schema.json",
+  "title": "Reply (orchestrator to app)",
+  "$ref": "envelope.schema.json",
+  "type": "object",
+  "properties": {
+    "kind": { "const": "reply" },
+    "callId": { "$ref": "envelope.schema.json#/$defs/callId" },
+    "api": { "type": "string", "description": "Echoed from the notice. Not pattern-checked: a rejected call may carry a malformed name." },
+    "apiVersion": { "type": "integer" },
+    "status": { "enum": ["ok", "error", "rejected"] },
+    "result": { "description": "Inline result, validated by the API's result schema. null unless status is ok." },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "properties": { "code": { "type": "string" }, "message": { "type": "string" } },
+          "required": ["code", "message"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "handledFor": { "type": ["string", "null"], "description": "Author of the notice as the trigger reported it, when known." },
+    "completedAt": { "$ref": "envelope.schema.json#/$defs/isoUtc" }
+  },
+  "required": ["protocol", "version", "kind", "callId", "status", "result", "error", "completedAt"],
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "ok" } } },
+      "then": { "properties": { "error": { "type": "null" } } },
+      "else": { "properties": { "result": { "type": "null" }, "error": { "type": "object" } } } }
+  ],
+  "unevaluatedProperties": false
+}
