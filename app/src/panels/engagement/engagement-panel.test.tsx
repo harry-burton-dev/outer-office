@@ -3,7 +3,7 @@
 import { afterEach, expect, test } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { Sheet } from "@/components/ui/sheet";
-import { overlaySet } from "@/domain/commands";
+import { overlaySet, templateSave } from "@/domain/commands";
 import { AppProbe, cleanupApp, probe, renderApp, type Seeder } from "@/app/testing/render-app";
 import { eventIdOf, importEvents, markGone, MONDAY_NOW, moveEvent, syntheticEvent } from "@/screens/calendar/testing/events";
 import { EngagementPanel } from "../engagement-panel";
@@ -39,7 +39,7 @@ function PanelFor({ seeded }: PanelForProps) {
   return <EngagementPanel eventId={seeded.event} />;
 }
 
-const rows = (device: Seeder["device"], table: "overlays" | "log" | "tasks") =>
+const rows = (device: Seeder["device"], table: "overlays" | "log" | "tasks" | "cards") =>
   (device.data.view(table).rows() as unknown as ReadonlyArray<Record<string, unknown>>).filter((r) => !r._deleted);
 
 test("the title is the subject and the time is shown in the office zone", async () => {
@@ -66,20 +66,24 @@ test("the flag switch writes the overlay and a log row", async () => {
   expect(rows(app.device, "log").filter((r) => r.area === "overlay")).toEqual([expect.objectContaining({ kind: "flag", to: "true" })]);
 });
 
-test("setting prep writes the overlay and a log row", async () => {
-  const { app } = await openPanel();
-  fireEvent.click(await screen.findByRole("tab", { name: "Prep" }));
-  fireEvent.click(screen.getByRole("combobox", { name: "Prep" }));
-  const needed = await screen.findByRole("option", { name: "Needed" });
-  fireEvent.pointerDown(needed);
-  fireEvent.click(needed);
-  expect(rows(app.device, "overlays")[0]).toMatchObject({ prep: "needed" });
-  expect(rows(app.device, "log").filter((r) => r.area === "overlay")).toEqual([expect.objectContaining({ kind: "prep", from: "none", to: "needed" })]);
+test("a card from a template goes on the meeting as its own tab, and fills in", async () => {
+  const { app } = await openPanel((s) => {
+    s.run(templateSave, { now: MONDAY_NOW, name: "POC", shape: "user", fields: [{ id: "name", label: "Point of contact", type: "text", required: true }] });
+  });
+  fireEvent.click(await screen.findByRole("button", { name: "Add a card" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "POC" }));
+  expect(await screen.findByRole("tab", { name: "POC" })).toBeTruthy();
+  expect(screen.getByText("0 of 1 done")).toBeTruthy();
+  const contact = screen.getByRole("textbox", { name: "Point of contact *" });
+  fireEvent.change(contact, { target: { value: "Avery Stone" } });
+  fireEvent.blur(contact);
+  expect(rows(app.device, "cards")[0]?.values).toBe(JSON.stringify({ name: "Avery Stone" }));
+  expect(await screen.findByText("1 of 1 done")).toBeTruthy();
 });
 
 test("notes save on blur, not while typing", async () => {
   const { app } = await openPanel();
-  fireEvent.click(await screen.findByRole("tab", { name: "Prep" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "Notes" }));
   const notes = screen.getByRole("textbox", { name: "Notes" });
   fireEvent.change(notes, { target: { value: "Bring the figures" } });
   expect(rows(app.device, "overlays")).toHaveLength(0);
@@ -89,7 +93,7 @@ test("notes save on blur, not while typing", async () => {
 
 test("add follow-up creates a task linked to the event and tagged to the principal", async () => {
   const { app, principal, event } = await openPanel();
-  fireEvent.click(await screen.findByRole("tab", { name: "Prep" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "Notes" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Follow-up" }), { target: { value: "Send the minutes" } });
   fireEvent.click(screen.getByRole("button", { name: "Add follow-up" }));
   expect(rows(app.device, "tasks")).toEqual([expect.objectContaining({ title: "Send the minutes", event, principal })]);
@@ -98,36 +102,14 @@ test("add follow-up creates a task linked to the event and tagged to the princip
   expect(JSON.parse(probe().panel)).toMatchObject({ kind: "task" });
 });
 
-test("prep owner is a select of active people that stores the id, and a viewer sees the name", async () => {
-  const { app } = await openPanel((s) => {
-    s.user("user-a", "Alex Example");
-    s.user("user-b", "Blair Sample");
-    s.user("user-c", "Casey Gone", false);
-  });
-  fireEvent.click(await screen.findByRole("tab", { name: "Prep" }));
-  const owner = screen.getByLabelText("Prep owner") as HTMLSelectElement;
-  expect([...owner.options].map((o) => o.textContent)).toEqual(["None", "Alex Example", "Blair Sample"]);
-  fireEvent.change(owner, { target: { value: "user-b" } });
-  expect(rows(app.device, "overlays")[0]).toMatchObject({ prepOwner: "user-b" });
-  await cleanupApp();
-  await openPanel((s, { event }) => {
-    s.user("user-b", "Blair Sample");
-    s.run(overlaySet, { now: MONDAY_NOW, event, prepOwner: "user-b" });
-    s.viewer();
-  });
-  fireEvent.click(await screen.findByRole("tab", { name: "Prep" }));
-  expect(screen.getByText("Blair Sample")).toBeTruthy();
-});
-
 test("a viewer sees values as text and no write controls", async () => {
   await openPanel((s, { event }) => {
-    s.run(overlaySet, { now: MONDAY_NOW, event, prep: "in-hand", notes: "Bring the figures" });
+    s.run(overlaySet, { now: MONDAY_NOW, event, notes: "Bring the figures" });
     s.viewer();
   });
   const panel = await screen.findByRole("dialog");
   expect(within(panel).queryByRole("switch")).toBeNull();
-  fireEvent.click(within(panel).getByRole("tab", { name: "Prep" }));
-  expect(within(panel).getByText("In hand")).toBeTruthy();
+  fireEvent.click(within(panel).getByRole("tab", { name: "Notes" }));
   expect(within(panel).getByText("Bring the figures")).toBeTruthy();
   expect(within(panel).queryByRole("combobox")).toBeNull();
   expect(within(panel).queryAllByRole("textbox")).toHaveLength(0);

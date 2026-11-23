@@ -7,7 +7,7 @@ import { ShellProvider } from "../../../../../framework/runtime/shell/provider";
 import { SessionContext } from "../../../../../framework/runtime/shell/context";
 import { fakeEngine } from "../../../../../framework/runtime/shell/test/helpers/fake-engine";
 import { makeTestWorld, ok, NOW } from "../../../domain/commands/testing/world";
-import { importApply, officeSave, principalSave, proposalMove, proposalNew, tagSave } from "../../../domain/commands";
+import { cardAdd, cardSet, importApply, officeSave, principalSave, proposalMove, proposalNew, tagSave, templateSave } from "../../../domain/commands";
 import { toStored } from "../../import/import-model";
 import { rows } from "../../../domain/commands/testing/world";
 import { TAG_COLOURS } from "../../../domain/tags";
@@ -42,6 +42,22 @@ if (board?.start && board.end) ok(device, proposalMove, { now: NOW, event: board
 // Tags named after the synthetic diaries' Outlook categories, so they colour the diary.
 const TAGS: [string, number][] = [["Ministerial", 0], ["Board", 6], ["External", 2], ["Stakeholder", 4], ["Internal", 9]];
 if (!new URLSearchParams(location.search).has("notags")) for (const [name, c] of TAGS) ok(device, tagSave, { now: NOW, name, colour: TAG_COLOURS[c].value });
+// Two card templates, POC and Dial-in, with cards on the first executive team meeting.
+const poc = ok(device, templateSave, { now: NOW, name: "POC", shape: "user", fields: [
+  { id: "name", label: "Point of contact", type: "text", required: true },
+  { id: "phone", label: "Phone", type: "phone", required: true },
+  { id: "role", label: "Role", type: "text" },
+] });
+const dial = ok(device, templateSave, { now: NOW, name: "Dial-in", shape: "phone", fields: [
+  { id: "system", label: "System", type: "choice", required: true, options: "Teams bridge | 020 7946 0000, PIN 1234#\nZoom room | 020 7946 0001" },
+  { id: "host", label: "Host dials", type: "check" },
+] });
+const exec = rows(device, "events").find((e) => e.subject === "Executive team" && !e.gone && (e.start ?? "") > NOW);
+if (exec) {
+  const c = ok(device, cardAdd, { now: NOW, event: exec.id, template: poc });
+  ok(device, cardSet, { now: NOW, id: c, values: { name: "Avery Stone", phone: "07700 900123" } });
+  ok(device, cardAdd, { now: NOW, event: exec.id, template: dial });
+}
 const session = { user: { id: "user-a", name: "User A" }, deviceId: "usera-1", folder: "Test", version: "0", builtAt: NOW, openInvite: () => undefined };
 
 createRoot(document.getElementById("root")!).render(

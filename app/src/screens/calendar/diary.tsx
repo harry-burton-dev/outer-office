@@ -15,14 +15,15 @@ import { lensById } from "@/domain/lenses";
 import { TagMenu } from "@/tags/tag-menu";
 import { useRun } from "../tasks/use-run";
 import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, openingDate, proposalIdOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
-import { EventFaceView } from "./event-face";
+import { EventFaceView, type CardShape } from "./event-face";
+import { cardsOn, fieldsOf, isComplete, progressOf, valuesOf } from "@/domain/cards";
 import { LayerSwitch } from "./layer-switch";
 import { LensMenu } from "./lens-menu";
 import { MoveDialog, type MoveTarget } from "./move-dialog";
 import { ProposeDialog } from "./propose-dialog";
 
 /** What fills a meeting: the right-click target over all of it, a lens's fill, a ghost's dashes or the slider's veil. */
-function Entry({ face }: { face: EventFace }) {
+function Entry({ face, shapes }: { face: EventFace; shapes?: readonly CardShape[] }) {
   const cover = face.ghost
     ? { className: "absolute inset-0 rounded-[inherit] border border-dashed border-foreground/50 bg-background/75" }
     : face.veil
@@ -32,7 +33,7 @@ function Entry({ face }: { face: EventFace }) {
     <div className="min-w-0" data-ghost={face.ghost ? "" : undefined}>
       <span aria-hidden {...cover} />
       <div className={face.ghost ? "relative min-w-0 text-muted-foreground" : "relative min-w-0"} style={face.veil ? { opacity: 1 - face.veil * 0.8 } : undefined}>
-        <EventFaceView face={face} />
+        <EventFaceView face={face} shapes={shapes} />
       </div>
     </div>
   );
@@ -57,6 +58,15 @@ export function Diary({ principalId }: { principalId: string }) {
   const overlays = useRecords("overlays");
   const tags = useRecords("tags");
   const proposals = useRecords("proposals");
+  const cards = useRecords("cards");
+  const templates = useRecords("templates");
+  const shapesOf = useMemo(() => {
+    const byId = new Map(templates.filter((t) => !t._deleted).map((t) => [t.id, t]));
+    return (eventId: string): CardShape[] => cardsOn(cards, eventId).map((c) => {
+      const t = byId.get(c.template ?? "");
+      return { id: c.id, shape: t?.shape, complete: isComplete(progressOf(fieldsOf(t?.fields), valuesOf(c.values))) };
+    });
+  }, [cards, templates]);
   const [view, setView] = useState<DiaryView>("week");
   const [date, setDate] = useState(() => openingDate(today));
   const [lensId, setLensId] = useState<string | null>(null);
@@ -112,7 +122,7 @@ export function Diary({ principalId }: { principalId: string }) {
     );
     return (
       <TagMenu target="event" id={id} own={face.ownTags} categories={face.categories} onOpen={open} actions={actions}>
-        <div className="min-w-0"><Entry face={face} /></div>
+        <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} /></div>
       </TagMenu>
     );
   };

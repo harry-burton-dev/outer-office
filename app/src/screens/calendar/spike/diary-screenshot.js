@@ -51,6 +51,12 @@ if (process.env.PROBE_RIGHT_CLICK) {
   }
   process.stdout.write(`right-click opened a menu on ${opened} of ${blocks2.length} meetings\n`);
 }
+if (process.env.NAV) {
+  // NAV="Templates": go to that screen from the sidebar and save it.
+  await tab.getByRole("link", { name: process.env.NAV }).or(tab.getByRole("button", { name: process.env.NAV })).first().click();
+  await tab.waitForTimeout(300);
+  await tab.screenshot({ path: process.env.OUT_NAV ?? here("./diary-nav.png") });
+}
 if (process.env.LENS) {
   // LENS="Place/Location": open the lens menu, pick the tab and the lens, and save the menu and the diary.
   const [category, name] = process.env.LENS.split("/");
@@ -92,6 +98,12 @@ if (process.env.CLICK) {
   await tab.getByText(process.env.CLICK).first().click();
   await tab.waitForTimeout(500);
   await tab.screenshot({ path: process.env.OUT_PANEL ?? here("./diary-panel.png") });
+  if (process.env.TAB) {
+    // TAB="Dial-in": open that tab of the panel and save it.
+    await tab.getByRole("tab", { name: process.env.TAB }).click();
+    await tab.waitForTimeout(200);
+    await tab.screenshot({ path: process.env.OUT_TAB ?? here("./diary-panel-tab.png") });
+  }
 }
 await browser.close();
 rmSync(out, { recursive: true, force: true });
