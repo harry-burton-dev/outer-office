@@ -15,7 +15,8 @@ const identity = { user: { id: "sam", name: "Sam" } } as Identity;
 const engine = { name: "engine" } as unknown as Engine;
 const data = { name: "data" } as unknown as Data;
 const stop = async () => undefined;
-const session = { engine, data, stop, deviceId: "d1", user: identity.user };
+const onTick = () => () => undefined;
+const session = { engine, data, stop, onTick, deviceId: "d1", user: identity.user };
 
 const starting: ShellState = { phase: "starting" };
 const folderNone: ShellState = { phase: "folder", db, folder: { status: "none" } };
@@ -30,7 +31,7 @@ const granted: ShellState = { ...running, reconnect: "granted" };
 const ready = { status: "ready", handle: root } as const;
 const noPassport = { status: "none" } as const;
 const savedPassport = { status: "ready", handle: passportHandle } as const;
-const started = { ok: true, engine, data, stop, deviceId: "d1", clock: { now: () => 0 }, random: { bytes: (n: number) => new Uint8Array(n) } } as const;
+const started = { ok: true, engine, data, stop, onTick, deviceId: "d1", clock: { now: () => 0 }, random: { bytes: (n: number) => new Uint8Array(n) } } as const;
 
 type Row = [string, ShellState, ShellEvent, ShellState];
 

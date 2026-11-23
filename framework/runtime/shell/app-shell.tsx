@@ -6,6 +6,7 @@
 // screens stay the shell's.
 import { useCallback, useEffect, useMemo, useReducer, useState, type ReactNode } from "react";
 import { createData } from "../../data/runtime";
+import { createPlainFiles } from "../../plainfiles/plain-files.ts";
 import { DataProvider } from "../../react/hooks";
 import type { AppDefinition } from "../definition";
 import type { HostStart } from "../host/host";
@@ -159,8 +160,17 @@ function Running({ state, flow, chrome, children }: RunningProps) {
   const { engine } = session;
   const [inviting, setInviting] = useState(false);
   const info = useMemo<TrellisSession>(
-    () => ({ user: session.user, deviceId: session.deviceId, folder: root.name, version: __APP_VERSION__, builtAt: __BUILT_AT__, openInvite: () => setInviting(true) }),
-    [session.user, session.deviceId, root.name],
+    () => ({
+      user: session.user,
+      deviceId: session.deviceId,
+      folder: root.name,
+      version: __APP_VERSION__,
+      builtAt: __BUILT_AT__,
+      openInvite: () => setInviting(true),
+      plainFiles: (folder: string) => createPlainFiles(root, folder),
+      onTick: session.onTick,
+    }),
+    [session.user, session.deviceId, session.onTick, root],
   );
 
   // Permission lost mid-session: the engine reports the folder disconnected;

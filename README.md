@@ -124,6 +124,7 @@ This copy of Trellis differs from the upstream repository in these ways:
 - `useUsers` gives an app the workspace's users and their names.
 - The admin page takes sections from the app (`app/src/admin/index.ts`), see `docs/guides/add-an-admin-panel.md`.
 - The boundary check treats tests, `testing/` and `spike/` folders as not shipped, and stops shipped code importing them.
+- Apps can keep plain, unencrypted files in one subfolder of the shared folder, for tools such as Power Automate: `useSession().plainFiles(folder)` lists, reads, writes and deletes them, and `useSession().onTick(listener)` runs app work after each sync tick. The boundary check stops shipped app code using the folder handle directly. See `docs/guides/read-and-write-plain-files.md`.
 - The bundle size budget is 1,400,000 bytes (the framework's own is 500,000). Version 0.1 is about 1,180,000 bytes, 344,000 compressed.
 
 ## Not yet verified

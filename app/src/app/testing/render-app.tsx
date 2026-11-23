@@ -112,7 +112,18 @@ export async function renderApp(options: RenderAppOptions = {}): Promise<Rendere
   const world = await makeTestWorld();
   const device = await world.device(user);
   options.seed?.(makeSeeder(device, now, (write) => write()));
-  const session: TrellisSession = { user: { id: user, name }, deviceId: `${user}-device`, folder: "Test folder", version: "0.0.0-test", builtAt: now, openInvite: () => undefined };
+  const session: TrellisSession = {
+    user: { id: user, name },
+    deviceId: `${user}-device`,
+    folder: "Test folder",
+    version: "0.0.0-test",
+    builtAt: now,
+    openInvite: () => undefined,
+    plainFiles: () => {
+      throw new Error("renderApp does not set up plain files");
+    },
+    onTick: () => () => undefined,
+  };
   const result = render(
     <ShellProvider engine={fakeEngine()}>
       <DataProvider data={device.data}>

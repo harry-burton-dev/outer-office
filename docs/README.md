@@ -19,6 +19,7 @@ How to do one job.
 - [Write a command](guides/write-a-command.md)
 - [Handle a conflict](guides/handle-a-conflict.md)
 - [Add a migration](guides/add-a-migration.md)
+- [Read and write plain files](guides/read-and-write-plain-files.md)
 
 **Running a workspace**
 
