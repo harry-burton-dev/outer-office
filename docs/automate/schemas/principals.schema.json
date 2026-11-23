@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/harry-burton-dev/outer-office/blob/main/docs/automate/schemas/principals.schema.json",
+  "title": "automate/config/principals.json: which mailbox each principal's diary is read from",
+  "description": "Written by hand. Read by the flows, never by the app. Not secret, but plain: keep it to ids and mailbox addresses.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "principal": { "type": "string", "minLength": 1, "description": "Exactly the principal's id on the admin page." },
+      "calendarUser": { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+$", "description": "The mailbox whose default calendar is read. The flow account needs Reviewer access to it." }
+    },
+    "required": ["principal", "calendarUser"],
+    "additionalProperties": false
+  },
+  "minItems": 1
+}

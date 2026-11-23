@@ -1,0 +1,44 @@
+{
+  "principal": "PRINCIPAL-A",
+  "windowStart": "2026-11-16T00:00:00Z",
+  "windowEnd": "2027-01-22T00:00:00Z",
+  "count": 4,
+  "masters": [
+    { "id": "AAMkSERIES1", "iCalUId": "040000008200E00074C5B7101A82E00800000000SERIES1" }
+  ],
+  "events": [
+    {
+      "iCalUId": "040000008200E00074C5B7101A82E00800000000SINGLE1",
+      "seriesMasterId": null, "type": "singleInstance", "originalStart": null,
+      "start": "2026-11-24T09:00:00.0000000", "end": "2026-11-24T10:00:00.0000000", "timeZone": "UTC",
+      "isAllDay": false, "isCancelled": false,
+      "subject": "Board briefing", "location": "Room 4", "organizer": "Sam Example", "categories": ["Office work"],
+      "showAs": "busy", "sensitivity": "normal", "lastModifiedDateTime": "2026-11-20T10:00:00Z",
+      "attendees": [ { "type": "required", "status": { "response": "accepted" }, "emailAddress": { "name": "Ana Example", "address": "ana@office.example" } } ]
+    },
+    {
+      "iCalUId": "040000008200E00074C5B7101A82E0080000000OCCUR-20261125",
+      "seriesMasterId": "AAMkSERIES1", "type": "occurrence", "originalStart": "2026-11-25T08:30:00Z",
+      "start": "2026-11-25T08:30:00.0000000", "end": "2026-11-25T09:00:00.0000000", "timeZone": "UTC",
+      "isAllDay": false, "isCancelled": false,
+      "subject": "Weekly team", "location": "", "organizer": "Principal A", "categories": [],
+      "showAs": "busy", "sensitivity": "normal", "lastModifiedDateTime": "2026-11-01T09:00:00Z", "attendees": []
+    },
+    {
+      "iCalUId": "040000008200E00074C5B7101A82E0080000000OCCUR-20261202",
+      "seriesMasterId": "AAMkSERIES1", "type": "exception", "originalStart": "2026-12-02T08:30:00Z",
+      "start": "2026-12-02T14:00:00.0000000", "end": "2026-12-02T14:30:00.0000000", "timeZone": "UTC",
+      "isAllDay": false, "isCancelled": false,
+      "subject": "Weekly team (moved)", "location": "", "organizer": "Principal A", "categories": [],
+      "showAs": "busy", "sensitivity": "normal", "lastModifiedDateTime": "2026-11-22T16:00:00Z", "attendees": []
+    },
+    {
+      "iCalUId": "040000008200E00074C5B7101A82E00800000000PRIVATE1",
+      "seriesMasterId": null, "type": "singleInstance", "originalStart": null,
+      "start": "2026-11-26T00:00:00.0000000", "end": "2026-11-27T00:00:00.0000000", "timeZone": "UTC",
+      "isAllDay": true, "isCancelled": false,
+      "subject": "Private", "location": null, "organizer": null, "categories": [],
+      "showAs": "oof", "sensitivity": "private", "lastModifiedDateTime": "2026-11-10T12:00:00Z", "attendees": []
+    }
+  ]
+}
