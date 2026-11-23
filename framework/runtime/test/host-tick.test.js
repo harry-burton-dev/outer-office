@@ -29,15 +29,21 @@ async function startWithManualTicks() {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
+/** Waits for the order to reach `length` entries; an engine tick can take a while on a slow runner. */
+async function until(order, length) {
+  for (let i = 0; order.length < length && i < 250; i++) await settle();
+}
+
 test("listeners run after the engine's tick, and stop when removed", async () => {
   const { host, order, tick, restore } = await startWithManualTicks();
   try {
     const remove = host.onTick(() => void order.push("app"));
     tick();
-    await settle();
+    await until(order, 2);
     assert.deepEqual(order, ["engine", "app"]);
     remove();
     tick();
+    await until(order, 3);
     await settle();
     assert.deepEqual(order, ["engine", "app", "engine"]);
   } finally {
@@ -61,14 +67,14 @@ test("a slow listener holds the next tick back, and a failing one does not stop 
       await new Promise((resolve) => (release = resolve));
     });
     tick();
-    await settle();
+    await until(order, 2);
     tick(); // still inside the first tick: skipped
     await settle();
     assert.deepEqual(order, ["engine", "slow"]);
     release();
     await settle();
     tick();
-    await settle();
+    await until(order, 4);
     assert.deepEqual(order, ["engine", "slow", "engine", "slow"]);
     assert.equal(logged.length, 2);
     release();
