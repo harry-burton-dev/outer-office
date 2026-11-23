@@ -25,7 +25,7 @@ const code = readFileSync(join(out, "frame.js"), "utf8").replace(/<\/script/gi, 
 const page = join(out, "frame.html");
 writeFileSync(page, `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Frame</title></head><body><div id="root"></div><script type="module">${code}</script></body></html>`);
 const browser = await chromium.launch();
-const tab = await browser.newPage({ viewport: { width: Number(process.argv[2] ?? 1280), height: Number(process.argv[3] ?? 720) } });
+const tab = await browser.newPage({ viewport: { width: Number(process.argv[2] ?? 1280), height: Number(process.argv[3] ?? 720) }, colorScheme: process.env.SCHEME === "dark" ? "dark" : "light" });
 const errors = [];
 tab.on("pageerror", (e) => errors.push(String(e)));
 tab.on("console", (m) => m.type() === "error" && errors.push(m.text()));

@@ -39,7 +39,8 @@ export interface DiaryCalendarProps {
   onNavigate: (date: string) => void;
   onViewChange: (view: DiaryView) => void;
   /** Custom content inside an event; the default is FullCalendar's time and title. */
-  renderEvent?: (event: DiaryEvent) => ReactNode;
+  /** `time` is FullCalendar's time text for the event, in the office zone. */
+  renderEvent?: (event: DiaryEvent, time: string) => ReactNode;
   /** Extra toolbar controls, shown before the day and week tabs. */
   toolbarExtra?: ReactNode;
 }
@@ -71,7 +72,7 @@ export function dayIn(instant: Date, timeZone: string): string {
 
 /** Timed events keep their UTC instants (FullCalendar shifts them into the zone); all-day events become the zone's calendar days. */
 function toInput({ id, title, start, end, allDay, colour }: DiaryEvent, timeZone: string): EventInput {
-  const look = colour ? { color: colour, textColor: "#0a0a0a" } : {};
+  const look = colour ? { color: colour, textColor: "var(--foreground)" } : {};
   if (!allDay) return { id, title, start, end, allDay, ...look };
   return { id, title, start: dayIn(new Date(start), timeZone), end: dayIn(new Date(end), timeZone), allDay, ...look };
 }
@@ -109,9 +110,9 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
   };
 
   const eventContent = renderEvent
-    ? ({ event }: EventDisplayInfo) => {
+    ? ({ event, timeText }: EventDisplayInfo) => {
         const diaryEvent = byId.get(event.id);
-        return diaryEvent ? renderEvent(diaryEvent) : undefined;
+        return diaryEvent ? renderEvent(diaryEvent, timeText) : undefined;
       }
     : undefined;
 

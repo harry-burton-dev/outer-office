@@ -23,9 +23,9 @@ import { MoveDialog, type MoveTarget } from "./move-dialog";
 import { ProposeDialog } from "./propose-dialog";
 
 /** What fills a meeting: the right-click target over all of it, a lens's fill, a ghost's dashes or the slider's veil. */
-function Entry({ face, shapes }: { face: EventFace; shapes?: readonly CardShape[] }) {
+function Entry({ face, shapes, time }: { face: EventFace; shapes?: readonly CardShape[]; time?: string }) {
   const cover = face.ghost
-    ? { className: "absolute inset-0 rounded-[inherit] border border-dashed border-foreground/50 bg-background/75" }
+    ? { className: "absolute inset-0 rounded-[inherit] border border-dashed border-foreground/40 bg-background/80 [background-image:repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_srgb,var(--foreground)_5%,transparent)_6px_7px)]" }
     : face.veil
       ? { className: "absolute inset-0", style: { background: `color-mix(in srgb, var(--background) ${Math.round(face.veil * 100)}%, transparent)` } }
       : { className: "absolute inset-0", style: face.lensFill ? { background: face.lensFill } : undefined };
@@ -33,7 +33,7 @@ function Entry({ face, shapes }: { face: EventFace; shapes?: readonly CardShape[
     <div className="min-w-0" data-ghost={face.ghost ? "" : undefined}>
       <span aria-hidden {...cover} />
       <div className={face.ghost ? "relative min-w-0 text-muted-foreground" : "relative min-w-0"} style={face.veil ? { opacity: 1 - face.veil * 0.8 } : undefined}>
-        <EventFaceView face={face} shapes={shapes} />
+        <EventFaceView face={face} shapes={shapes} time={time} />
       </div>
     </div>
   );
@@ -88,15 +88,17 @@ export function Diary({ principalId }: { principalId: string }) {
     if (editing) setDialog({ kind: "propose", day: date, editing });
   };
 
-  const renderEvent = (event: DiaryEvent) => {
+  const renderEvent = (event: DiaryEvent, timeText: string) => {
     const face = data.faces.get(event.id);
     if (!face) return undefined;
+    // Only a meeting tall enough for a second line shows its times.
+    const time = !event.allDay && Date.parse(event.end) - Date.parse(event.start) >= 60 * 60_000 ? timeText : undefined;
     const pid = proposalIdOf(event.id);
     if (pid !== undefined) {
       // A proposed new meeting: no tags or panel until it is in Outlook.
       return (
         <ContextMenu>
-          <ContextMenuTrigger render={<div className="min-w-0"><Entry face={face} /></div>} />
+          <ContextMenuTrigger render={<div className="min-w-0"><Entry face={face} time={time} /></div>} />
           {!isViewer && (
             <ContextMenuContent>
               <ContextMenuItem onClick={() => editNew(pid)}>Change…</ContextMenuItem>
@@ -122,7 +124,7 @@ export function Diary({ principalId }: { principalId: string }) {
     );
     return (
       <TagMenu target="event" id={id} own={face.ownTags} categories={face.categories} onOpen={open} actions={actions}>
-        <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} /></div>
+        <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} time={time} /></div>
       </TagMenu>
     );
   };
