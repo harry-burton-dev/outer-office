@@ -24,6 +24,7 @@ How to do one job.
 
 - [Invite a user](guides/invite-a-user.md)
 - [Back up and restore](guides/back-up-and-restore.md)
+- [Add an admin panel](guides/add-an-admin-panel.md)
 - [Cut a signed release](guides/release.md)
 - [Roll back a release](guides/roll-back.md)
 

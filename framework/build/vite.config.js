@@ -31,10 +31,38 @@ function definitionPlugin(definition) {
   };
 }
 
+const ADMIN_PANELS = "virtual:admin-panels";
+const RESOLVED_ADMIN_PANELS = "\0admin-panels";
+const PANELS_MODULE = here("../runtime/admin/panels.ts");
+
+/**
+ * The admin page's "virtual:admin-panels": `panels`, the app's src/admin/index.ts
+ * panels opened by the framework, or null when the app has no such file, so a
+ * page without panels builds in neither them nor the data runtime.
+ */
+export function adminPanelsPlugin(file = here("../../app/src/admin/index.ts")) {
+  const path = (p) => JSON.stringify(p.replace(/\\/g, "/"));
+  const code = existsSync(file)
+    ? `import { adminPanels } from ${path(file)};\nimport { openPanels } from ${path(PANELS_MODULE)};\nexport const panels = openPanels(adminPanels);`
+    : "export const panels = null;";
+  return {
+    name: "admin-panels",
+    resolveId: (id) => (id === ADMIN_PANELS ? RESOLVED_ADMIN_PANELS : undefined),
+    load: (id) => (id === RESOLVED_ADMIN_PANELS ? code : undefined),
+  };
+}
+
+// The app's admin panels reach the framework through its public entry, which
+// also carries the React shell and hooks. The admin page renders neither, and
+// nothing in them runs on import, so the admin build may leave them out unless used.
+const UI_MODULE = /[\\/](?:framework[\\/](?:runtime[\\/]shell|react)|node_modules[\\/](?:react|react-dom|scheduler|@base-ui|@floating-ui|class-variance-authority|cn|use-sync-external-store|tabbable))[\\/]/;
+export const adminSideEffects = (id) => !UI_MODULE.test(id);
+
 // Build targets (ADR-0005 section 1), chosen with --mode:
 //   bootstrap  <outDir>/bootstrap.html        one HTML file: the loader and the public signing key
 //   app        <outDir>/app/<id>-<version>.js one ES module, styles included, run by the bootstrap
-//   admin      <outDir>/admin.html            one HTML file: the admin page, without the loader (OUT-10)
+//   admin      <outDir>/admin.html            one HTML file: the admin page, without the loader (OUT-10),
+//                                             with the app's src/admin/index.ts panels if it has that file
 // `vite` (dev) serves masters/dev.html: the app directly, without the loader.
 // Every name comes from `definition`; release.js renames bootstrap.html to <id>.html
 // and admin.html to <id>-admin.html.
@@ -81,9 +109,9 @@ export function appConfig({ definition, version, mode, outDir }) {
   if (mode === "admin") {
     return {
       ...shared,
-      plugins: [definitionPlugin(definition), viteSingleFile()],
+      plugins: [definitionPlugin(definition), adminPanelsPlugin(), viteSingleFile()],
       define: { ...shared.define, __APP_DEFINITION__: JSON.stringify(definition) },
-      build: { target: "es2022", outDir, emptyOutDir: false, rollupOptions: { input: here("../../masters/admin.html") } },
+      build: { target: "es2022", outDir, emptyOutDir: false, rollupOptions: { input: here("../../masters/admin.html"), treeshake: { moduleSideEffects: adminSideEffects } } },
     };
   }
   return { ...shared, plugins: [definitionPlugin(definition), react(), tailwindcss()] };

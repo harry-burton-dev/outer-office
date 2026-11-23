@@ -13,7 +13,7 @@ const navItem = (name: string) => within(nav()).getByRole("button", { name });
 const heading = (name: string) => screen.getByRole("heading", { name });
 
 test("navigating from the sidebar changes the screen and marks the item active", async () => {
-  await renderApp({ seed: (s) => s.principal("PRINCIPAL-A"), children: <><AppFrame /><AppProbe /></> });
+  await renderApp({ seed: (s) => { s.principal("PRINCIPAL-A"); s.ackPrivacy(); }, children: <><AppFrame /><AppProbe /></> });
   expect(heading("Calendar")).toBeTruthy();
   expect(navItem("Calendar").getAttribute("aria-current")).toBe("page");
 
@@ -119,7 +119,7 @@ test("an assistant sees Add task, which opens quick add", async () => {
 });
 
 test("with no principals the principal screens point to the admin page and task screens still work", async () => {
-  await renderApp();
+  await renderApp({ seed: (s) => { s.ackPrivacy(); } });
   expect(screen.getByText("No principals yet")).toBeTruthy();
   expect(screen.getByText("Add them in the admin page.")).toBeTruthy();
 

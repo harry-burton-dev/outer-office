@@ -16,14 +16,16 @@ import { workspaceFileFor } from "../identity/workspace.js";
 import { newKeyring, rotateKeyring, userIdFor, mintInvite, exportBackup, engineKeys, USERS_TABLE, USERS_SCHEMA, putUser } from "../identity/admin.js";
 import { writeBackup, packBackup, BackupError } from "../backup/backup.js";
 import { readWorkspace, writeWorkspace, openKeyring, restoreWorkspace, AdminError, backupFileName, inviteFileName, backupZipName } from "./actions.js";
+import type { OpenPanels } from "./panels";
+import { panels } from "virtual:admin-panels";
 
 type Keyring = { workspace: string; current: number; keys: { id: number; raw: Uint8Array }[] };
 type UserFields = { name: string; role: string; status: string };
 type UsersTable = { list(): { id: string; fields: UserFields }[] };
 type Unreadable = { path: string; error?: { name: string; message: string } };
 type EngineKeys = { key: CryptoKey; keyId: number; keys: Map<number, CryptoKey> };
-/** backup: what writeBackup needs besides the folder and the engine. */
-type Session = { root: FileSystemDirectoryHandle; keyring: Keyring; engine: Engine; users: UsersTable; backup: { keys: EngineKeys; tables: Record<string, string>; adapters: Record<string, unknown>; clock: { now(): number } }; stop: () => Promise<void> };
+/** backup: what writeBackup needs besides the folder and the engine. panels: the app's own sections, when it has any. */
+type Session = { root: FileSystemDirectoryHandle; keyring: Keyring; engine: Engine; users: UsersTable; panels: OpenPanels | null; backup: { keys: EngineKeys; tables: Record<string, string>; adapters: Record<string, unknown>; clock: { now(): number } }; stop: () => Promise<void> };
 
 const names = appNames(__APP_DEFINITION__);
 // The engine writes as the admin page, not as a person: the backup holds no user.
@@ -252,7 +254,13 @@ async function startSession(db: KeyValueDb, root: FileSystemDirectoryHandle, key
     return null;
   }
   const users = openTable({ adapter: undefined, doc: started.engine.table(USERS_TABLE), schema: USERS_SCHEMA, deviceId: started.deviceId, user: ENGINE_USER, clock: { now: () => Date.now() }, migrations: {} }) as unknown as UsersTable;
-  return { root, keyring, engine: started.engine, users, backup: { keys, ...engineTables(__APP_DEFINITION__), clock: started.clock }, stop: started.stop };
+  const { engine, deviceId, clock } = started;
+  const open = panels?.({ engine, config: __APP_DEFINITION__, deviceId, user: ENGINE_USER, clock, random: started.random, el, say }) ?? null;
+  const stop = async (): Promise<void> => {
+    open?.close();
+    await started.stop();
+  };
+  return { root, keyring, engine, users, panels: open, backup: { keys, ...engineTables(__APP_DEFINITION__), clock }, stop };
 }
 
 function workspaceScreen(db: KeyValueDb, session: Session, opening: string): void {
@@ -372,6 +380,7 @@ function workspaceScreen(db: KeyValueDb, session: Session, opening: string): voi
     ...labelled(newName, "Name"),
     ...labelled(invitePass, "One-time passphrase for the invite (at least 12 characters; also used by \"New invite\")"),
     add,
+    ...(session.panels?.sections() ?? []),
     el("h2", {}, "Workspace key"),
     ...labelled(keyPass, "Passphrase for the new key backup"),
     ...labelled(keyAgain, "The passphrase again"),

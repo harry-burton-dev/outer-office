@@ -14,6 +14,7 @@ export type { Query } from "./data/select";
 export type { Conflict } from "./data/conflicts";
 export { defineCommand, type CommandDef, type CommandResult, type Change, type Tx } from "./data/commands";
 export { createData, type Data } from "./data/runtime";
+export type { AdminPanel, AdminPanelContext } from "./runtime/admin/panels";
 export {
   DataProvider,
   useRecords,

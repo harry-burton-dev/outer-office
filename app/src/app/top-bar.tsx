@@ -35,7 +35,7 @@ export function TopBar() {
       )}
       <NeedsActionButton />
       <div className="ml-auto flex min-w-0 items-center gap-4">
-        <HealthIndicator />
+        <HealthIndicator compact />
         <span className="truncate text-sm">{user.name}</span>
       </div>
     </header>

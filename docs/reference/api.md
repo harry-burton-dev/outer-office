@@ -21,6 +21,7 @@ Most apps use the first four groups: the app shell, hooks, commands, and rows. T
 - [Updates](#updates)
 - [Folder and passport](#folder-and-passport)
 - [Data runtime](#data-runtime)
+- [Admin page](#admin-page)
 
 ## App shell
 
@@ -79,8 +80,14 @@ interface TrellisAppProps {
 The sync status: a badge, one plain sentence, and a menu that opens the diagnostics view. The shell shows it for you. Place it yourself only with `chrome="app"`, anywhere inside `<TrellisApp>`.
 
 ```ts signature
-function HealthIndicator(): JSX.Element
+function HealthIndicator(props?: HealthIndicatorProps): JSX.Element
+
+interface HealthIndicatorProps {
+  compact?: boolean;
+}
 ```
+
+- `compact`: optional, default `false`. Shows only the badge, for a narrow bar. The badge's accessible name still carries the sentence, and the sentence, the last save and folder read, and the colleagues heard move into the menu.
 
 ```tsx
 // app/src/main.tsx
@@ -92,7 +99,7 @@ import { ItemsScreen } from "./items-screen";
 export const start = mount(
   <TrellisApp config={config} chrome="app">
     <header className="flex items-center gap-4 border-b p-3">
-      <HealthIndicator />
+      <HealthIndicator compact />
       <ConflictPrompt />
     </header>
     <ItemsScreen />
@@ -1113,3 +1120,48 @@ Makes the [`Data`](#data) for a running sync engine. The shell calls it once syn
 **Caveats**
 
 - It needs the sync engine, and no export gives an app one. App code has no way to call it. It is exported for the shell.
+
+## Admin page
+
+An app may add its own sections to the admin page. See [Add an admin panel](../guides/add-an-admin-panel.md).
+
+### `AdminPanel`
+
+One section of the admin page. Export a list of them as `adminPanels` from `app/src/admin/index.ts`.
+
+```ts signature
+interface AdminPanel {
+  readonly title: string;
+  render(ctx: AdminPanelContext): Node | readonly Node[];
+}
+```
+
+- `title`: the section's heading.
+- `render`: draws the section's content. It runs once when a workspace opens, and again each time the panel calls `ctx.refresh()`.
+
+**Caveats**
+
+- If `render` throws, the section shows "This section could not be shown:" and the error. The rest of the page still works. An error thrown later, in a click handler, is the panel's to catch.
+- Plain DOM only. The admin page has no React.
+
+### `AdminPanelContext`
+
+What a panel's `render` is given.
+
+```ts signature
+interface AdminPanelContext {
+  readonly data: Data;
+  readonly user: string;
+  readonly el: <K extends keyof HTMLElementTagNameMap>(tag: K, props?: Partial<HTMLElementTagNameMap[K]>, ...children: (Node | string)[]) => HTMLElementTagNameMap[K];
+  refresh(): void;
+}
+```
+
+- `data`: the app's [`Data`](#data) for this admin session, on the admin page's own engine, with every command the panel's imports define. A run that changes something is saved to the folder straight away.
+- `user`: the user the admin page writes as, `admin`. Commands see it as `tx.user`.
+- `el`: the admin page's DOM helper. It makes an element, sets its properties, and appends its children.
+- `refresh()`: draws this panel again, for example after a save.
+
+**Caveats**
+
+- The panel is not redrawn when other users change data. Its content is as it stood when it was last drawn.

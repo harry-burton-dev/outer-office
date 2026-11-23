@@ -111,6 +111,58 @@ describe("health menu", () => {
   });
 });
 
+describe("compact health indicator", () => {
+  const setup = () => {
+    const engine = fakeEngine({ state: "saving", extra: { pending: 3, peers: { d1: { user: "sam", lastHeardAt: null, lastAckedAt: null, active: true, ackedLatest: false, waitingSince: null } } } });
+    render(
+      <ShellProvider engine={engine}>
+        <HealthIndicator compact />
+      </ShellProvider>,
+    );
+    const { label, sentence } = defaultStrings.health.saving;
+    return { label, sentence, trigger: screen.getByRole("button", { name: `${label} ${sentence}` }) };
+  };
+
+  test("shows only the badge, whose name carries the status sentence", () => {
+    const { sentence, trigger } = setup();
+    expect(trigger.querySelector("[data-slot=badge]")?.getAttribute("data-variant")).toBe("secondary");
+    expect(screen.queryByText(sentence, { ignore: "[hidden]" })).toBeNull();
+    expect(screen.queryByText(defaultStrings.waiting(3))).toBeNull();
+    expect(screen.queryByText(defaultStrings.lastSave(defaultStrings.never))).toBeNull();
+    expect(screen.queryByText(defaultStrings.lastFolderRead(defaultStrings.never))).toBeNull();
+  });
+
+  test("the menu shows the sentence, pending, last save, last folder read, colleagues and Diagnostics", () => {
+    const { sentence, trigger } = setup();
+    fireEvent.click(trigger);
+    const menu = screen.getByRole("menu", { name: defaultStrings.healthMenu });
+    expect(within(menu).getByText(sentence)).toBeTruthy();
+    expect(within(menu).getByText(defaultStrings.waiting(3))).toBeTruthy();
+    expect(within(menu).getByText(defaultStrings.lastSave(defaultStrings.never))).toBeTruthy();
+    expect(within(menu).getByText(defaultStrings.lastFolderRead(defaultStrings.never))).toBeTruthy();
+    expect(within(menu).getByText(defaultStrings.peerHeard("sam", defaultStrings.never))).toBeTruthy();
+    const items = within(menu).getAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual([defaultStrings.diagnostics]);
+    expect(document.activeElement).toBe(items[0]);
+  });
+
+  test("Diagnostics in the compact menu opens the diagnostics view", () => {
+    const { trigger } = setup();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: defaultStrings.diagnostics }));
+    expect(screen.getByRole("dialog", { name: defaultStrings.diagnostics })).toBeTruthy();
+  });
+
+  test("shows Starting when there is no engine yet", () => {
+    render(
+      <ShellProvider>
+        <HealthIndicator compact />
+      </ShellProvider>,
+    );
+    expect(screen.getByRole("button", { name: defaultStrings.starting })).toBeTruthy();
+  });
+});
+
 describe("useHealth", () => {
   function Probe() {
     const health = useHealth();

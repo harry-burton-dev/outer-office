@@ -7,6 +7,8 @@ import { useActivePrincipals, type Principal } from "./principals";
 
 const MAX_SEGMENTS = 4;
 const LABEL = "Principal";
+/** The chosen principal in the theme's primary colours, so it stands out from the rest. */
+const SELECTED = "aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:hover:text-primary-foreground";
 
 interface SwitchProps {
   principals: readonly Principal[];
@@ -25,7 +27,7 @@ function Segments({ principals, value, onChange }: SwitchProps) {
       onValueChange={(next: unknown[]) => typeof next[0] === "string" && onChange(next[0])}
     >
       {principals.map((p) => (
-        <ToggleGroupItem key={p.id} value={p.id}>
+        <ToggleGroupItem key={p.id} value={p.id} className={SELECTED}>
           {p.code ?? p.id}
         </ToggleGroupItem>
       ))}
