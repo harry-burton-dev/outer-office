@@ -76,3 +76,35 @@ test("tests, testing/ and spike/ are exempt, and shipped code may not import the
   const found = findViolations(dir, { allowedPackages: [] });
   assert.deepEqual(found.map((v) => v.reason), ["imports test-only code", "imports test-only code", "imports test-only code"]);
 });
+
+test("shipped code may not use the folder handle; tests and spikes may", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "boundary-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  mkdirSync(join(dir, "src", "screens"), { recursive: true });
+  mkdirSync(join(dir, "src", "spike"), { recursive: true });
+  writeFileSync(
+    join(dir, "src", "screens", "bad.tsx"),
+    [
+      `const dir = await root.getDirectoryHandle("automate", { create: true });`,
+      `const file = await dir.getFileHandle("x.json");`,
+      `const w = await file . createWritable ();`,
+      `await dir.removeEntry("x.json");`,
+      `const picked = await window.showDirectoryPicker();`,
+    ].join("\n"),
+  );
+  writeFileSync(join(dir, "src", "screens", "good.tsx"), `const files = useSession().plainFiles("automate");\nawait files.write("calls/x.json", "{}");\n// getFileHandle is named in this comment, not called\n`);
+  writeFileSync(join(dir, "src", "spike", "probe.ts"), `await root.getFileHandle("x", { create: true });`);
+  writeFileSync(join(dir, "src", "screens", "bad.test.tsx"), `await root.getFileHandle("x");`);
+  const found = findViolations(dir, { allowedPackages: [] });
+  assert.deepEqual(
+    found.map((v) => [v.file.replace(/\\/g, "/"), v.line, v.specifier]),
+    [
+      ["src/screens/bad.tsx", 1, "getDirectoryHandle"],
+      ["src/screens/bad.tsx", 2, "getFileHandle"],
+      ["src/screens/bad.tsx", 3, "createWritable"],
+      ["src/screens/bad.tsx", 4, "removeEntry"],
+      ["src/screens/bad.tsx", 5, "showDirectoryPicker"],
+    ],
+  );
+  assert.ok(found.every((v) => v.reason === "uses the folder handle; use useSession().plainFiles"));
+});
