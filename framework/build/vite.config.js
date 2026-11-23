@@ -114,7 +114,12 @@ export function appConfig({ definition, version, mode, outDir }) {
       build: { target: "es2022", outDir, emptyOutDir: false, rollupOptions: { input: here("../../masters/admin.html"), treeshake: { moduleSideEffects: adminSideEffects } } },
     };
   }
-  return { ...shared, plugins: [definitionPlugin(definition), react(), tailwindcss()] };
+  // dev also serves /admin.html, so a workspace can be set up without a build
+  return {
+    ...shared,
+    plugins: [definitionPlugin(definition), adminPanelsPlugin(), react(), tailwindcss()],
+    define: { ...shared.define, __APP_DEFINITION__: JSON.stringify(definition) },
+  };
 }
 
 export default defineConfig(({ mode }) => appConfig({ definition: repoDefinition, version: pkg.version, mode, outDir: here("../../dist") }));
