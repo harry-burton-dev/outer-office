@@ -1,0 +1,19 @@
+{
+  "protocol": "outer-office/automate",
+  "version": 1,
+  "kind": "call",
+  "callId": "6f1c2a9e-4b7d-4c1e-9a3f-2d5e8b7c1a40",
+  "api": "diary.fetch",
+  "apiVersion": 1,
+  "input": {
+    "principal": "PRINCIPAL-A",
+    "windowStart": "2026-11-16T00:00:00Z",
+    "windowEnd": "2027-01-22T00:00:00Z"
+  },
+  "caller": {
+    "user": "sam",
+    "app": "outer-office 0.2.0"
+  },
+  "issuedAt": "2026-11-23T20:30:00Z",
+  "expiresAt": "2026-11-23T20:45:00Z"
+}

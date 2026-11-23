@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/harry-burton-dev/outer-office/blob/main/docs/automate/schemas/diary.fetch.input.schema.json",
+  "title": "diary.fetch v1 input",
+  "type": "object",
+  "properties": {
+    "principal": { "type": "string", "minLength": 1, "description": "The principal's id on the admin page. Must be in automate/config/principals.json." },
+    "windowStart": { "$ref": "envelope.schema.json#/$defs/isoUtc" },
+    "windowEnd": { "$ref": "envelope.schema.json#/$defs/isoUtc" }
+  },
+  "required": ["principal", "windowStart", "windowEnd"],
+  "additionalProperties": false
+}

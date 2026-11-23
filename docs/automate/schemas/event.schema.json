@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/harry-burton-dev/outer-office/blob/main/docs/automate/schemas/event.schema.json",
+  "title": "Business process output (flow to app inbox)",
+  "$ref": "envelope.schema.json",
+  "type": "object",
+  "properties": {
+    "kind": { "const": "event" },
+    "process": { "$ref": "envelope.schema.json#/$defs/name" },
+    "processVersion": { "$ref": "envelope.schema.json#/$defs/version" },
+    "generatedAt": { "$ref": "envelope.schema.json#/$defs/isoUtc" },
+    "data": { "type": "object", "description": "Validated by the process's own data schema, e.g. diary-payload.schema.json." }
+  },
+  "required": ["protocol", "version", "kind", "process", "processVersion", "generatedAt", "data"],
+  "unevaluatedProperties": false
+}
