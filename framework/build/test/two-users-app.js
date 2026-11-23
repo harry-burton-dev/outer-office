@@ -108,21 +108,20 @@ export const calendarShows = (u) =>
 export const titles = (events) => events.map((e) => e.title).join(" | ");
 export const eventTitled = (events, title) => events.find((e) => e.title === title);
 
-/** Opens an event's engagement panel from the calendar, on the Prep tab. */
-export async function openEngagement(u, title) {
+/** Opens an event's engagement panel from the calendar, on `tab` (Overview holds the flag, Notes the notes). */
+export async function openEngagement(u, title, tab = "Notes") {
   await u.page.locator("[data-event-face]").filter({ hasText: title }).first().click();
-  await dialog(u).getByRole("tab", { name: "Prep" }).click();
+  await dialog(u).getByRole("tab", { name: tab }).click();
   return dialog(u);
 }
 
-/** What the engagement panel shows: when, the prep state and the notes. Closes it again. */
+/** What the engagement panel shows: when, the flag and the notes. Closes it again. */
 export async function engagementShows(u, title) {
-  const panel = await openEngagement(u, title);
-  const shown = {
-    when: await panel.locator("[data-slot=sheet-description]").first().textContent().catch(() => ""),
-    prep: (await panel.getByRole("combobox", { name: "Prep", exact: true }).locator("[data-slot=select-value]").textContent()).trim(),
-    notes: await panel.getByLabel("Notes").inputValue(),
-  };
+  const panel = await openEngagement(u, title, "Overview");
+  const when = await panel.locator("[data-slot=sheet-description]").first().textContent().catch(() => "");
+  const flagged = (await panel.getByRole("switch", { name: "Flag" }).getAttribute("aria-checked")) === "true";
+  await panel.getByRole("tab", { name: "Notes" }).click();
+  const shown = { when, flagged, notes: await panel.getByRole("textbox", { name: "Notes" }).inputValue() };
   await closeDialog(u);
   return shown;
 }
