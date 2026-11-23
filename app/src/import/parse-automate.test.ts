@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, test } from "vitest";
+import { readFileSync } from "node:fs";
 import { parseAutomate, type AutomateParseOptions, type DiaryEvent, type DiaryPayload } from "./parse-automate";
 import { parseIcs } from "./parse-ics";
 import { diffImport } from "./diff";
@@ -31,6 +32,13 @@ describe("cross-source keys: the .ics file and the diary payload for the same di
     const diff = diffImport(before, parseAutomate(MAIN_PAYLOAD, MASK));
     expect({ added: diff.added, changed: diff.changed, gone: diff.gone, returned: diff.returned }).toEqual({ added: [], changed: [], gone: [], returned: [] });
     expect(diff.unchanged).toBe(23);
+  });
+});
+
+describe("the fixture is the protocol's example", () => {
+  test("docs/automate/examples/diary-payload-outlook-fixture.json is this fixture, so the schema test covers it", () => {
+    const example: unknown = JSON.parse(readFileSync(new URL("../../../docs/automate/examples/diary-payload-outlook-fixture.json", import.meta.url), "utf8"));
+    expect(example).toEqual(JSON.parse(JSON.stringify(MAIN_PAYLOAD)));
   });
 });
 
