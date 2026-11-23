@@ -6,9 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useApp } from "@/app/app-state";
 import { formatDay } from "@/domain/dates";
 import type { ImportDiff } from "@/import/types";
+import type { ImportSource } from "./use-import-flow";
 import { CHANGE_ROW_CAP, changeRows, changesAnything, countsLine, type PrivatePolicy } from "./import-model";
 
 export interface ReviewStepProps {
+  source: ImportSource;
   fileName: string;
   diff: ImportDiff;
   warnings: readonly string[];
@@ -65,7 +67,7 @@ function Warnings({ warnings }: { warnings: readonly string[] }) {
   );
 }
 
-export function ReviewStep({ fileName, diff, warnings, policy, error, onApply, onCancel }: ReviewStepProps) {
+export function ReviewStep({ source, fileName, diff, warnings, policy, error, onApply, onCancel }: ReviewStepProps) {
   const { timezone } = useApp();
   const hasChanges = changesAnything(diff);
   return (
@@ -74,6 +76,12 @@ export function ReviewStep({ fileName, diff, warnings, policy, error, onApply, o
         {fileName}: {formatDay(diff.rangeStart, timezone)} to {formatDay(diff.rangeEnd, timezone)}
       </p>
       <p className="text-sm text-muted-foreground">{countsLine(diff, policy)}</p>
+      {source === "csv" && (
+        <p role="note" className="text-sm">
+          A CSV has no event IDs, so each row was matched to the diary by its start time and subject. A meeting that moved
+          shows as gone plus added, and its notes and tasks stay on the gone one.
+        </p>
+      )}
       {hasChanges ? <ChangeTable diff={diff} /> : <p className="text-sm">Nothing to change</p>}
       <Warnings warnings={warnings} />
       {error && (

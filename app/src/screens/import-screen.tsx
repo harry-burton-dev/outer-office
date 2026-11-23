@@ -1,4 +1,4 @@
-// Import: choose an .ics file for the chosen principal, review what it would
+// Import: choose an .ics or CSV file for the chosen principal, review what it would
 // change, apply it, then a reminder to delete the export. History below.
 // Viewers see only the history.
 import { useRecord } from "@trellis/framework";
@@ -16,10 +16,28 @@ interface ImportStepsProps {
 
 function ImportSteps({ principal }: ImportStepsProps) {
   const record = useRecord("principals", principal);
-  const { state, policy, choose, apply, reset } = useImportFlow(principal);
+  const { state, policy, choose, chooseCsv, pickOrder, apply, reset } = useImportFlow(principal);
   const label = record?.code ?? principal;
   if (state.step === "review") {
     return <ReviewStep {...state} policy={policy} onApply={apply} onCancel={reset} />;
+  }
+  if (state.step === "order") {
+    return (
+      <section aria-label="Date order" className="flex flex-col items-start gap-4">
+        <p className="text-sm">
+          Every date in {state.fileName} could be read either way. How does the computer that exported it write 3 April?
+        </p>
+        <div className="flex gap-2">
+          <Button onClick={() => pickOrder("dmy")}>03/04 (day first)</Button>
+          <Button variant="outline" onClick={() => pickOrder("mdy")}>
+            04/03 (month first)
+          </Button>
+          <Button variant="ghost" onClick={reset}>
+            Cancel
+          </Button>
+        </div>
+      </section>
+    );
   }
   if (state.step === "done") {
     return (
@@ -31,7 +49,7 @@ function ImportSteps({ principal }: ImportStepsProps) {
       </section>
     );
   }
-  return <ChooseStep principalLabel={label} errors={state.errors} busy={state.busy} onFile={(file) => void choose(file)} />;
+  return <ChooseStep principalLabel={label} errors={state.errors} busy={state.busy} onFile={(file) => void choose(file)} onCsvFile={(file) => void chooseCsv(file)} />;
 }
 
 export function ImportScreen() {
