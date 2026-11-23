@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { isTimeZone, newPrincipalInput, normaliseCode, officeInput, principalChange, sortPrincipals, type PrincipalRow } from "./setup";
 
 const NOW = "2026-11-22T09:00:00.000Z";
-const FORM = { name: " Test Office ", timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", privatePolicy: "mask" };
+const FORM = { name: " Test Office ", timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", privatePolicy: "mask", automate: "off" };
 const ROW: PrincipalRow = { id: "p1", code: "PRINCIPAL-A", title: "Chair", order: 1, active: true };
 
 describe("isTimeZone", () => {
@@ -13,12 +13,17 @@ describe("isTimeZone", () => {
 
 describe("officeInput", () => {
   test("builds the office.save input, trimmed", () => {
-    expect(officeInput(FORM, NOW)).toEqual({ ok: true, input: { now: NOW, name: "Test Office", timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", privatePolicy: "mask" } });
+    expect(officeInput(FORM, NOW)).toEqual({ ok: true, input: { now: NOW, name: "Test Office", timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", privatePolicy: "mask", automate: false } });
+  });
+
+  test("Power Automate is on only when \"on\" is chosen", () => {
+    const built = officeInput({ ...FORM, automate: "on" }, NOW);
+    expect(built.ok && built.input.automate).toBe(true);
   });
 
   test("leaves out empty times, so the command keeps what is stored", () => {
     const built = officeInput({ ...FORM, dayStart: " ", dayEnd: "" }, NOW);
-    expect(built.ok && built.input).toEqual({ now: NOW, name: "Test Office", timezone: "Europe/London", privatePolicy: "mask" });
+    expect(built.ok && built.input).toEqual({ now: NOW, name: "Test Office", timezone: "Europe/London", privatePolicy: "mask", automate: false });
   });
 
   test("refuses an unknown time zone and an unknown policy", () => {

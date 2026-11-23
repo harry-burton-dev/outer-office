@@ -25,6 +25,7 @@ What the framework does not do, and what has not been proven. Read this before y
 - **Roles are labels.** A user's role, `admin` or `member`, is recorded but does not restrict anything in the app.
 - **Removing someone needs a key rotation**, and a new invite for every remaining user. Data they could already read stays readable to them if they kept a copy.
 - **A lost key cannot be recovered.** If the key backup and every passport are lost, so is the data.
+- **Plain files need only folder access.** An app's plain files (see [Read and write plain files](../guides/read-and-write-plain-files.md)) are not encrypted. Anyone the shared folder is shared with can read them and write new ones, including people with no workspace key, such as an IT admin or someone removed from the workspace before the folder was unshared. Treat anything an app reads from them as untrusted input.
 
 ## Releases and upgrades
 

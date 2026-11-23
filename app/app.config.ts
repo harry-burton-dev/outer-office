@@ -11,8 +11,9 @@ const config = {
   tables: {
     // The data model of design/v0.1-brief.md.
     office: {
-      version: 1,
-      fields: { name: str, timezone: str, dayStart: str, dayEnd: str, privatePolicy: str },
+      version: 2,
+      // automate: the "Power Automate" setting (OO1). Off until an admin turns it on.
+      fields: { name: str, timezone: str, dayStart: str, dayEnd: str, privatePolicy: str, automate: bool },
     },
     principals: {
       version: 1,
@@ -64,6 +65,11 @@ const config = {
         principal: str, at: str, by: str, rangeStart: str, rangeEnd: str,
         added: num, changed: num, gone: num,
       },
+    },
+  },
+  migrations: {
+    office: {
+      1: (record) => ({ ...record, automate: record.automate ?? false }),
     },
   },
 } satisfies AppDefinition;

@@ -2,6 +2,7 @@
 import { describe, expect, test } from "vitest";
 import { officeSave, principalSave } from "./office";
 import { ackPrivacy } from "./people";
+import config from "../../../app.config";
 import { byId, fails, idOf, NOW, ok, oneDevice, rows, snapshot } from "./testing/world";
 
 describe("office.save", () => {
@@ -19,6 +20,15 @@ describe("office.save", () => {
     expect(byId(a, "office", "office")).toMatchObject({ name: "Test Office", privatePolicy: "drop" });
   });
 
+  test("turns Power Automate on and off", async () => {
+    const a = await oneDevice();
+    ok(a, officeSave, { now: NOW, name: "Test Office", timezone: "Europe/London" });
+    expect(byId(a, "office", "office")?.automate).not.toBe(true);
+    ok(a, officeSave, { now: NOW, automate: true });
+    expect(byId(a, "office", "office")).toMatchObject({ automate: true });
+    expect(rows(a, "log").map((r) => r.note)).toContain("Changed: automate");
+  });
+
   test.each([
     [{ now: NOW, name: "Test Office" }, "needs a name and a time zone"],
     [{ now: NOW, name: "Test Office", timezone: "Mars/Base" }, "not a time zone"],
@@ -26,6 +36,7 @@ describe("office.save", () => {
     [{ now: NOW, name: "Test Office", timezone: "Europe/London", dayStart: "8am" }, "HH:MM"],
     [{ now: NOW, name: "Test Office", timezone: "Europe/London", dayStart: "18:00", dayEnd: "08:00" }, "end after it starts"],
     [{ now: NOW, name: "Test Office", timezone: "Europe/London", privatePolicy: "keep" as "drop" }, "dropped or masked"],
+    [{ now: NOW, name: "Test Office", timezone: "Europe/London", automate: "on" as unknown as boolean }, "yes or no"],
     [{ now: "yesterday", name: "Test Office", timezone: "Europe/London" }, "current time"],
   ])("fails on bad input and writes nothing (%#)", async (input, message) => {
     const a = await oneDevice();
@@ -33,6 +44,12 @@ describe("office.save", () => {
     expect(fails(a, officeSave, input)).toContain(message);
     expect(snapshot(a)).toBe(before);
   });
+});
+
+test("an office stored before the Power Automate setting reads as off", () => {
+  const record = { name: "Test Office", timezone: "Europe/London" };
+  expect(config.migrations.office[1](record)).toEqual({ ...record, automate: false });
+  expect(config.migrations.office[1]({ ...record, automate: true })).toEqual({ ...record, automate: true });
 });
 
 describe("principal.save", () => {

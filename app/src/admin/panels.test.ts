@@ -43,11 +43,14 @@ describe("Office", () => {
     type(box, "#office-day-start", "08:00");
     type(box, "#office-day-end", "18:00");
     (box.querySelector("#office-private-policy") as HTMLSelectElement).value = "drop";
+    expect((box.querySelector("#office-automate") as HTMLSelectElement).value).toBe("off");
+    (box.querySelector("#office-automate") as HTMLSelectElement).value = "on";
     click(box, "#office-save");
-    expect(byId(device, "office", "office")).toMatchObject({ name: "Test Office", timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", privatePolicy: "drop" });
+    expect(byId(device, "office", "office")).toMatchObject({ name: "Test Office", timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", privatePolicy: "drop", automate: true });
     expect(status(box)).toBe("The office is saved.");
     expect(input(box, "#office-name").value).toBe("Test Office");
     expect((box.querySelector("#office-private-policy") as HTMLSelectElement).value).toBe("drop");
+    expect((box.querySelector("#office-automate") as HTMLSelectElement).value).toBe("on");
   });
 
   test("shows the time zone check and the command's error, and writes nothing", async () => {
