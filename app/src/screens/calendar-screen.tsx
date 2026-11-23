@@ -69,7 +69,7 @@ export function CalendarScreen() {
   const line = useHeaderLine(principalId ?? "", timezone);
   if (principalId === null) return <PageHeader title={TITLE} />;
   return (
-    <div className="flex flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <PageHeader title={TITLE} description={line || undefined} />
       {hasAnyEvent(events, principalId) ? <Diary principalId={principalId} /> : <NoCalendar />}
     </div>

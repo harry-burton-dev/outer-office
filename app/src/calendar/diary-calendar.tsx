@@ -111,7 +111,7 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
     : undefined;
 
   return (
-    <div className="flex flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="">
+    <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="">
       <EventCalendarToolbar className="border-b p-3" controller={controller} availableViews={AVAILABLE_VIEWS} />
       <div className="min-h-0 grow">
         <EventCalendarViews
@@ -127,7 +127,9 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
           slotHeaderFormat={HOUR_24}
           eventTimeFormat={HOUR_24}
           todayHint={todayHint}
-          height="auto"
+          height="100%"
+          expandRows
+          slotDuration="01:00:00"
           editable={false}
           selectable={false}
           events={inputs}
