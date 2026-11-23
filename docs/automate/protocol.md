@@ -37,7 +37,7 @@ Every file has `protocol: "outer-office/automate"`, `version: 1` and a `kind`.
 2. **Don't trust the file trigger.** "When a file is created" can miss files the browser saves, because the browser writes a `.crswap` temp file and renames it, and OneDrive doesn't count a moved file as new. It also struggles past about 30 changes between checks. The orchestrator sweeps the folder instead. A file trigger may be added later only as a doorbell that starts the same sweep.
 3. **Ignore anything that isn't `*.json`.** That covers `.crswap` and other temp files.
 4. **A half-written file means "not yet".** If a file won't parse, the reader leaves it and tries again on the next pass. The orchestrator deletes a notice that still won't parse after 15 minutes.
-5. **Expiry.** The orchestrator rejects a call past its `expiresAt`, allowing 2 minutes of clock tolerance. The app sets `expiresAt` 15 minutes after `issuedAt`, and marks a call with no reply by then as timed out.
+5. **Expiry.** The orchestrator rejects a call past its `expiresAt`, allowing 2 minutes of clock tolerance. The app sets `expiresAt` 15 minutes after `issuedAt`. It marks a call as timed out only if there is still no reply **5 minutes after `expiresAt`**, which covers the 2 minutes of tolerance plus one sweep and one sync.
 6. **Status.**
    - `ok`: `result` set, `error` null.
    - `error`: the child flow failed. `result` null, and `error` is `{ code, message }`.
