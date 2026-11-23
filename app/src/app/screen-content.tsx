@@ -1,6 +1,7 @@
 // The content area: the current screen, or the no-principals empty state for
 // the screens that follow the principal switch.
 import { CalendarScreen } from "@/screens/calendar-screen";
+import { HomeScreen } from "@/screens/home-screen";
 import { ImportScreen } from "@/screens/import-screen";
 import { LogScreen } from "@/screens/log-screen";
 import { TaskListScreen } from "@/screens/task-list-screen";
@@ -14,7 +15,7 @@ const TASK_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["inbox", "today", "pr
 
 export const isTaskScreen = (screen: Screen): screen is TaskScreen => TASK_SCREENS.has(screen);
 
-function PrincipalScreen({ screen }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates"> }) {
+function PrincipalScreen({ screen }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates" | "home"> }) {
   if (screen === "import") return <ImportScreen />;
   if (screen === "log") return <LogScreen />;
   return <CalendarScreen />;
@@ -23,6 +24,7 @@ function PrincipalScreen({ screen }: { screen: Exclude<Screen, TaskScreen | "tag
 export function ScreenContent() {
   const { screen, principalId } = useApp();
   if (isTaskScreen(screen)) return <TaskListScreen key={screen} list={screen} />;
+  if (screen === "home") return <HomeScreen />;
   if (screen === "tags") return <TagsScreen />;
   if (screen === "templates") return <TemplatesScreen />;
   if (principalId === null) return <EmptyState title="No principals yet" body="Add them in the admin page." />;
