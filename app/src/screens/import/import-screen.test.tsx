@@ -101,6 +101,20 @@ describe("import screen", () => {
     expect(moved!.textContent).toContain("Fri 6 Nov 10:00");
   });
 
+  test("an empty file that would mark most events gone needs a tick before Apply", async () => {
+    const app = await renderScreen();
+    await applyMain();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    await choose(calendar([]));
+    expect(screen.getByRole("alert").textContent).toMatch(/would mark \d+ of \d+ events gone/);
+    const apply = screen.getByRole("button", { name: "Apply import" }) as HTMLButtonElement;
+    expect(apply.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Yes, mark \d+ events gone/ }));
+    expect(apply.disabled).toBe(false);
+    fireEvent.click(apply);
+    expect(rows(app.device, "events").some((e) => e.gone)).toBe(true);
+  });
+
   test("cancel writes nothing and returns to choosing a file", async () => {
     const app = await renderScreen();
     await choose(MAIN_FIXTURE);
