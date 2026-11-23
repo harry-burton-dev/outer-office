@@ -1,0 +1,188 @@
+{
+  "title": "Diary payload: diary-sync event data, and diary.fetch result",
+  "description": "Field names follow Microsoft Graph calendarView as flow F1 path B selects them, read with the header Prefer: outlook.timezone=\"UTC\". Rules a schema can't check (count equals events length, every seriesMasterId listed in masters) are checked by the app's adapter, parse-automate.ts. Confirm against the spike's raw capture (S1).",
+  "type": "object",
+  "properties": {
+    "principal": {
+      "type": "string"
+    },
+    "windowStart": {
+      "type": "string"
+    },
+    "windowEnd": {
+      "type": "string"
+    },
+    "count": {
+      "type": "integer"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "iCalUId": {
+            "type": "string"
+          },
+          "seriesMasterId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Graph id of the series master; null for a single event. Must appear in masters."
+          },
+          "type": {
+            "description": "Graph event type. calendarView never returns seriesMaster; the adapter skips one if it does.",
+            "type": "string"
+          },
+          "originalStart": {
+            "description": "Graph DateTimeOffset of the occurrence's original start. Required (not null) when seriesMasterId is set: it becomes the .ics RECURRENCE-ID.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start": {
+            "type": "string",
+            "description": "Graph dateTime with no zone designator, e.g. 2026-10-22T13:00:00.0000000. Read in timeZone (always UTC). For an all-day event, the day's midnight."
+          },
+          "end": {
+            "type": "string",
+            "description": "As start. Exclusive; an all-day event ends at the next day's midnight."
+          },
+          "timeZone": {
+            "description": "start/timeZone. Always UTC, because F1 sends Prefer: outlook.timezone=\"UTC\". The adapter refuses anything else.",
+            "type": "string"
+          },
+          "isAllDay": {
+            "type": "boolean"
+          },
+          "isCancelled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "subject": {
+            "type": "string",
+            "description": "\"Private\" when sensitivity is private or confidential (F1 masks)."
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "categories": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "showAs": {
+            "description": "workingElsewhere and unknown read as busy, as in Outlook's .ics export.",
+            "type": "string"
+          },
+          "sensitivity": {
+            "type": "string"
+          },
+          "lastModifiedDateTime": {
+            "type": "string"
+          },
+          "attendees": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "Graph attendees, kept for OO2 (OUT-67, OUT-60). The adapter does not read them yet.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "object"
+                },
+                "emailAddress": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "address": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "iCalUId",
+          "seriesMasterId",
+          "type",
+          "originalStart",
+          "start",
+          "end",
+          "timeZone",
+          "isAllDay",
+          "isCancelled",
+          "subject",
+          "location",
+          "organizer",
+          "categories",
+          "showAs",
+          "sensitivity",
+          "lastModifiedDateTime",
+          "attendees"
+        ],
+        "additionalProperties": false,
+        "description": "Exactly the keys F1's Select writes. No body or bodyPreview: additionalProperties is false."
+      }
+    },
+    "masters": {
+      "type": "array",
+      "description": "One per distinct seriesMasterId in events: the series master's iCalUId, which is the .ics UID.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "iCalUId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "iCalUId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "principal",
+    "windowStart",
+    "windowEnd",
+    "count",
+    "masters",
+    "events"
+  ]
+}
