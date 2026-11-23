@@ -13,7 +13,7 @@
 //   2. A and B enrol from their invites; both show the principal switch with both
 //   3. A imports a synthetic .ics for PRINCIPAL-A; B shows the same events for
 //      PRINCIPAL-A and none for PRINCIPAL-B
-//   4. B sets an engagement's prep to needed and writes a note; A sees the mark
+//   4. B flags an engagement and writes a note; A sees the mark
 //      on the calendar and the note in the panel
 //   5. A creates the shared project and adds tasks with quick add, one tagged to
 //      PRINCIPAL-A, assigned to B and due today; B finds it in Today as offered
@@ -24,7 +24,7 @@
 //   7. A imports a second .ics where the annotated event moved and another is
 //      missing; the review lists them as moved and gone; B shows the move, not
 //      the gone event, and the note is still on the moved engagement
-//   8. the Log for PRINCIPAL-A lists the import, the prep change and the task
+//   8. the Log for PRINCIPAL-A lists the import, the flag change and the task
 //      changes on both pages, with people's names
 //   9. both pages show the same events, overlay and tasks
 //
@@ -140,22 +140,22 @@ async function firstImport(A, B, files) {
   await a11y.scan(A.page, "Calendar");
 }
 
-/** Step 4: B sets prep to needed and writes a note; A sees both. */
-async function prepAndNote(A, B) {
-  const panel = await app.openEngagement(B, SUBJECTS.budget);
-  await panel.getByRole("combobox", { name: "Prep", exact: true }).click();
-  await B.page.getByRole("option", { name: "Needed" }).click();
-  await panel.getByLabel("Notes").fill(NOTE);
-  await panel.getByLabel("Notes").blur();
+/** Step 4: B flags the meeting and writes a note; A sees both. (Prep was replaced by cards, OUT-62.) */
+async function flagAndNote(A, B) {
+  const panel = await app.openEngagement(B, SUBJECTS.budget, "Overview");
+  await panel.getByRole("switch", { name: "Flag" }).click();
+  await panel.getByRole("tab", { name: "Notes" }).click();
+  await panel.getByRole("textbox", { name: "Notes" }).fill(NOTE);
+  await panel.getByRole("textbox", { name: "Notes" }).blur();
   await B.page.waitForTimeout(200);
   await app.closeDialog(B);
   await save(B);
-  const marked = await readUntil(A, app.calendarShows, (v) => app.eventTitled(v, SUBJECTS.budget)?.marks.includes("Prep needed"));
-  check("4. A shows B's prep mark on the calendar", marked, json(app.eventTitled(await app.calendarShows(A), SUBJECTS.budget)));
+  const marked = await readUntil(A, app.calendarShows, (v) => app.eventTitled(v, SUBJECTS.budget)?.marks.includes("Flagged"));
+  check("4. A shows B's flag on the calendar", marked, json(app.eventTitled(await app.calendarShows(A), SUBJECTS.budget)));
   const onA = await app.engagementShows(A, SUBJECTS.budget);
-  check("4. A shows B's note in the engagement panel", onA.prep === "Needed" && onA.notes === NOTE, json(onA));
+  check("4. A shows B's note in the engagement panel", onA.flagged && onA.notes === NOTE, json(onA));
   await app.openEngagement(A, SUBJECTS.budget);
-  await a11y.scan(A.page, "engagement panel (Prep tab)");
+  await a11y.scan(A.page, "engagement panel (Notes tab)");
   await shot(A, "engagement.png");
   await app.closeDialog(A);
 }
@@ -252,7 +252,7 @@ async function secondImport(A, B, files) {
   const ok = await readUntil(B, app.calendarShows, shows);
   check("7. B shows the meeting on its new day and the gone event off the calendar", ok, json(await app.calendarShows(B)));
   const marks = app.eventTitled(await app.calendarShows(B), SUBJECTS.budget)?.marks ?? [];
-  check("7. B: the moved meeting keeps its prep mark and is marked moved", json(marks) === json(["Prep needed", "Moved"]), json(marks));
+  check("7. B: the moved meeting keeps its flag and is marked moved", json(marks) === json(["Flagged", "Moved"]), json(marks));
   const onB = await app.engagementShows(B, SUBJECTS.budget);
   check("7. B: the note is still on the moved engagement", onB.notes === NOTE && onB.when.includes("14:00"), json(onB));
   await shot(B, "calendar.png");
@@ -264,9 +264,9 @@ async function log(A, B) {
     await app.go(u, "Log");
     const rows = await app.logRows(u);
     const has = (who, area, what) => rows.some((r) => r[1] === who && r[2] === area && r[3] === what);
-    const wanted = [[ALEX, "Import", "Import applied"], [BLAIR, "Overlay", "Prep changed"], [ALEX, "Task", "Created"], [BLAIR, "Task", "Accepted"]];
+    const wanted = [[ALEX, "Import", "Import applied"], [BLAIR, "Overlay", "Flag changed"], [ALEX, "Task", "Created"], [BLAIR, "Task", "Accepted"]];
     const missing = wanted.filter((w) => !has(...w));
-    check(`8. ${u.label}: the Log lists the import, the prep change and the task changes, by name`, missing.length === 0, `missing ${json(missing)} in ${json(rows.map((r) => r.slice(1, 5)))}`);
+    check(`8. ${u.label}: the Log lists the import, the flag change and the task changes, by name`, missing.length === 0, `missing ${json(missing)} in ${json(rows.map((r) => r.slice(1, 5)))}`);
     const ids = rows.filter((r) => r.some((c) => /^(alexexample|blairsample|admin)$/.test(c)));
     check(`8. ${u.label}: no Log row shows a user id`, ids.length === 0, json(ids));
   }
@@ -315,7 +315,7 @@ try {
   }
 
   await firstImport(A, B, files);
-  await prepAndNote(A, B);
+  await flagAndNote(A, B);
   await tasks(A, B, days);
   await conflict(A, B, folder);
   await secondImport(A, B, files);

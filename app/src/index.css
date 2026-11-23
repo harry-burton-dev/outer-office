@@ -75,7 +75,8 @@
     --secondary: var(--ag-shade);
     --secondary-foreground: var(--ag-ink);
     --muted: var(--ag-shade);
-    --muted-foreground: var(--ag-muted);
+    /* --ag-muted (54%) is 4.4:1 on --ag-shade, under AA for tab labels on it; 60% passes. */
+    --muted-foreground: color-mix(in oklab, var(--ag-ink) 60%, var(--ag-bg));
     --accent: var(--ag-shade);
     --accent-foreground: var(--ag-ink);
     --destructive: var(--ag-ember);

@@ -29,7 +29,7 @@ export function EventFaceView({ face, shapes = [], time }: EventFaceViewProps) {
           </span>
         )}
       </span>
-      {time && <span className="truncate text-[0.6875rem] tabular-nums text-foreground/60">{time}</span>}
+      {time && <span className="truncate text-[0.6875rem] tabular-nums text-foreground/75">{time}</span>}
       {face.marks.length > 0 && (
         <span className="flex flex-wrap gap-1">
           {face.marks.map((mark) => (
