@@ -62,6 +62,25 @@ if (process.env.LENS) {
   await tab.waitForTimeout(200);
   await tab.screenshot({ path: process.env.OUT_LENS ?? here("./diary-lens.png") });
 }
+if (process.env.LAYER) {
+  // LAYER="up" or "down" (or "down,down"): step through the layers and save each.
+  for (const [i, step] of process.env.LAYER.split(",").entries()) {
+    await tab.getByRole("button", { name: step === "up" ? /^Up/ : /^Down/ }).click();
+    await tab.waitForTimeout(200);
+    await tab.screenshot({ path: `${process.env.OUT_DIR ?? here(".")}/diary-layer-${i}-${step}.png` });
+  }
+}
+if (process.env.MOVE) {
+  // MOVE="Investor call/16:00": right-click the meeting, propose it at that time, and save the dialog and the result.
+  const [title, time] = process.env.MOVE.split("/");
+  await tab.getByText(title).first().click({ button: "right" });
+  await tab.getByRole("menuitem", { name: "Move…" }).click();
+  await tab.getByLabel("Starts").fill(time);
+  await tab.screenshot({ path: `${process.env.OUT_DIR ?? here(".")}/diary-move-dialog.png` });
+  await tab.getByRole("button", { name: "Propose" }).click();
+  await tab.waitForTimeout(200);
+  await tab.screenshot({ path: `${process.env.OUT_DIR ?? here(".")}/diary-move-done.png` });
+}
 if (process.env.RIGHT_CLICK) {
   await tab.getByText(process.env.RIGHT_CLICK).first().click({ button: "right" });
   await tab.waitForTimeout(400);

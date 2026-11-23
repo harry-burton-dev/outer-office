@@ -30,6 +30,15 @@ export function dateIn(iso: string, zone: string): string {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+/** The UTC instant (ISO, ending in Z) of a wall-clock date ("2026-11-24") and time ("14:00") in a zone. */
+export function instantIn(date: string, time: string, zone: string): string {
+  const wall = Date.parse(`${date}T${time}:00Z`);
+  // The zone's offset at a guess, applied twice so a guess either side of a clock change settles.
+  const offsetAt = (instant: number) => Date.parse(`${dateIn(new Date(instant).toISOString(), zone)}T${formatTime(new Date(instant).toISOString(), zone)}:00Z`) - instant;
+  const first = wall - offsetAt(wall);
+  return new Date(wall - offsetAt(first)).toISOString();
+}
+
 /** Today's date in a zone, at the instant `now`. */
 export function todayIn(zone: string, now: string): string {
   return dateIn(now, zone);

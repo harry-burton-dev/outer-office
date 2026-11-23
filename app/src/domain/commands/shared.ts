@@ -1,7 +1,7 @@
 // Checks and the log writer shared by every command.
 import type { Tx } from "@trellis/framework";
 
-export type LogArea = "calendar" | "overlay" | "task" | "import" | "setup";
+export type LogArea = "calendar" | "overlay" | "task" | "import" | "setup" | "proposal";
 
 export interface LogEntry {
   readonly area: LogArea;

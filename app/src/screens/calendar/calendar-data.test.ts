@@ -20,7 +20,7 @@ test("a masked event has no marks and a removed overlay counts for nothing", () 
 test("diary data leaves out gone events, other principals and events without times", () => {
   const data = diaryData([event(), event({ id: "e2", gone: true }), event({ id: "e3", principal: "p2" }), event({ id: "e4", start: undefined })], [], "p1");
   expect(data.events.map((e) => e.id)).toEqual(["e1"]);
-  expect(data.faces.get("e1")).toEqual({ title: "Meeting", marks: [], tags: [], ownTags: "", categories: "" });
+  expect(data.faces.get("e1")).toEqual({ title: "Meeting", marks: [], tags: [], ownTags: "", categories: "", ghost: false, proposed: false });
 });
 
 test("an event is coloured by its primary tag: its first own tag leads its Outlook category tags", () => {

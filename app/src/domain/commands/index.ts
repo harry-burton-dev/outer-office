@@ -9,14 +9,16 @@ import { taskAssign } from "./task-assign";
 import { projectSave, sectionSave } from "./projects";
 import { ackPrivacy, setMode } from "./people";
 import { tagRemove, tagSave, tagsSet } from "./tags";
+import { proposalMove, proposalWithdraw } from "./proposals";
 
 export const commands = {
   officeSave, principalSave, importApply, overlaySet,
   taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove,
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet,
+  proposalMove, proposalWithdraw,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet };
+export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, proposalMove, proposalWithdraw };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -25,5 +27,6 @@ export type { TaskAssignInput, AssignAction } from "./task-assign";
 export type { ProjectSaveInput, SectionSaveInput } from "./projects";
 export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput } from "./tags";
+export type { ProposalMoveInput, ProposalWithdrawInput } from "./proposals";
 export { OFFICE_ID } from "./office";
 export { INBOX_NAME } from "./projects";

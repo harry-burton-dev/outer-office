@@ -7,7 +7,9 @@ import { ShellProvider } from "../../../../../framework/runtime/shell/provider";
 import { SessionContext } from "../../../../../framework/runtime/shell/context";
 import { fakeEngine } from "../../../../../framework/runtime/shell/test/helpers/fake-engine";
 import { makeTestWorld, ok, NOW } from "../../../domain/commands/testing/world";
-import { importApply, officeSave, principalSave, tagSave } from "../../../domain/commands";
+import { importApply, officeSave, principalSave, proposalMove, tagSave } from "../../../domain/commands";
+import { toStored } from "../../import/import-model";
+import { rows } from "../../../domain/commands/testing/world";
 import { TAG_COLOURS } from "../../../domain/tags";
 import { parseIcs } from "../../../import/parse-ics";
 import { diffImport } from "../../../import/diff";
@@ -26,6 +28,13 @@ const a = ok(device, principalSave, { now: NOW, code: "PRINCIPAL-A", title: "Chi
 const file = syntheticDiaries(new Date(NOW))[0];
 const parsed = parseIcs(file.text, { timeZone: "Europe/London", privatePolicy: "mask", windowStart: "2000-01-01T00:00:00.000Z", windowEnd: "2100-01-01T00:00:00.000Z" });
 ok(device, importApply, { now: NOW, principal: a, file: file.fileName, diff: diffImport([], parsed) });
+// The update file: some meetings gone from Outlook, for the graveyard.
+const update = syntheticDiaries(new Date(NOW))[1];
+const window = { timeZone: "Europe/London", privatePolicy: "mask" as const, windowStart: "2000-01-01T00:00:00.000Z", windowEnd: "2100-01-01T00:00:00.000Z" };
+ok(device, importApply, { now: NOW, principal: a, file: update.fileName, diff: diffImport(toStored(rows(device, "events"), a), parseIcs(update.text, window)) });
+// One proposed move this week: the board meeting, an hour later.
+const board = rows(device, "events").find((e) => e.subject === "Board meeting" && !e.gone && (e.start ?? "") > NOW);
+if (board?.start && board.end) ok(device, proposalMove, { now: NOW, event: board.id, start: new Date(Date.parse(board.start) + 3600_000).toISOString(), end: new Date(Date.parse(board.end) + 3600_000).toISOString() });
 // Tags named after the synthetic diaries' Outlook categories, so they colour the diary.
 const TAGS: [string, number][] = [["Ministerial", 0], ["Board", 6], ["External", 2], ["Stakeholder", 4], ["Internal", 9]];
 if (!new URLSearchParams(location.search).has("notags")) for (const [name, c] of TAGS) ok(device, tagSave, { now: NOW, name, colour: TAG_COLOURS[c].value });

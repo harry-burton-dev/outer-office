@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, test } from "vitest";
-import { addDays, dateIn, formatDay, formatTime, relativeDay, todayIn, weekdayOf } from "./dates";
+import { addDays, dateIn, formatDay, formatTime, instantIn, relativeDay, todayIn, weekdayOf } from "./dates";
 
 const LONDON = "Europe/London";
 
@@ -74,5 +74,13 @@ describe("addDays and weekdayOf", () => {
   test("name the weekday of a date, Sunday as 0", () => {
     expect(weekdayOf("2026-10-25")).toBe(0);
     expect(weekdayOf("2026-11-24")).toBe(2);
+  });
+});
+
+describe("instantIn", () => {
+  test("reads a wall-clock time in the zone, either side of the clocks changing", () => {
+    expect(instantIn("2026-11-24", "14:00", "Europe/London")).toBe("2026-11-24T14:00:00.000Z");
+    expect(instantIn("2026-07-01", "09:30", "Europe/London")).toBe("2026-07-01T08:30:00.000Z");
+    expect(instantIn("2026-07-01", "09:30", "America/New_York")).toBe("2026-07-01T13:30:00.000Z");
   });
 });

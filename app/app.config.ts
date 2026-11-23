@@ -43,6 +43,13 @@ const config = {
       version: 1,
       fields: { name: str, colour: str, order: num },
     },
+    // A proposed change to an event, not yet made in Outlook (OUT-77). One per
+    // event: the Proposed layer shows it at its new time, and the live diary
+    // leaves a ghost behind until it is done or withdrawn.
+    proposals: {
+      version: 1,
+      fields: { event: str, principal: str, start: str, end: str, by: str, at: str },
+    },
     projects: {
       version: 1,
       fields: { name: str, owner: str, order: num, inbox: bool, archived: bool },

@@ -2,7 +2,7 @@
 // Tags an event carries through its Outlook categories show ticked and can't be
 // taken off here; change the category in Outlook instead. With two or more
 // tags on, "Primary colour" picks the one that colours it.
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { useCommand, useRecords } from "@trellis/framework";
 import { ContextMenu, ContextMenuCheckboxItem, ContextMenuContent, ContextMenuRadioGroup, ContextMenuRadioItem, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { useApp } from "@/app/app-state";
@@ -18,11 +18,13 @@ export interface TagMenuProps {
   /** An event's Outlook categories. */
   categories?: string;
   onOpen(): void;
+  /** More menu items, shown after Open. */
+  actions?: ReactNode;
   /** One DOM element (not a component); it becomes the right-click target. */
   children: ReactElement;
 }
 
-export function TagMenu({ target, id, own, categories, onOpen, children }: TagMenuProps) {
+export function TagMenu({ target, id, own, categories, onOpen, actions, children }: TagMenuProps) {
   const { now, isViewer, go } = useApp();
   const allTags = useRecords("tags");
   const tags = sortedTags(allTags);
@@ -36,6 +38,7 @@ export function TagMenu({ target, id, own, categories, onOpen, children }: TagMe
       <ContextMenuTrigger render={children} />
       <ContextMenuContent>
         <ContextMenuItem onClick={onOpen}>Open</ContextMenuItem>
+        {actions}
         {!isViewer && (
           <>
             <ContextMenuSeparator />
