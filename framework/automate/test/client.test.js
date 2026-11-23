@@ -1,7 +1,9 @@
 import { test } from "node:test";
+import { readdirSync, readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { createAutomateClient } from "../client.js";
 import { replyProblem } from "../protocol.js";
+import { schemaErrors } from "./schemas.js";
 import { MINUTE, SECOND, automateDir, cloudFolder, run, setup, writeText } from "./helpers.js";
 
 const fetchInput = { principal: "PRINCIPAL-A", windowStart: "2026-11-16T00:00:00Z", windowEnd: "2027-02-23T00:00:00Z" };
@@ -27,6 +29,7 @@ test("call writes one notice, with its data inline and times to the second", asy
     expiresAt: "2026-01-05T09:15:01Z",
   });
   assert.equal(record.status, "pending");
+  assert.deepEqual(schemaErrors("notice.schema.json", notice), []);
 });
 
 test("call refuses a bad API name, version or input", async () => {
@@ -163,10 +166,24 @@ test("two devices: each settles only its own calls", async () => {
 test("replyProblem accepts the spec's sample replies and names what is wrong otherwise", () => {
   const ok = { protocol: "outer-office/automate", version: 1, kind: "reply", callId: "6f1c2a9e-0000-4000-8000-000000000000", api: "diary.fetch", apiVersion: 1, status: "ok", result: { any: 1 }, error: null, handledFor: "sam@office.example", completedAt: "2026-11-23T20:33:10Z" };
   assert.equal(replyProblem(ok), null);
+  assert.deepEqual(schemaErrors("reply.schema.json", ok), [], "the schema agrees");
   assert.equal(replyProblem({ ...ok, status: "rejected", result: null, error: { code: "unknown-api", message: "No API" } }), null);
   assert.match(replyProblem({ ...ok, extra: 1 }), /unexpected field/);
   assert.match(replyProblem({ ...ok, callId: "6F1C2A9E-0000-4000-8000-000000000000" }), /callId/);
   assert.match(replyProblem({ ...ok, completedAt: "2026-11-23 20:33" }), /completedAt/);
   assert.match(replyProblem({ ...ok, status: "error", result: null, error: { code: "x" } }), /error is not/);
   assert.match(replyProblem({ ...ok, status: "done" }), /status/);
+});
+
+test("replyProblem agrees with the protocol's reply examples, valid and invalid", () => {
+  const examples = new URL("../../../docs/automate/examples/", import.meta.url);
+  const read = (path) => JSON.parse(readFileSync(new URL(path, examples), "utf8"));
+  const valid = readdirSync(examples).filter((f) => f.startsWith("reply-"));
+  const invalid = readdirSync(new URL("invalid/", examples)).filter((f) => f.startsWith("reply-"));
+  assert.ok(valid.length > 0 && invalid.length > 0);
+  for (const f of valid) assert.equal(replyProblem(read(f)), null, f);
+  for (const f of invalid) {
+    const { _why, ...reply } = read(`invalid/${f}`);
+    assert.notEqual(replyProblem(reply), null, `${f}: ${_why}`);
+  }
 });

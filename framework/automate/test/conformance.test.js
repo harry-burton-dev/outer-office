@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { buildCases, diaryFetchStub } from "../testing/conformance.js";
 import { answerable } from "../testing/fake-orchestrator.js";
 import { replyProblem } from "../protocol.js";
+import { schemaErrors } from "./schemas.js";
 import { MINUTE, automateDir, cloudFolder, run, sequentialIds, setup, writeText } from "./helpers.js";
 
 async function dropAll(s, cases) {
@@ -11,6 +12,12 @@ async function dropAll(s, cases) {
   for (const c of cases) for (const f of c.files) await writeText(dir, "calls", f.name, f.text);
   await s.world.quiesce();
 }
+
+test("C1's notice matches notice.schema.json and diary.fetch.input.schema.json", () => {
+  const c1 = JSON.parse(buildCases({ now: Date.UTC(2026, 10, 23), principal: "PRINCIPAL-A", newId: sequentialIds("c") })[0].files[0].text);
+  assert.deepEqual(schemaErrors("notice.schema.json", c1), []);
+  assert.deepEqual(schemaErrors("diary.fetch.input.schema.json", c1.input), []);
+});
 
 const casesFor = (s) => buildCases({ now: s.now(), principal: "PRINCIPAL-A", newId: sequentialIds("c") });
 
@@ -27,6 +34,8 @@ test("all ten cases dropped at once: each gets exactly the reply it should", asy
   for (const c of expected) {
     const reply = JSON.parse(replies[`${c.callId}.json`]);
     assert.equal(replyProblem(reply), null, c.id);
+    assert.deepEqual(schemaErrors("reply.schema.json", reply), [], `${c.id}: matches reply.schema.json`);
+    if (reply.status === "ok") assert.deepEqual(schemaErrors("diary-payload.schema.json", reply.result), [], `${c.id}: result matches diary-payload.schema.json`);
     assert.equal(reply.status, c.reply.status, c.id);
     assert.equal(reply.error?.code ?? null, c.reply.code, c.id);
     assert.equal("api" in reply && "apiVersion" in reply, c.reply.echoesApi, `${c.id}: api and apiVersion echoed`);
