@@ -89,3 +89,24 @@ test("Print opens the browser's print dialog", async () => {
   expect(print).toHaveBeenCalledOnce();
   print.mockRestore();
 });
+
+test("the briefing pack is the week from Monday, a day to a page, weekend days only when something is on", async () => {
+  await renderApp({ now: MONDAY_NOW, seed: (s) => void seedDay(s), children: <Chosen /> });
+  fireEvent.change(screen.getByLabelText("Sheet"), { target: { value: "week" } });
+  fireEvent.change(screen.getByLabelText("Week of"), { target: { value: "2026-11-26" } });
+  const days = Array.from(document.querySelectorAll("[data-sheet-day]")).map((d) => d.getAttribute("data-sheet-day"));
+  expect(days).toEqual(["2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27"]);
+  expect(screen.getByText("Budget review")).toBeTruthy();
+  expect(screen.getByText("Wednesday meeting")).toBeTruthy();
+});
+
+test("the forward look lists four weeks of busy days, a line per engagement with its cards' progress", async () => {
+  await renderApp({ now: MONDAY_NOW, seed: (s) => void seedDay(s), children: <Chosen /> });
+  fireEvent.change(screen.getByLabelText("Sheet"), { target: { value: "forward" } });
+  expect(screen.getByRole("heading", { name: "Forward look: Monday 23 November 2026 to Sunday 20 December 2026" })).toBeTruthy();
+  const days = Array.from(document.querySelectorAll("[data-sheet-day]")).map((d) => d.getAttribute("data-sheet-day"));
+  expect(days).toEqual(["2026-11-24", "2026-11-25"]);
+  const budget = screen.getByText("Budget review (flagged)").closest("tr")!;
+  expect(budget.textContent).toBe("14:00Budget review (flagged)Room 4Visit done");
+  expect(screen.queryByText("Bring the Q3 figures")).toBeNull();
+});
