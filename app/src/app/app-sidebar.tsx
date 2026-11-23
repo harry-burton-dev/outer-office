@@ -65,7 +65,7 @@ function useTaskItems(): NavItem[] {
   return [
     { screen: "inbox", label: "Inbox", icon: Inbox },
     { screen: "today", label: "Today", icon: CalendarCheck },
-    ...(project ? [{ screen: "project" as const, label: project.name || "Project", icon: FolderOpen }] : []),
+    { screen: "project", label: project?.name || "Project", icon: FolderOpen },
     { screen: "bin", label: "Bin", icon: Trash2 },
   ];
 }

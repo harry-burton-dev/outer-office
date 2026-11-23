@@ -12,6 +12,15 @@ export function textField(el: El, id: string, label: string, value: string, plac
   return { input, nodes: [el("label", { htmlFor: id }, label), input] };
 }
 
+/**
+ * Gives a control its accessible name. The page's helper sets properties, and
+ * "aria-label" is not one, so it is set as an attribute here.
+ */
+export function named<T extends HTMLElement>(node: T, label: string): T {
+  node.setAttribute("aria-label", label);
+  return node;
+}
+
 /** A status line for a panel's own messages. */
 export const statusLine = (el: El, text: string): HTMLParagraphElement => el("p", { className: "muted" }, text);
 

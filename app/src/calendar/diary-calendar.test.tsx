@@ -98,3 +98,9 @@ test("next moves the calendar and reports the new week to onNavigate", () => {
   fireEvent.click(screen.getByRole("button", { name: /next/i }));
   expect(props.onNavigate).toHaveBeenCalledWith("2026-11-02");
 });
+
+test("the Today button's accessible name contains its visible text", () => {
+  renderDiary();
+  const today = screen.getByRole("button", { name: /^today/i });
+  expect(today.getAttribute("aria-label")?.toLowerCase()).toContain(today.textContent?.toLowerCase());
+});

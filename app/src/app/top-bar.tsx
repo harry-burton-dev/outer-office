@@ -15,8 +15,8 @@ function NeedsActionButton() {
   const { openPanel } = useApp();
   const count = needsActionCount(useNeedsAction());
   return (
-    <Button variant="outline" aria-label={`Needs action ${count}`} onClick={() => openPanel({ kind: "needs-action" })}>
-      Needs action
+    <Button variant="outline" onClick={() => openPanel({ kind: "needs-action" })}>
+      Needs action{" "}
       <Badge variant="secondary">{count}</Badge>
     </Button>
   );

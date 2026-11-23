@@ -16,6 +16,26 @@ It is one HTML file that people open from a shared folder. There is no server. D
 - **Several principals.** A switch in the sidebar chooses whose diary, imports and log you see. Tasks are everyone's own and do not follow the switch.
 - **Set up from the admin page.** The office's name, time zone, working day, how private items are treated, the list of principals, and who is a viewer.
 
+## Screenshots
+
+Taken by `npm run two-users` from the built files, with synthetic data.
+
+The week's diary, with the office's marks on each engagement:
+
+![The calendar: a week of a principal's engagements, with prep and moved marks](docs/screenshots/calendar.png)
+
+An engagement's Prep tab, where the office keeps its state, owner and notes:
+
+![The engagement panel open on its Prep tab](docs/screenshots/engagement.png)
+
+The shared project's tasks:
+
+![The shared project with three tasks](docs/screenshots/tasks.png)
+
+Reviewing a second import before applying it: one meeting has moved and keeps its notes, another has gone:
+
+![The import review listing a moved and a gone event](docs/screenshots/import-review.png)
+
 ## How it is built
 
 - **[Trellis](https://github.com/harry-burton-dev/single-file-web-apps)**, a small framework for team apps that sync through a shared folder. This repository carries its own copy in `framework/`, with the changes listed below.
@@ -64,8 +84,8 @@ npm run build
 npm run typecheck
 npm test            # engine, runtime, data, framework, shell and app suites
 npm run probes      # adversarial tests of the sync engine
-npm run two-users   # two browsers, one folder, from built files
-npm run smoke       # the built page opened from disk
+npm run two-users   # the admin page and two users on one folder, from built files, with an accessibility scan
+npm run smoke       # the built page and admin page opened from disk: signed updates, enrolling, backup and restore
 ```
 
 The last two need Playwright: `npm install --no-save playwright @axe-core/playwright && npx playwright install chromium`.

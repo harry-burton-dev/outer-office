@@ -2,7 +2,7 @@
 // users table, with a mode select saved through people.setMode on change.
 import type { AdminPanel, AdminPanelContext } from "@trellis/framework";
 import { commands, type PersonMode } from "@/domain/commands";
-import { nowIso, statusLine, textOf } from "./form";
+import { named, nowIso, statusLine, textOf } from "./form";
 
 type Say = (text: string) => void;
 
@@ -31,10 +31,9 @@ function userRows(ctx: AdminPanelContext): UserRow[] {
 
 function rowFor(ctx: AdminPanelContext, row: UserRow, done: Say, say: Say): HTMLTableRowElement {
   const { el } = ctx;
-  const select = el(
-    "select",
-    { ...({ "aria-label": `Mode for ${row.name}` } as object) },
-    ...MODE_CHOICES.map(([value, text]) => el("option", { value, selected: value === row.mode }, text)),
+  const select = named(
+    el("select", {}, ...MODE_CHOICES.map(([value, text]) => el("option", { value, selected: value === row.mode }, text))),
+    `Mode for ${row.name}`,
   );
   select.addEventListener("change", () => {
     if (!isMode(select.value)) return say("Choose assistant or viewer.");

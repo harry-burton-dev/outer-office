@@ -47,7 +47,10 @@ const MONDAY = 1;
 const WEEKEND = [0, 6];
 const HOUR_24 = { hour: "2-digit", minute: "2-digit", hour12: false } as const;
 
-const viewOf = (type: string): DiaryView | undefined => (type === VIEW_TYPES.day ? "day" : type === VIEW_TYPES.week ? "week" : undefined);
+/** The Today button's accessible name starts with its visible text ("This Week" alone would not contain "Today"). */
+export const todayHint = (unitText: string): string => `Today, back to this ${unitText.toLowerCase()}`;
+
+const viewOf =(type: string): DiaryView | undefined => (type === VIEW_TYPES.day ? "day" : type === VIEW_TYPES.week ? "week" : undefined);
 
 /** "08:00" moved by `hours`, clamped to the day, as FullCalendar's "HH:MM:00". */
 export function shiftTime(time: string, hours: number): string {
@@ -123,6 +126,7 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
           slotMaxTime={shiftTime(dayEnd, 1)}
           slotHeaderFormat={HOUR_24}
           eventTimeFormat={HOUR_24}
+          todayHint={todayHint}
           height="auto"
           editable={false}
           selectable={false}

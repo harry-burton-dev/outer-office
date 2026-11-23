@@ -55,6 +55,7 @@ const { chromium } = createRequire(import.meta.url)("playwright");
 const { subtle } = webcrypto;
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const VITE_CONFIG = join(ROOT, "framework", "build", "vite.config.js");
+const VITE_BIN = join(ROOT, "node_modules", "vite", "bin", "vite.js");
 const DIST = join(ROOT, "dist");
 const RELEASE = join(DIST, "smoke-release");
 const version = JSON.parse(readFileSync(join(ROOT, "app", "package.json"), "utf8")).version;
@@ -64,13 +65,16 @@ const nextVersion = version.replace(/\d+$/, (patch) => String(Number(patch) + 1)
 const forgedVersion = version.replace(/\d+$/, (patch) => String(Number(patch) + 2));
 /** The app's shell (OUT-36) is on the page: the bundle ran. */
 const shellShown = (page) => page.locator("#app-shell").count().then((n) => n === 1);
+/** The app's frame is drawn (its sidebar's main navigation): the app started with the user's keys. */
+const APP_FRAME = 'nav[aria-label="Main"]';
 
 const newKey = () => subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
 
 async function buildRelease() {
   const admin = await newKey();
   const publicJwk = JSON.stringify(await subtle.exportKey("jwk", admin.publicKey));
-  const vite = (mode) => execFileSync("npx", ["vite", "build", "--config", VITE_CONFIG, "--mode", mode], { cwd: ROOT, stdio: "inherit", env: { ...process.env, TRELLIS_PUBLIC_KEY: publicJwk } });
+  // Vite's own script run with this Node, not through npx, so the build also starts on Windows.
+  const vite = (mode) => execFileSync(process.execPath, [VITE_BIN, "build", "--config", VITE_CONFIG, "--mode", mode], { cwd: ROOT, stdio: "inherit", env: { ...process.env, TRELLIS_PUBLIC_KEY: publicJwk } });
   vite("bootstrap");
   vite("app");
   vite("admin");
@@ -391,7 +395,8 @@ async function adminSmoke(browser) {
 
   await page.click("#admin-finish");
   await page.waitForSelector("#admin-workspace", { timeout: 10000 }).catch(() => {});
-  const row = await page.locator('tr[data-user="harry"]').innerText().catch(() => "");
+  // first(): the page's own users table; the app's People section below it also has a row per user.
+  const row = await page.locator('tr[data-user="harry"]').first().innerText().catch(() => "");
   check("admin: the workspace opens with the admin's users record", /Harry\s+harry\s+admin\s+active/.test(row), `${row} / ${await message(page)}`);
 
   await page.fill("#admin-user-name", "Sam");
@@ -531,7 +536,7 @@ async function passportRun(browser) {
   await page.click("#open-invite");
   check("enrol: the invite opens and the passport is offered for saving", await shows("#save-passport"), await message());
   await page.click("#save-passport");
-  check("enrol: the app starts with the passport's keys", await shows("#items"), await message());
+  check("enrol: the app starts with the passport's keys", await shows(APP_FRAME), await message());
   check("enrol: the passport is saved on the user's side, not in the folder", disk.read("local/sam.passport.json") !== null && disk.read("folder/sam.passport.json") === null);
 
   await page.reload();
@@ -539,7 +544,7 @@ async function passportRun(browser) {
   await unlockWith("not the right passphrase");
   check("a wrong passphrase is refused with its message", (await message()) === "That passphrase does not open this file.", await message());
   await unlockWith(OWN_PASS);
-  check("unlock: the app starts again from the passport", await shows("#items"), await message());
+  check("unlock: the app starts again from the passport", await shows(APP_FRAME), await message());
 
   const stored = await page.evaluate(scanIndexedDb);
   check("IndexedDB holds no CryptoKey", stored.cryptoKeys === 0, JSON.stringify(stored));

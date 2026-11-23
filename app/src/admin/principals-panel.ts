@@ -3,7 +3,7 @@
 // principal who leaves is marked inactive.
 import type { AdminPanel, AdminPanelContext } from "@trellis/framework";
 import { commands } from "@/domain/commands";
-import { nowIso, statusLine, textField, textOf } from "./form";
+import { named, nowIso, statusLine, textField, textOf } from "./form";
 import { newPrincipalInput, principalChange, sortPrincipals, type PrincipalRow } from "./setup";
 
 type Say = (text: string) => void;
@@ -15,9 +15,9 @@ function principalRows(ctx: AdminPanelContext): PrincipalRow[] {
 
 function rowFor(ctx: AdminPanelContext, row: PrincipalRow, done: Say, say: Say): HTMLTableRowElement {
   const { el } = ctx;
-  const title = el("input", { type: "text", value: row.title, ...({ "aria-label": `Title of ${row.code}` } as object) });
-  const order = el("input", { type: "number", value: String(row.order), step: "any", ...({ "aria-label": `Order of ${row.code}` } as object) });
-  const active = el("input", { type: "checkbox", checked: row.active, ...({ "aria-label": `${row.code} is active` } as object) });
+  const title = named(el("input", { type: "text", value: row.title }), `Title of ${row.code}`);
+  const order = named(el("input", { type: "number", value: String(row.order), step: "any" }), `Order of ${row.code}`);
+  const active = named(el("input", { type: "checkbox", checked: row.active }), `${row.code} is active`);
   const save = el("button", {}, "Save");
   save.addEventListener("click", () => {
     const built = principalChange(row, { title: title.value, order: order.value, active: active.checked }, nowIso());

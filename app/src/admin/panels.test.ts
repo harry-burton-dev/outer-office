@@ -95,6 +95,13 @@ describe("People", () => {
     expect(modeSelect(box, "userb").value).toBe("viewer");
   });
 
+  test("each mode select is named for its user", async () => {
+    const device = await oneDevice("admin");
+    device.putUser({ id: "userb", name: "Blair Sample" });
+    const box = mount(peoplePanel(), device);
+    expect(modeSelect(box, "userb").getAttribute("aria-label")).toBe("Mode for Blair Sample");
+  });
+
   test("says when there are no users yet", async () => {
     const device = await oneDevice("admin");
     expect(mount(peoplePanel(), device).textContent).toContain("No users yet.");
@@ -129,6 +136,16 @@ describe("Principals", () => {
     click(box, "#principal-add");
     expect(status(box)).toContain("already a principal");
     expect(rows(device, "principals")).toHaveLength(1);
+  });
+
+  test("each control in a principal's row is named for that principal", async () => {
+    const device = await oneDevice();
+    const box = mount(principalsPanel(), device);
+    type(box, "#principal-new-code", "PRINCIPAL-A");
+    type(box, "#principal-new-title", "Chair");
+    click(box, "#principal-add");
+    const names = [...box.querySelectorAll("tr[data-principal='PRINCIPAL-A'] input")].map((i) => i.getAttribute("aria-label"));
+    expect(names).toEqual(["Title of PRINCIPAL-A", "Order of PRINCIPAL-A", "PRINCIPAL-A is active"]);
   });
 
   test("edits title, order and active in place; the code is not editable", async () => {

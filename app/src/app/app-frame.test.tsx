@@ -37,6 +37,12 @@ test("the shared project appears under Tasks by name", async () => {
   expect(navItem("Office work")).toBeTruthy();
 });
 
+test("with no shared project yet, Tasks still lists Project, which offers to create it", async () => {
+  await renderApp({ seed: (s) => { s.principal("PRINCIPAL-A"); s.ackPrivacy(); } });
+  fireEvent.click(navItem("Project"));
+  expect(screen.getByRole("button", { name: "Create the shared project" })).toBeTruthy();
+});
+
 test("the principal switch changes the chosen principal", async () => {
   let b = "";
   await renderApp({
@@ -92,6 +98,9 @@ test("Needs action shows the count for the chosen principal and opens the panel"
     children: <><AppFrame /><AppProbe /></>,
   });
   const button = screen.getByRole("button", { name: "Needs action 2" });
+  // The name is the visible text (WCAG 2.5.3, label in name), not a separate aria-label.
+  expect(button.getAttribute("aria-label")).toBeNull();
+  expect(button.textContent).toBe("Needs action 2");
 
   fireEvent.click(button);
 
