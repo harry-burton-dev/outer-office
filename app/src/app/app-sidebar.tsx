@@ -79,7 +79,7 @@ export function AppSidebar() {
   const taskItems = useTaskItems();
   const chosen = principals.find((p) => p.id === principalId);
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader>
         <p className="truncate px-2 py-1 text-base font-medium group-data-[collapsible=icon]:hidden">{office?.name || APP_NAME}</p>
         <PrincipalSwitch />
