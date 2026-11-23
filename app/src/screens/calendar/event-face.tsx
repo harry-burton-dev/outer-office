@@ -22,7 +22,7 @@ export function EventFaceView({ face, shapes = [], time }: EventFaceViewProps) {
     <div className="flex min-w-0 flex-col gap-0.5 overflow-hidden" data-event-face="">
       <span className="flex min-w-0 items-center gap-1">
         {face.tags.slice(1).map((tag) => <TagDot key={tag.id} colour={tag.colour} />)}
-        <span className="truncate font-medium tracking-[-0.005em]">{face.lensText ?? face.title}</span>
+        <span className="truncate font-medium">{face.lensText ?? face.title}</span>
         {shapes.length > 0 && (
           <span className="ml-auto flex shrink-0 gap-0.5" data-card-shapes="">
             {shapes.map((s) => <ShapeIcon key={s.id} shape={s.shape} className={s.complete ? "size-3.5" : "size-3.5 opacity-35"} />)}
@@ -33,7 +33,7 @@ export function EventFaceView({ face, shapes = [], time }: EventFaceViewProps) {
       {face.marks.length > 0 && (
         <span className="flex flex-wrap gap-1">
           {face.marks.map((mark) => (
-            <span key={mark} data-mark="" className="rounded-full bg-background/80 px-1.5 text-[0.6875rem] text-foreground shadow-xs">
+            <span key={mark} data-mark="" className="rounded-sm bg-background/80 px-1 text-[0.6875rem] text-muted-foreground">
               {mark}
             </span>
           ))}

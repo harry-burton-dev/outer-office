@@ -5,7 +5,8 @@ import { MoonIcon, SunIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Theme = "light" | "dark";
-const KEY = "outer-office.theme";
+// Not named after the app: a build takes every name from its definition.
+const KEY = "theme";
 
 function stored(): Theme | null {
   try {

@@ -123,16 +123,13 @@ export function EventCalendarViews({
       ----------------------------------------------------------------------------------------- */
 
 blockEventClass={(info) => cn(
-  // A soft card, tinted by its colour, lifted a touch off the grid (Claude desktop's cards).
-  'group relative border-(--fc-event-color) print:bg-white bg-[color-mix(in_oklab,var(--fc-event-color)_18%,var(--card))]',
-  'shadow-[0_1px_2px_rgb(20_20_19/0.06),inset_0_0_0_1px_color-mix(in_oklab,var(--fc-event-color)_28%,transparent)]',
-  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95 motion-safe:duration-300',
-  'motion-safe:transition-[transform,box-shadow,background-color] motion-safe:duration-200 motion-safe:ease-out',
-  info.isInteractive && [
-    'hover:bg-[color-mix(in_oklab,var(--fc-event-color)_26%,var(--card))]',
-    'hover:shadow-[0_6px_16px_-4px_rgb(20_20_19/0.18),inset_0_0_0_1px_color-mix(in_oklab,var(--fc-event-color)_45%,transparent)]',
-    'motion-safe:hover:-translate-y-px hover:z-10',
-  ],
+  // A quiet surface lightly tinted by its colour; the colour itself is the bar the diary draws.
+  'group relative print:bg-white bg-[color-mix(in_oklab,var(--fc-event-color)_14%,var(--background))]',
+  // On dark, colour mixed into black turns muddy (amber goes brown), so the fill stays grey and the bar carries it.
+  'dark:bg-[color-mix(in_oklab,var(--fc-event-color)_6%,var(--muted))]',
+  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300',
+  'motion-safe:transition-[background-color,box-shadow] motion-safe:duration-150',
+  info.isInteractive && 'hover:bg-[color-mix(in_oklab,var(--fc-event-color)_22%,var(--background))] dark:hover:bg-[color-mix(in_oklab,var(--fc-event-color)_10%,var(--accent))] hover:shadow-sm hover:z-10',
   (info.isDragging && !info.isSelected) && 'opacity-75',
 )}
       blockEventTimeClass="whitespace-nowrap overflow-hidden shrink-1"
@@ -143,7 +140,7 @@ blockEventClass={(info) => cn(
 
       rowEventClass={(info) => cn(
         'mb-px not-print:py-px print:border-y items-center',
-        info.isStart && 'border-s-[3px] rounded-s-md',
+        info.isStart && 'rounded-s-md',
         info.isEnd && 'not-print:pe-px print:border-e rounded-e-md',
       )}
       rowEventBeforeClass={(info) => (
@@ -184,9 +181,9 @@ blockEventClass={(info) => cn(
       ----------------------------------------------------------------------------------------- */
 
       columnEventClass={(info) => cn(
-        'border-s-[3px] not-print:pe-px print:border-e ring-2 ring-background',
-        info.isStart && 'not-print:pt-px print:border-t rounded-t-lg',
-        info.isEnd && 'mb-px not-print:pb-px print:border-b rounded-b-lg',
+        'not-print:pe-px print:border-e ring-2 ring-background',
+        info.isStart && 'not-print:pt-px print:border-t rounded-t-md',
+        info.isEnd && 'mb-px not-print:pb-px print:border-b rounded-b-md',
       )}
       columnEventBeforeClass={(info) => cn(
         info.isStartResizable && [

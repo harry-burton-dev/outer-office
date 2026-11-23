@@ -30,8 +30,9 @@ function Entry({ face, shapes, time }: { face: EventFace; shapes?: readonly Card
       ? { className: "absolute inset-0", style: { background: `color-mix(in srgb, var(--background) ${Math.round(face.veil * 100)}%, transparent)` } }
       : { className: "absolute inset-0", style: face.lensFill ? { background: face.lensFill } : undefined };
   return (
-    <div className="min-w-0" data-ghost={face.ghost ? "" : undefined}>
+    <div className="min-w-0 pl-2" data-ghost={face.ghost ? "" : undefined}>
       <span aria-hidden {...cover} />
+      <span aria-hidden className="absolute inset-y-1 left-1 w-[3px] rounded-full bg-(--fc-event-color)" />
       <div className={face.ghost ? "relative min-w-0 text-muted-foreground" : "relative min-w-0"} style={face.veil ? { opacity: 1 - face.veil * 0.8 } : undefined}>
         <EventFaceView face={face} shapes={shapes} time={time} />
       </div>
