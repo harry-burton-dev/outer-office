@@ -22,7 +22,7 @@ const a = ok(device, principalSave, { now: NOW, code: "PRINCIPAL-A", title: "Pri
 ok(device, principalSave, { now: NOW, code: "PRINCIPAL-B", title: "Principal B" });
 ok(device, projectSave, { now: NOW, name: "Office work" });
 ok(device, taskAdd, { now: NOW, title: "Overdue", principal: a, due: "2020-01-01" });
-const session = { user: { id: "user-a", name: "User A" }, deviceId: "usera-1", folder: "Test", version: "0", builtAt: NOW, openInvite: () => undefined };
+const session = { user: { id: "user-a", name: "User A" }, deviceId: "usera-1", folder: "Test", version: "0", builtAt: NOW, openInvite: () => undefined, plainFiles: () => { throw new Error("no plain files in the frame spike"); }, onTick: () => () => undefined };
 
 createRoot(document.getElementById("root")!).render(
   <ShellProvider engine={fakeEngine()}>

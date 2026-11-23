@@ -3,6 +3,7 @@
 import { createContext, useContext } from "react";
 import type { Engine, Health } from "../host/engine-types";
 import type { ShellStrings } from "./strings";
+import type { PlainFiles } from "../../plainfiles/plain-files.ts";
 import { useEngineValue } from "./engine-store";
 
 export interface ShellContextValue {
@@ -29,6 +30,10 @@ export interface TrellisSession {
   builtAt: string;
   /** Shows the shell's invite form above the app's screens. */
   openInvite: () => void;
+  /** Unencrypted files under one subfolder of the shared folder, for tools outside the app. */
+  plainFiles: (folder: string) => PlainFiles;
+  /** Runs listener after each sync tick, about once a second, never two at once. Returns a function that removes it. */
+  onTick: (listener: () => void | Promise<void>) => () => void;
 }
 
 export const SessionContext = createContext<TrellisSession | null>(null);

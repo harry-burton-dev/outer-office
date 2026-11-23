@@ -3,7 +3,7 @@
 // covered by the from-disk smoke test.
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { StrictMode } from "react";
+import { StrictMode, useEffect } from "react";
 import * as Y from "yjs";
 import { TrellisApp, type TrellisAppProps } from "../app-shell";
 import { ConflictPrompt, HealthIndicator, useSession } from "../index";
@@ -291,6 +291,19 @@ describe('chrome "app"', () => {
     return { ...fakes, engine: fakes.engines[0]! };
   }
 
+  test("the session gives the app plain files under a subfolder and the host's tick hook", async () => {
+    let folder = "";
+    function Automate() {
+      const session = useSession();
+      folder = session.plainFiles("automate").folder;
+      useEffect(() => session.onTick(() => undefined), [session]);
+      return <p>the app's screen</p>;
+    }
+    const { calls } = await appChrome(<Automate />);
+    expect(folder).toBe("automate");
+    expect(calls).toContain("onTick");
+  });
+
   test("while running the shell shows no indicator, invite button, who and where, or version, and no page padding", async () => {
     await appChrome(undefined, {}, { width: "wide" });
     expect(screen.queryByRole("button", { name: s.health.saved.label })).toBeNull();
@@ -311,7 +324,7 @@ describe('chrome "app"', () => {
   test("the update notice still shows", async () => {
     const onUpdate = (listener: (result: { status: "updated"; version: string }) => void) => (listener({ status: "updated", version: "9.9.9" }), () => undefined);
     await appChrome(undefined, { loader: () => ({ checkForUpdate: async () => ({ status: "current", version: "1" }), onUpdate }) as never });
-    expect(screen.getByText(s.updateReady("9.9.9"))).toBeTruthy();
+    expect(await screen.findByText(s.updateReady("9.9.9"))).toBeTruthy();
   });
 
   test("the app places the health indicator itself, and it follows the engine", async () => {

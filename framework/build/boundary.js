@@ -1,5 +1,5 @@
 // Gate G5: app code may import only the framework's public entry, its own files,
-// and packages listed in app/package.json. Run by framework/test/boundary.test.js.
+// and packages listed in app/package.json, and may not use the folder handle. Run by framework/test/boundary.test.js.
 import { readdirSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
@@ -15,6 +15,11 @@ const NOT_SHIPPED_SPECIFIER = /(?:^|\/)(?:testing|spike)(?:\/|$)|\.test(?:\.|$)/
 // so a bad import in a comment fails safe.
 // The lookbehind keeps a string that merely contains the word, such as "import" in a union type, from being read as a statement.
 const SPECIFIER = /(?<!['"`.$])\b(?:(?:import|export)\s[^'";]*?\bfrom\s*|import\s*\(\s*|require\s*\(\s*|import\s*)(['"])([^'"\n]+)\1/dg;
+
+// Shipped app code reaches the shared folder only through useSession().plainFiles (OUT-53),
+// never through the folder handle's own methods or the browser's folder picker.
+const FOLDER_HANDLE = /\.\s*(getDirectoryHandle|getFileHandle|removeEntry|createWritable)\s*\(|\b(showDirectoryPicker)\b/dg;
+const FOLDER_HANDLE_REASON = "uses the folder handle; use useSession().plainFiles";
 
 /** Package names (dependencies and devDependencies) listed in `<appDir>/package.json`. */
 export function appPackages(appDir) {
@@ -35,6 +40,11 @@ export function findViolations(appDir, { allowedPackages }) {
       if (!reason) continue;
       const line = text.slice(0, m.indices[2][0]).split("\n").length;
       found.push({ file: relative(root, path).split(sep).join("/"), line, specifier, reason });
+    }
+    for (const m of text.matchAll(FOLDER_HANDLE)) {
+      const group = m[1] ? 1 : 2;
+      const line = text.slice(0, m.indices[group][0]).split("\n").length;
+      found.push({ file: relative(root, path).split(sep).join("/"), line, specifier: m[group], reason: FOLDER_HANDLE_REASON });
     }
   }
   return found;
