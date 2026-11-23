@@ -23,9 +23,12 @@ export interface ParseOptions {
 export interface ParseResult {
   /** One per occurrence, sorted by start then uid. */
   events: readonly ImportedEvent[];
-  /** Start of the earliest occurrence kept (ISO UTC), or windowStart if none. */
+  /**
+   * The span the file covers (ISO UTC), within the window: the range the file
+   * declares (Outlook's X-CALSTART/X-CALEND) widened to take in every occurrence
+   * kept. With no declared range it is the occurrences' span, or the window if none.
+   */
   rangeStart: string;
-  /** End of the latest occurrence kept, or windowEnd if none. */
   rangeEnd: string;
   droppedPrivate: number;
   maskedPrivate: number;
@@ -117,7 +120,30 @@ function toImported(raw: RawOccurrence, masked: boolean): ImportedEvent {
 const compareEvents = (a: ImportedEvent, b: ImportedEvent): number =>
   a.start.localeCompare(b.start) || a.uid.localeCompare(b.uid) || a.recurrenceId.localeCompare(b.recurrenceId);
 
-function buildResult(raw: readonly RawOccurrence[], options: ParseOptions, warnings: readonly string[]): ParseResult {
+/** "20261012T000000Z" as ISO UTC, or "" when absent or not a UTC date-time. */
+function utcStamp(calendar: Component, name: string): string {
+  const value = calendar.getFirstPropertyValue(name);
+  const match = typeof value === "string" ? /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(value.trim()) : null;
+  if (!match) return "";
+  const [, y, mo, d, h, mi, se] = match.map(Number) as [number, number, number, number, number, number, number];
+  const ms = Date.UTC(y, mo - 1, d, h, mi, se);
+  return Number.isNaN(ms) ? "" : toIso(ms);
+}
+
+type Range = { start: string; end: string } | null;
+
+/** The range the file says it was exported for, clipped to the window; null when it declares none. */
+function declaredRange(calendars: readonly Component[], options: ParseOptions): Range {
+  const calendar = calendars[0];
+  if (!calendar) return null;
+  const [start, end] = [utcStamp(calendar, "x-calstart"), utcStamp(calendar, "x-calend")];
+  if (start === "" || end === "") return null;
+  const startMs = Math.max(Date.parse(start), Date.parse(options.windowStart));
+  const endMs = Math.min(Date.parse(end), Date.parse(options.windowEnd));
+  return startMs < endMs ? { start: toIso(startMs), end: toIso(endMs) } : null;
+}
+
+function buildResult(raw: readonly RawOccurrence[], options: ParseOptions, warnings: readonly string[], declared: Range): ParseResult {
   const live = raw.filter((o) => !isCancelled(o.component));
   const isPrivateOccurrence = live.map((o) => isPrivate(o.component));
   const privateCount = isPrivateOccurrence.filter(Boolean).length;
@@ -126,12 +152,17 @@ function buildResult(raw: readonly RawOccurrence[], options: ParseOptions, warni
     .flatMap((o, i) => (isPrivateOccurrence[i] && !masking ? [] : [toImported(o, Boolean(isPrivateOccurrence[i]))]))
     .sort(compareEvents);
   const earliest = events[0];
-  if (!earliest) return { ...emptyResult(options, warnings), droppedPrivate: masking ? 0 : privateCount };
+  const dropped = masking ? 0 : privateCount;
+  if (!earliest) {
+    const empty = { ...emptyResult(options, warnings), droppedPrivate: dropped };
+    return declared ? { ...empty, rangeStart: declared.start, rangeEnd: declared.end } : empty;
+  }
+  const latestEnd = events.reduce((max, e) => (e.end > max ? e.end : max), earliest.end);
   return {
     events,
-    rangeStart: earliest.start,
-    rangeEnd: events.reduce((max, e) => (e.end > max ? e.end : max), earliest.end),
-    droppedPrivate: masking ? 0 : privateCount,
+    rangeStart: declared && declared.start < earliest.start ? declared.start : earliest.start,
+    rangeEnd: declared && declared.end > latestEnd ? declared.end : latestEnd,
+    droppedPrivate: dropped,
     maskedPrivate: masking ? privateCount : 0,
     warnings,
   };
@@ -163,7 +194,7 @@ export function parseIcs(text: string, options: ParseOptions): ParseResult {
   const unregister = registerZones(calendars);
   try {
     const raw = dedupe(expandAll(groupByUid(calendars, ctx.warn), ctx), ctx.warn);
-    return buildResult(raw, options, [...warnings]);
+    return buildResult(raw, options, [...warnings], declaredRange(calendars, options));
   } finally {
     unregister();
   }
