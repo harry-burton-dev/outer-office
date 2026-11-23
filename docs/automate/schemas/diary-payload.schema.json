@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/harry-burton-dev/outer-office/blob/main/docs/automate/schemas/diary-payload.schema.json",
+  "title": "Diary payload: diary-sync event data, and diary.fetch result",
+  "description": "Events are as Graph calendarView returns them (with Prefer: outlook.timezone=\"UTC\"), shaped by the flow \"Diary \u00b7 read window\". Private and confidential items are already masked. Field names are confirmed against the spike capture before processVersion 1 is frozen.",
+  "type": "object",
+  "properties": {
+    "principal": {
+      "type": "string",
+      "minLength": 1
+    },
+    "windowStart": {
+      "$ref": "envelope.schema.json#/$defs/isoUtc"
+    },
+    "windowEnd": {
+      "$ref": "envelope.schema.json#/$defs/isoUtc"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "iCalUId": {
+            "type": "string"
+          },
+          "seriesMasterId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "enum": [
+              "singleInstance",
+              "occurrence",
+              "exception",
+              "seriesMaster"
+            ]
+          },
+          "originalStart": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isAllDay": {
+            "type": "boolean"
+          },
+          "isCancelled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "subject": {
+            "type": "string"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "categories": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "showAs": {
+            "type": "string"
+          },
+          "sensitivity": {
+            "enum": [
+              "normal",
+              "personal",
+              "private",
+              "confidential"
+            ]
+          },
+          "lastModifiedDateTime": {
+            "type": "string"
+          },
+          "attendees": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            }
+          },
+          "body": false,
+          "bodyPreview": false
+        },
+        "required": [
+          "iCalUId",
+          "start",
+          "end",
+          "isAllDay",
+          "subject",
+          "showAs",
+          "sensitivity",
+          "lastModifiedDateTime"
+        ],
+        "description": "One occurrence. body and bodyPreview are forbidden: the flow must never write meeting bodies to the folder."
+      }
+    },
+    "masters": {
+      "type": "array",
+      "description": "One per distinct seriesMasterId in events: the series master's iCalUId, which is the .ics UID.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "iCalUId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "iCalUId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "principal",
+    "windowStart",
+    "windowEnd",
+    "count",
+    "events"
+  ],
+  "additionalProperties": false
+}

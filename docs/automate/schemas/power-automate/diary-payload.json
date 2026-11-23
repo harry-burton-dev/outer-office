@@ -1,0 +1,148 @@
+{
+  "title": "Diary payload: diary-sync event data, and diary.fetch result",
+  "description": "Events are as Graph calendarView returns them (with Prefer: outlook.timezone=\"UTC\"), shaped by the flow \"Diary · read window\". Private and confidential items are already masked. Field names are confirmed against the spike capture before processVersion 1 is frozen.",
+  "type": "object",
+  "properties": {
+    "principal": {
+      "type": "string"
+    },
+    "windowStart": {
+      "type": "string"
+    },
+    "windowEnd": {
+      "type": "string"
+    },
+    "count": {
+      "type": "integer"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "iCalUId": {
+            "type": "string"
+          },
+          "seriesMasterId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "originalStart": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "isAllDay": {
+            "type": "boolean"
+          },
+          "isCancelled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "subject": {
+            "type": "string"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organizer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "categories": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "showAs": {
+            "type": "string"
+          },
+          "sensitivity": {
+            "type": "string"
+          },
+          "lastModifiedDateTime": {
+            "type": "string"
+          },
+          "attendees": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object"
+            }
+          },
+          "body": false,
+          "bodyPreview": false
+        },
+        "required": [
+          "iCalUId",
+          "start",
+          "end",
+          "isAllDay",
+          "subject",
+          "showAs",
+          "sensitivity",
+          "lastModifiedDateTime"
+        ],
+        "description": "One occurrence. body and bodyPreview are forbidden: the flow must never write meeting bodies to the folder."
+      }
+    },
+    "masters": {
+      "type": "array",
+      "description": "One per distinct seriesMasterId in events: the series master's iCalUId, which is the .ics UID.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "iCalUId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "iCalUId"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "principal",
+    "windowStart",
+    "windowEnd",
+    "count",
+    "events"
+  ]
+}
