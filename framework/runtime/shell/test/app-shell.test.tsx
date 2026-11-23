@@ -311,7 +311,7 @@ describe('chrome "app"', () => {
   test("the update notice still shows", async () => {
     const onUpdate = (listener: (result: { status: "updated"; version: string }) => void) => (listener({ status: "updated", version: "9.9.9" }), () => undefined);
     await appChrome(undefined, { loader: () => ({ checkForUpdate: async () => ({ status: "current", version: "1" }), onUpdate }) as never });
-    expect(screen.getByText(s.updateReady("9.9.9"))).toBeTruthy();
+    expect(await screen.findByText(s.updateReady("9.9.9"))).toBeTruthy();
   });
 
   test("the app places the health indicator itself, and it follows the engine", async () => {
