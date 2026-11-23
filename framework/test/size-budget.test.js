@@ -57,7 +57,7 @@ test("the check passes on small files and prints both sizes and the headroom", (
     const { code, out } = run(["--dist", dist]);
     assert.equal(code, 0, out);
     assert.match(out, /bootstrap\s+1,000 bytes .*49,000 bytes headroom/);
-    assert.match(out, /bundle\s+2,000 bytes .*1,098,000 bytes headroom/);
+    assert.match(out, /bundle\s+2,000 bytes .*1,398,000 bytes headroom/);
   } finally {
     rmSync(dist, { recursive: true, force: true });
   }
