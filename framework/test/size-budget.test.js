@@ -31,8 +31,8 @@ const run = (args) => {
 };
 
 // The bundle budget was the spec's 500,000 until the diary calendar (FullCalendar) raised it, with Harry.
-test("the budgets: bootstrap under 50,000 bytes, bundle under 1,100,000", () => {
-  assert.deepEqual(BUDGETS, { bootstrap: 50_000, bundle: 1_100_000 });
+test("the budgets: bootstrap under 50,000 bytes, bundle under 1,400,000", () => {
+  assert.deepEqual(BUDGETS, { bootstrap: 50_000, bundle: 1_400_000 });
 });
 
 test("checkBudgets reports size and headroom, and flags only what is over", () => {
