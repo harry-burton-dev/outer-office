@@ -5,6 +5,8 @@ import { useRecord } from "@trellis/framework";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/app/ui";
 import { useApp } from "@/app/app-state";
+import { useDiaryEntry } from "@/automate/diary-inbox-state";
+import { DateText, TimeText } from "@/app/ui";
 import { ChooseStep } from "./import/choose-step";
 import { ReviewStep } from "./import/review-step";
 import { ImportHistory } from "./import/import-history";
@@ -16,7 +18,8 @@ interface ImportStepsProps {
 
 function ImportSteps({ principal }: ImportStepsProps) {
   const record = useRecord("principals", principal);
-  const { state, policy, choose, apply, reset } = useImportFlow(principal);
+  const { state, policy, choose, chooseDiary, apply, reset } = useImportFlow(principal);
+  const diary = useDiaryEntry(principal);
   const label = record?.code ?? principal;
   if (state.step === "review") {
     return <ReviewStep {...state} policy={policy} onApply={apply} onCancel={reset} />;
@@ -25,13 +28,33 @@ function ImportSteps({ principal }: ImportStepsProps) {
     return (
       <section aria-label="Done" className="flex flex-col items-start gap-4">
         <p role="status" className="text-sm">
-          Imported. Now delete {state.fileName} from your Downloads folder: it is not encrypted.
+          {state.fromDiary
+            ? "Imported. The diary update's files have been deleted from the shared folder."
+            : `Imported. Now delete ${state.fileName} from your Downloads folder: it is not encrypted.`}
         </p>
         <Button onClick={reset}>Dismiss</Button>
       </section>
     );
   }
-  return <ChooseStep principalLabel={label} errors={state.errors} busy={state.busy} onFile={(file) => void choose(file)} />;
+  return (
+    <>
+      {diary && (
+        <section aria-label="Diary update" className="mb-6 flex flex-col items-start gap-2">
+          {diary.ok ? (
+            <>
+              <p className="text-sm">
+                Power Automate read the diary at <DateText value={diary.update.generatedAt} /> <TimeText value={diary.update.generatedAt} />.
+              </p>
+              <Button variant="outline" onClick={() => chooseDiary(diary.update)}>Review diary update</Button>
+            </>
+          ) : (
+            <p role="alert" className="text-sm text-destructive">The latest diary update can't be used: {diary.reason}.</p>
+          )}
+        </section>
+      )}
+      <ChooseStep principalLabel={label} errors={state.errors} busy={state.busy} onFile={(file) => void choose(file)} />
+    </>
+  );
 }
 
 export function ImportScreen() {

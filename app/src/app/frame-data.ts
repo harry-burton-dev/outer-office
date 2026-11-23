@@ -4,6 +4,8 @@ import { useMemo } from "react";
 import { useRecord, useRecords, type RowOf } from "@trellis/framework";
 import { OFFICE_ID } from "@/domain/commands";
 import { byOrder, needsAction, type NeedsAction } from "@/domain/selectors";
+import { useDiaryEntry } from "@/automate/diary-inbox-state";
+import type { InboxEntry } from "@/automate/diary-inbox";
 import { useApp } from "./app-state";
 
 export type Office = RowOf<"office">;
@@ -43,3 +45,10 @@ export function useNeedsAction(): NeedsAction {
 
 export const needsActionCount = (lists: NeedsAction): number =>
   lists.overdue.length + lists.dueToday.length + lists.prepNeeded.length + lists.goneWithData.length;
+
+/** The chosen principal's diary update from Power Automate, for people who can import; null otherwise. */
+export function useDiaryForNeedsAction(): InboxEntry | null {
+  const { principalId, isViewer } = useApp();
+  const entry = useDiaryEntry(principalId);
+  return isViewer ? null : entry;
+}
