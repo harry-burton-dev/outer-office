@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createAutomateClient } from "../client.js";
 import { replyProblem } from "../protocol.js";
 import { schemaErrors } from "./schemas.js";
-import { MINUTE, SECOND, automateDir, cloudFolder, run, setup, writeText } from "./helpers.js";
+import { MINUTE, SECOND, automateDir, automateFiles, cloudFolder, run, setup, writeText } from "./helpers.js";
 
 const fetchInput = { principal: "PRINCIPAL-A", windowStart: "2026-11-16T00:00:00Z", windowEnd: "2027-02-23T00:00:00Z" };
 
@@ -145,7 +145,7 @@ test("two devices: each settles only its own calls", async () => {
   const s = await setup();
   const other = s.world.addDevice("bob-bbbbbbbb");
   const bob = createAutomateClient({
-    dir: await automateDir(other),
+    files: automateFiles(other),
     caller: { user: "bob", app: "outer-office test" },
     now: s.now,
     newId: () => "bbbbbbbb-0000-4000-8000-000000000001",

@@ -2,7 +2,8 @@
 // guide F3 version 2 (OO1 notes, flow-f3-orchestrator.md) step for step, on a
 // folder handle, so the client can be tested without a real flow. The
 // conformance cases in conformance.js are the checklist the real flow must
-// also pass.
+// also pass. It reads and writes through PlainFiles on the flow's own device,
+// whose list() already leaves out .crswap and other temp files.
 //
 // One sweep, as F3 runs every 2 minutes with concurrency 1:
 //   1. list calls/ and replies/; keep only *.json notices; handled = []
@@ -17,11 +18,7 @@
 //          the child throws -> error, child-failed
 //      2.8 write replies/<callId>.json, add to handled, then delete the notice
 
-import { ensureDir, listFiles, notFound, replaceFile } from "../../engine/src/engine/folder-io.js";
 import { CALLS, MINUTE, PROTOCOL, REPLIES, VERSION, isMessageFile, isoSeconds } from "../protocol.js";
-
-const decoder = new TextDecoder();
-const encoder = new TextEncoder();
 
 const isObject = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 const isString = (v) => typeof v === "string";
@@ -50,21 +47,13 @@ function fetchInputOk(input) {
 
 /**
  * @param {object} options
- * @param {FileSystemDirectoryHandle} options.dir  the `automate/` folder, as the flow's device sees it
+ * @param {import("../../plainfiles/plain-files.ts").PlainFiles} options.files  `automate/`, as the flow's device sees it
  * @param {() => number} options.now
  * @param {Record<string, (input: any) => any>} [options.apis]  "api@version" -> child flow
  * @param {string | null} [options.handledFor]  what the listing's LastModifiedBy would say
  */
-export function createFakeOrchestrator({ dir, now, apis = {}, handledFor = null }) {
+export function createFakeOrchestrator({ files, now, apis = {}, handledFor = null }) {
   const log = [];
-
-  async function remove(folder, name) {
-    try {
-      await folder.removeEntry(name);
-    } catch (err) {
-      if (!notFound(err)) throw err;
-    }
-  }
 
   const reply = (callId, status, result, error, echo) => ({
     protocol: PROTOCOL,
@@ -97,46 +86,33 @@ export function createFakeOrchestrator({ dir, now, apis = {}, handledFor = null 
   }
 
   async function sweep() {
-    const calls = await ensureDir(dir, [CALLS]);
-    const replies = await ensureDir(dir, [REPLIES]);
-    const replyNames = new Set();
-    for (const { name, handle } of await listFiles(replies)) {
-      // Not in F3: the flow's Create file is one upload, but this fake writes
-      // like a browser, and a failed write leaves an empty file behind. An
-      // empty reply must not count as an answer, or the retry never happens.
-      try {
-        if ((await handle.getFile()).size > 0) replyNames.add(name.toLowerCase());
-      } catch {
-        // unreadable now: not counted
-      }
-    }
+    // Not in F3: the flow's Create file is one upload, but this fake writes
+    // like a browser, and a failed write leaves an empty file behind. An
+    // empty reply must not count as an answer, or the retry never happens.
+    const replyNames = new Set((await files.list(REPLIES)).filter((f) => f.size > 0).map((f) => f.name.toLowerCase()));
     const handled = new Set();
 
-    for (const { name, handle } of await listFiles(calls)) {
+    for (const { name, path, lastModified } of await files.list(CALLS)) {
       if (!isMessageFile(name.toLowerCase())) continue;
       const step = async () => {
-        const file = await handle.getFile();
-        if (!(file.lastModified > now() - 15 * MINUTE)) {
-          await remove(calls, name);
+        if (!(lastModified > now() - 15 * MINUTE)) {
+          await files.delete(path);
           return "deleted-old";
         }
-        let notice;
-        try {
-          notice = JSON.parse(decoder.decode(await file.arrayBuffer()));
-        } catch {
-          return "not-json";
-        }
+        const read = await files.readJson(path);
+        if (!read.ok) return read.reason === "incomplete" ? "not-json" : "unreadable";
+        const notice = read.value;
         if (!isObject(notice)) return "not-json";
         const callId = String(notice.callId ?? "").toLowerCase();
         if (!answerable(callId)) return "unsafe-call-id";
         if (replyNames.has(`${callId}.json`) || handled.has(callId)) {
-          await remove(calls, name);
+          await files.delete(path);
           return "duplicate";
         }
         const out = await answer(callId, notice);
-        await replaceFile(replies, `${callId}.json`, encoder.encode(JSON.stringify(out)));
+        await files.write(`${REPLIES}/${callId}.json`, JSON.stringify(out));
         handled.add(callId);
-        await remove(calls, name);
+        await files.delete(path);
         return `${out.status}${out.error ? ` ${out.error.code}` : ""}`;
       };
       try {

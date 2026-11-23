@@ -1,5 +1,6 @@
 // A simulated shared folder with the app on one device and the flow on another.
 import { createWorld } from "../../engine/src/sim/world.js";
+import { createPlainFiles } from "../../plainfiles/plain-files.ts";
 import { createAutomateClient } from "../client.js";
 import { createFakeOrchestrator } from "../testing/fake-orchestrator.js";
 import { diaryFetchStub } from "../testing/conformance.js";
@@ -12,9 +13,12 @@ export function sequentialIds(prefix = "a") {
   return () => `${prefix.repeat(8)}-0000-4000-8000-${String(++n).padStart(12, "0")}`;
 }
 
+/** The flow's or another device's raw `automate/` folder, for writing files the way an outside tool would. */
 export async function automateDir(device) {
   return device.root.getDirectoryHandle("automate", { create: true });
 }
+
+export const automateFiles = (device) => createPlainFiles(device.root, "automate");
 
 export async function setup({ seed = "automate", faults = {}, apis, idPrefix = "a" } = {}) {
   const world = createWorld({ seed, faults });
@@ -22,13 +26,13 @@ export async function setup({ seed = "automate", faults = {}, apis, idPrefix = "
   const flow = world.addDevice("flow-ffffffff");
   const now = () => world.clock.now();
   const client = createAutomateClient({
-    dir: await automateDir(app),
+    files: automateFiles(app),
     caller: { user: "sam", app: "outer-office test" },
     now,
     newId: sequentialIds(idPrefix),
   });
   const orchestrator = createFakeOrchestrator({
-    dir: await automateDir(flow),
+    files: automateFiles(flow),
     now,
     apis: apis ?? { "diary.fetch@1": diaryFetchStub() },
     handledFor: "flow@office.example",

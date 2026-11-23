@@ -4,8 +4,8 @@
 //   tick()            reads replies/, settles the calls they answer, deletes the
 //                     reply files, and times out calls that waited too long
 //
-// The client is given the `automate/` directory handle and never touches the
-// encrypted data. Every rule here is from spec v3:
+// The client is given the app's PlainFiles for `automate/`
+// (useSession().plainFiles("automate")) and never touches the encrypted data. Every rule here is from spec v3:
 //  - one file per message, data inline (F1)
 //  - a file that does not parse yet is "not yet", tried again next tick (F3)
 //  - identity is the callId inside the file, so conflict copies are
@@ -14,7 +14,6 @@
 //  - expiresAt is issuedAt + 15 minutes; after that plus a grace period the
 //    call is timed out and its notice deleted if still there (F8)
 
-import { ensureDir, listFiles, notFound, replaceFile } from "../engine/src/engine/folder-io.js";
 import {
   CALLS,
   DEFAULT_GRACE_MS,
@@ -45,29 +44,9 @@ export function memoryRecords() {
   };
 }
 
-const decoder = new TextDecoder();
-
-async function readJson(handle) {
-  const file = await handle.getFile();
-  const text = decoder.decode(await file.arrayBuffer());
-  try {
-    return { lastModified: file.lastModified, value: JSON.parse(text) };
-  } catch {
-    return { lastModified: file.lastModified, unreadable: true };
-  }
-}
-
-async function removeQuietly(dir, name) {
-  try {
-    await dir.removeEntry(name);
-  } catch (err) {
-    if (!notFound(err)) throw err;
-  }
-}
-
 /**
  * @param {object} options
- * @param {FileSystemDirectoryHandle} options.dir  the `automate/` folder
+ * @param {import("../plainfiles/plain-files.ts").PlainFiles} options.files  plain files for `automate/`
  * @param {{ user: string, app: string }} options.caller
  * @param {() => number} [options.now]
  * @param {() => string} [options.newId]  a lowercase UUID
@@ -76,7 +55,7 @@ async function removeQuietly(dir, name) {
  * @param {number} [options.graceMs]
  */
 export function createAutomateClient({
-  dir,
+  files,
   caller,
   now = Date.now,
   newId = () => crypto.randomUUID(),
@@ -97,8 +76,7 @@ export function createAutomateClient({
     const issuedAt = isoSeconds(at);
     const expiresAt = isoSeconds(at + ttlMs);
     const notice = makeNotice({ callId, api, apiVersion, input, caller, issuedAt, expiresAt });
-    const calls = await ensureDir(dir, [CALLS]);
-    await replaceFile(calls, fileFor(callId), new TextEncoder().encode(JSON.stringify(notice)));
+    await files.writeJson(`${CALLS}/${fileFor(callId)}`, notice);
     const record = { callId, api, apiVersion, status: "pending", issuedAt, expiresAt, settledAt: null, error: null };
     records.put(record);
     return { ...record };
@@ -110,24 +88,20 @@ export function createAutomateClient({
     return settled;
   }
 
-  async function readReplies(replies) {
+  async function readReplies() {
     const byCallId = new Map();
     const strays = [];
-    for (const { name, handle } of await listFiles(replies)) {
+    for (const { name, path, lastModified } of await files.list(REPLIES)) {
       if (!isMessageFile(name)) continue;
-      let read;
-      try {
-        read = await readJson(handle);
-      } catch {
-        continue; // deleted under us, or a read failure: "not yet", like a half-written file
-      }
-      const callId = read.value?.callId;
-      if (read.unreadable || typeof callId !== "string") {
-        strays.push({ name, lastModified: read.lastModified });
+      const read = await files.readJson(path);
+      if (!read.ok && read.reason !== "incomplete") continue; // gone, or the read failed: next tick
+      const callId = read.ok ? read.value?.callId : undefined;
+      if (typeof callId !== "string") {
+        strays.push({ path, lastModified }); // half-arrived, or junk
         continue;
       }
-      const entry = byCallId.get(callId) ?? { names: [], reply: read.value, lastModified: read.lastModified };
-      entry.names.push(name);
+      const entry = byCallId.get(callId) ?? { paths: [], reply: read.value, lastModified };
+      entry.paths.push(path);
       byCallId.set(callId, entry);
     }
     return { byCallId, strays };
@@ -140,17 +114,16 @@ export function createAutomateClient({
    *   changed in this pass; each settled one carries `result` when it is done
    */
   async function tick() {
-    const replies = await ensureDir(dir, [REPLIES]);
-    const { byCallId, strays } = await readReplies(replies);
+    const { byCallId, strays } = await readReplies();
     const settled = [];
     const t = now();
 
-    for (const [callId, { names, reply, lastModified }] of byCallId) {
+    for (const [callId, { paths, reply, lastModified }] of byCallId) {
       const record = records.get(callId);
       if (!record) {
         // Another device's call whose record has not synced here yet, or a
         // call nobody remembers. Leave it, unless it is old.
-        if (t - lastModified > STRAY_REPLY_MS) for (const name of names) await removeQuietly(replies, name);
+        if (t - lastModified > STRAY_REPLY_MS) for (const path of paths) await files.delete(path);
         continue;
       }
       if (record.status === "pending") {
@@ -161,11 +134,11 @@ export function createAutomateClient({
         settled.push(problem || reply.status !== "ok" ? done : { ...done, result: reply.result });
       }
       // Settled now or earlier (a late reply after a timeout, or a copy): the files are done with.
-      for (const name of names) await removeQuietly(replies, name);
+      for (const path of paths) await files.delete(path);
     }
 
-    for (const { name, lastModified } of strays) {
-      if (t - lastModified > STRAY_REPLY_MS) await removeQuietly(replies, name);
+    for (const { path, lastModified } of strays) {
+      if (t - lastModified > STRAY_REPLY_MS) await files.delete(path);
     }
 
     const timedOut = [];
@@ -173,8 +146,7 @@ export function createAutomateClient({
       if (record.status !== "pending" || byCallId.has(record.callId)) continue;
       if (t <= Date.parse(record.expiresAt) + graceMs) continue;
       timedOut.push(settle(record, "timed-out", { code: "timed-out", message: "No reply before the call expired" }));
-      const calls = await ensureDir(dir, [CALLS]);
-      await removeQuietly(calls, fileFor(record.callId));
+      await files.delete(`${CALLS}/${fileFor(record.callId)}`);
     }
 
     return { settled, timedOut };
