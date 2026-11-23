@@ -5,7 +5,10 @@ import { eventKey } from "./types";
 import type { ParseResult } from "./parse-ics";
 
 /** The imported fields compared, in contract order. uid and recurrenceId are the key, so always equal. */
-const COMPARED_FIELDS = ["start", "end", "allDay", "subject", "location", "organizer", "categories", "showAs", "masked", "sourceModified"] as const;
+const COMPARED_FIELDS = [
+  "start", "end", "allDay", "subject", "location", "organizer", "categories", "showAs", "masked", "sourceModified",
+  "requiredAttendees", "optionalAttendees", "importance", "sensitivity",
+] as const;
 const TIME_FIELDS: ReadonlySet<string> = new Set(["start", "end", "sourceModified"]);
 
 /** Two ISO strings for the same instant are equal even if written differently. */
@@ -17,7 +20,8 @@ function sameValue(field: string, a: string | boolean, b: string | boolean): boo
 }
 
 const differingFields = (before: ImportedEvent, after: ImportedEvent): string[] =>
-  COMPARED_FIELDS.filter((field) => !sameValue(field, before[field], after[field]));
+    // A field the source does not carry (the sync has no attendees or importance) is not a change.
+  COMPARED_FIELDS.filter((field) => after[field] !== undefined && !sameValue(field, before[field] ?? "", after[field]));
 
 const change = (before: StoredEvent, after: ImportedEvent): EventChange => {
   const fields = differingFields(before, after);

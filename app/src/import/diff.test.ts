@@ -33,6 +33,13 @@ describe("diffImport", () => {
     expect(diff.changed).toEqual([{ before: stored(), after, fields: ["subject", "location", "sourceModified"], moved: false }]);
   });
 
+  test("a changed attendee response is a change; a field the source does not carry is not", () => {
+    const before = stored({ requiredAttendees: "Blake · no response", importance: "high" });
+    const declined = event({ requiredAttendees: "Blake · declined", importance: "high" });
+    expect(diffImport([before], parsed([declined])).changed[0]?.fields).toEqual(["requiredAttendees"]);
+    expect(diffImport([stored({ importance: "" })], parsed([event()])).changed).toEqual([]);
+  });
+
   test("a changed start marks the change as moved", () => {
     const after = event({ start: "2026-10-21T09:00:00.000Z", end: "2026-10-21T10:00:00.000Z" });
     const [change] = diffImport([stored()], parsed([after])).changed;

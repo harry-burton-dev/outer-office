@@ -3,6 +3,7 @@
 // colour is. A lens can also swap the text an event shows (location). A lens
 // never changes data. Lenses sit in tabs by data category.
 import type { Event, Overlay } from "./selectors";
+import { eventTags, sortedTags, type Tag } from "./tags";
 
 export type LensCategory = "Quality" | "People" | "Time" | "Place";
 export const LENS_CATEGORIES: readonly LensCategory[] = ["Quality", "People", "Time", "Place"];
@@ -20,7 +21,7 @@ export interface Lens {
   category: LensCategory;
   /** One line for the menu: what full colour means. */
   hint: string;
-  read: (event: Event, overlay: Overlay | undefined, now: Date) => LensReading;
+  read: (event: Event, overlay: Overlay | undefined, now: Date, tags: readonly Tag[]) => LensReading;
 }
 
 const filled = (value: string | undefined): boolean => (value ?? "").trim() !== "";
@@ -39,14 +40,18 @@ const completeness: Lens = {
   },
 };
 
-const IMPORTANCE: Record<string, number> = { high: 1, normal: 0.5, low: 0.15 };
-
 const seniority: Lens = {
   id: "seniority",
   name: "Seniority",
   category: "People",
-  hint: "Full colour is marked high importance in Outlook, faint is low.",
-  read: (event) => ({ strength: IMPORTANCE[event.importance ?? ""] ?? 0.5 }),
+  hint: "By the office's tag order: full colour carries the top tag, faint the bottom or none.",
+  // Tag order, not Outlook importance: the office controls it, and the sync carries no importance.
+  read: (event, overlay, _now, tags) => {
+    const order = sortedTags(tags);
+    const top = eventTags(event.categories, overlay?.tags, tags).reduce((best, t) => Math.min(best, order.indexOf(t)), order.length);
+    if (top === order.length) return { strength: 0.05 };
+    return { strength: order.length === 1 ? 1 : 1 - (0.85 * top) / (order.length - 1) };
+  },
 };
 
 const freshness: Lens = {

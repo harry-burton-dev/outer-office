@@ -154,7 +154,7 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
   if (lensOn) {
     for (const e of shown) {
       // A masked event tells the lens nothing, so it stays faint.
-      const reading = e.masked === true ? { strength: 0 } : lensOn.lens.read(e, overlayOf.get(eventIdOf(e.id)), lensOn.now);
+      const reading = e.masked === true ? { strength: 0 } : lensOn.lens.read(e, overlayOf.get(eventIdOf(e.id)), lensOn.now, tags);
       colours.set(e.id, LENS_COLOUR);
       const face = faces.get(e.id);
       if (face) faces.set(e.id, { ...face, lensText: reading.text, lensFill: lensFill(reading.strength) });
