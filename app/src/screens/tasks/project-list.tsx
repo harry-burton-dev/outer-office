@@ -63,7 +63,7 @@ function Group({ group, completed, actions, move }: GroupProps) {
 
 function NoProject({ isViewer }: { isViewer: boolean }) {
   const create = useRun(commands.projectSave);
-  const action = isViewer ? undefined : <Button onClick={() => create.run({ name: DEFAULT_PROJECT_NAME })}>Create the shared project</Button>;
+  const action = isViewer ? undefined : <Button variant="outline" onClick={() => create.run({ name: DEFAULT_PROJECT_NAME })}>Create the shared project</Button>;
   return (
     <>
       <PageHeader title="Project" />

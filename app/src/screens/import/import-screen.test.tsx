@@ -141,6 +141,7 @@ describe("import screen", () => {
 
   test("history lists this principal's imports newest first", async () => {
     const app = await renderScreen((s) => {
+      s.user("user-a", "Alex Example");
       s.principal("PRINCIPAL-A");
       s.principal("PRINCIPAL-B");
     });
@@ -154,6 +155,6 @@ describe("import screen", () => {
     app.seed.run(importApply, { now: "2026-11-21T16:00:00.000Z", principal: other, file: "c.ics", diff: { ...empty, added: one("other") } });
     const body = within(screen.getByRole("table", { name: "Import history" })).getAllByRole("row").slice(1);
     expect(body.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["Sat 21 Nov 15:30", "Fri 20 Nov 09:00"]);
-    expect(within(body[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Sat 21 Nov 15:30", "user-a", "Sun 1 Nov to Mon 30 Nov", "2", "0", "0"]);
+    expect(within(body[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Sat 21 Nov 15:30", "Alex Example", "Sun 1 Nov to Mon 30 Nov", "2", "0", "0"]);
   });
 });

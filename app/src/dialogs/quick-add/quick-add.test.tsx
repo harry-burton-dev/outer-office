@@ -22,6 +22,7 @@ async function openQuickAdd(): Promise<{ app: RenderedApp; ids: Ids }> {
       ids.principal = s.principal("PRINCIPAL-A");
       ids.project = s.run(projectSave, { now: NOW, name: "Office work" });
       ids.section = s.run(sectionSave, { now: NOW, project: ids.project, name: "Letters" });
+      s.user("user-b", "Blair Sample");
       s.task({ title: "Earlier", assignee: "user-b" });
     },
     children: <><AppFrame /><AppProbe /></>,
@@ -49,7 +50,7 @@ test("the preview shows the title and a chip for each part, with names resolved"
   expect(chip("project")).toContain("Office work");
   expect(chip("section")).toContain("Letters");
   expect(chip("priority")).toContain("P1");
-  expect(chip("person")).toContain("user-b");
+  expect(chip("person")).toContain("Blair Sample");
   expect(chip("principal")).toContain("PRINCIPAL-A");
   expect(chip("due")).toContain("Mon 23 Nov");
   expect(chip("deadline")).toContain("Deadline Fri 27 Nov");
@@ -92,11 +93,27 @@ test("Enter with an empty title does nothing", async () => {
   expect(probe().quickAddOpen).toBe(true);
 });
 
-test("an unknown person is kept as typed", () => {
-  const { input: result, chips } = resolveQuickAdd(
-    { title: "Call", assignee: "user-z" },
-    { shared: undefined, inbox: undefined, sections: [], principals: [], users: ["user-a"] },
-  );
-  expect(result.assignee).toBe("user-z");
-  expect(chips).toEqual([{ kind: "person", label: "user-z", found: true }]);
+const USERS = [
+  { id: "user-a", name: "Alex Example", active: true },
+  { id: "user-b", name: "Blair Sample", active: true },
+  { id: "user-c", name: "Blair Other", active: true },
+  { id: "user-d", name: "Dana Gone", active: false },
+];
+const personOf = (assignee: string) =>
+  resolveQuickAdd({ title: "Call", assignee }, { shared: undefined, inbox: undefined, sections: [], principals: [], users: USERS });
+
+test("+person resolves by id or full name, case-insensitively, and shows the name", () => {
+  expect(personOf("USER-A")).toEqual({ input: { title: "Call", assignee: "user-a" }, chips: [{ kind: "person", label: "Alex Example", found: true }] });
+  expect(personOf("alexexample").input.assignee).toBeUndefined();
+  expect(personOf("blair sample").input.assignee).toBe("user-b");
+});
+
+test("+person accepts the first word of a name when only one person has it", () => {
+  expect(personOf("alex").input.assignee).toBe("user-a");
+  expect(personOf("Blair")).toEqual({ input: { title: "Call" }, chips: [{ kind: "person", label: "Blair", found: false }] });
+});
+
+test("an unknown or inactive person is reported and left out", () => {
+  expect(personOf("user-z")).toEqual({ input: { title: "Call" }, chips: [{ kind: "person", label: "user-z", found: false }] });
+  expect(personOf("dana").input.assignee).toBeUndefined();
 });

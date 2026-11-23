@@ -7,9 +7,10 @@ import { DiaryCalendar, type DiaryEvent, type DiaryView } from "@/calendar/diary
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/app/app-state";
 import { useOffice } from "@/app/frame-data";
+import { usePeople } from "@/app/people";
 import { EmptyState, PageHeader } from "@/app/ui";
 import { formatDay, formatTime } from "@/domain/dates";
-import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, hasAnyEvent, latestImport } from "./calendar/calendar-data";
+import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, hasAnyEvent, latestImport, openingDate } from "./calendar/calendar-data";
 import { EventFaceView } from "./calendar/event-face";
 
 const TITLE = "Calendar";
@@ -18,8 +19,9 @@ function useHeaderLine(principalId: string, timezone: string): string {
   const principal = useRecord("principals", principalId);
   const imports = useRecords("imports");
   const last = latestImport(imports, principalId);
+  const { nameOf } = usePeople();
   const who = principal && !principal._deleted ? [principal.code, principal.title].filter(Boolean) : [];
-  const imported = last?.at ? [`Imported ${formatDay(last.at, timezone)} ${formatTime(last.at, timezone)} by ${last.by ?? "someone"}`] : [];
+  const imported = last?.at ? [`Imported ${formatDay(last.at, timezone)} ${formatTime(last.at, timezone)} by ${last.by ? nameOf(last.by) : "someone"}`] : [];
   return [...who, ...imported].join(" · ");
 }
 
@@ -33,7 +35,7 @@ function Diary({ principalId }: DiaryProps) {
   const events = useRecords("events");
   const overlays = useRecords("overlays");
   const [view, setView] = useState<DiaryView>("week");
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(() => openingDate(today));
   const data = useMemo(() => diaryData(events, overlays, principalId), [events, overlays, principalId]);
   const renderEvent = (event: DiaryEvent) => {
     const face = data.faces.get(event.id);

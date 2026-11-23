@@ -12,40 +12,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # Install, typecheck, tests and build with size budgets (G11). A created
-      # project runs the same script. The bootstrap needs a public key; a
-      # throwaway one, as the smoke test uses.
+      # Install, typecheck, every test suite and the build with its size
+      # budgets. The bootstrap needs a public key; CI uses a throwaway one.
       - name: CI
         run: |
           export TRELLIS_PUBLIC_KEY="$(npm run --silent keygen | sed -n 's/^TRELLIS_PUBLIC_KEY=//p')"
           npm run ci
-      - name: Adversarial probes (G10)
-        run: npm run probes
-      - name: No fixed test key in the build
-        run: npm run check:no-test-key
-      - name: Two-user test from built files (G7)
+      - name: Install a browser
         run: |
-          npm install --no-save playwright
+          npm install --no-save playwright @axe-core/playwright
           npx playwright install --with-deps chromium
-          npm run two-users
-      # Red until every gate's check has landed; see docs/framework/README.md section 3.
+      # The gates: boundary, real keys, two users from built files, the
+      # from-disk smoke test, backup and restore, engine probes, size budgets.
+      # Three gates test the framework repository itself and are reported as
+      # not applicable here.
       - name: Rubric
-        run: npm run rubric
-
-  # Gates G1 and G2 as a created project sees them: make demo-app in a
-  # temporary folder and run that project's own CI inside it.
-  template:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci --no-audit --no-fund
-      - name: Create demo-app
-        run: npm run create -- demo-app --dir "$RUNNER_TEMP"
-      - name: CI inside demo-app
-        working-directory: ${{ runner.temp }}/demo-app
         run: |
           export TRELLIS_PUBLIC_KEY="$(npm run --silent keygen | sed -n 's/^TRELLIS_PUBLIC_KEY=//p')"
-          npm run ci
+          npm run rubric

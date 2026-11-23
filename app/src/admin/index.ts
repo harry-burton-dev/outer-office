@@ -2,6 +2,7 @@
 // Importing the commands module defines every command for the admin page's data runtime.
 import type { AdminPanel } from "@trellis/framework";
 import { officePanel } from "./office-panel";
+import { peoplePanel } from "./people-panel";
 import { principalsPanel } from "./principals-panel";
 
-export const adminPanels: readonly AdminPanel[] = [officePanel(), principalsPanel()];
+export const adminPanels: readonly AdminPanel[] = [officePanel(), principalsPanel(), peoplePanel()];

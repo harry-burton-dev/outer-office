@@ -1,36 +1,9 @@
-// Who the app knows about. The framework's users table is not readable from
-// app code, so people are the user ids seen in this workspace's own records.
+// Lookups the task screens share: principal codes and the user's Inbox.
+// People by name live in @/app/people.
 import { useMemo } from "react";
 import { useRecords, type RowOf } from "@trellis/framework";
 
-type Person = RowOf<"people">;
-type Task = RowOf<"tasks">;
 type Project = RowOf<"projects">;
-
-export interface KnownUsersInput {
-  people: readonly Person[];
-  tasks: readonly Task[];
-  projects: readonly Project[];
-  userId: string;
-}
-
-/** Every user id the records mention, the signed-in user included, sorted. */
-export function knownUsers({ people, tasks, projects, userId }: KnownUsersInput): string[] {
-  const ids = [
-    userId,
-    ...people.map((p) => p.userId),
-    ...tasks.flatMap((t) => [t.createdBy, t.assignee, t.assignedBy]),
-    ...projects.map((p) => p.owner),
-  ].filter((id): id is string => typeof id === "string" && id.trim() !== "");
-  return [...new Set(ids)].sort();
-}
-
-export function useKnownUsers(userId: string): string[] {
-  const people = useRecords("people");
-  const tasks = useRecords("tasks");
-  const projects = useRecords("projects");
-  return useMemo(() => knownUsers({ people, tasks, projects, userId }), [people, tasks, projects, userId]);
-}
 
 /** Principal id to code, for every principal that has arrived (inactive ones too, so old tags still read). */
 export function usePrincipalCodes(): ReadonlyMap<string, string> {

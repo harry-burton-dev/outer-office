@@ -2,14 +2,26 @@
 // memory folder, built on the framework's data-layer fixture.
 import { createData, type CommandDef, type Data, type RowOf } from "@trellis/framework";
 import config from "../../../../app.config";
-import { makeDataWorld } from "../../../../../framework/data/test/_world.js";
+import { engineTables } from "../../../../../framework/data/test/_world.js";
+import { makeWorld } from "../../../../../framework/engine/test/engine/_harness.js";
+import { openTable } from "../../../../../framework/engine/src/records/index.js";
+import { USERS_SCHEMA, USERS_TABLE } from "../../../../../framework/runtime/identity/admin.js";
 
 type TableName = keyof typeof config.tables & string;
 
 export interface Device {
   readonly user: string;
   readonly data: Data;
-  readonly engine: { tick(): Promise<unknown> };
+  readonly engine: { tick(): Promise<unknown>; table(name: string): unknown };
+  /** Writes a users-table record, as the admin page would. */
+  putUser(user: SeedUser): void;
+}
+
+export interface SeedUser {
+  id: string;
+  name: string;
+  /** Default true. */
+  active?: boolean;
 }
 
 export interface TestWorld {
@@ -20,7 +32,9 @@ export interface TestWorld {
 const SYNC_MS = 30000;
 
 export async function makeTestWorld(): Promise<TestWorld> {
-  const world = await makeDataWorld(config);
+  // The app's tables and the framework's users table, as the host syncs them.
+  const tables: Record<string, string> = { ...engineTables(config), [USERS_TABLE]: "yjs" };
+  const world = await makeWorld({ tables: tables as { notes: string } });
   let count = 0;
   return {
     async device(user) {
@@ -28,7 +42,9 @@ export async function makeTestWorld(): Promise<TestWorld> {
       const deviceId = `${user.replace(/-/g, "")}-${String(count).padStart(8, "0")}`;
       const engine = await world.device(deviceId);
       const data = createData({ engine, config, deviceId, user, clock: world.clock, random: world.random });
-      return { user, data, engine };
+      const users = openTable({ adapter: undefined, migrations: {}, doc: engine.table(USERS_TABLE), schema: USERS_SCHEMA, deviceId, user: "admin", clock: world.clock });
+      const putUser = ({ id, name, active = true }: SeedUser): void => users.put(id, { name, role: "member", status: active ? "active" : "inactive" });
+      return { user, data, engine, putUser };
     },
     sync: (devices) => world.run(devices.map((d) => d.engine), SYNC_MS),
   };

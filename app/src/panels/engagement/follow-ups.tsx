@@ -4,6 +4,7 @@ import { useCommand, useRecords } from "@trellis/framework";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useApp } from "@/app/app-state";
+import { usePeople } from "@/app/people";
 import { DateText } from "@/app/ui";
 import { commands } from "@/domain/commands";
 import { byOrder, type Event, type Task } from "@/domain/selectors";
@@ -18,6 +19,7 @@ interface TaskRowProps {
 
 function TaskRow({ task }: TaskRowProps) {
   const { openPanel } = useApp();
+  const { nameOf } = usePeople();
   return (
     <li>
       <button
@@ -26,7 +28,7 @@ function TaskRow({ task }: TaskRowProps) {
         onClick={() => openPanel({ kind: "task", id: task.id })}
       >
         <span className={task.done ? "min-w-0 flex-1 truncate text-muted-foreground line-through" : "min-w-0 flex-1 truncate"}>{task.title || "Untitled"}</span>
-        {task.assignee && <span className="text-xs text-muted-foreground">{task.assignee}</span>}
+        {task.assignee && <span className="text-xs text-muted-foreground">{nameOf(task.assignee)}</span>}
         {task.due && <span className="text-xs text-muted-foreground"><DateText value={task.due} /></span>}
       </button>
     </li>

@@ -92,6 +92,19 @@ test("clicking an event opens the engagement panel for it", async () => {
   expect(probe().panel).toBe(JSON.stringify({ kind: "engagement", id }));
 });
 
+test("on a Saturday the week view opens on the coming week", async () => {
+  await renderApp({
+    now: "2026-11-28T09:00:00.000Z",
+    seed: (s) => {
+      const a = s.principal("PRINCIPAL-A");
+      importEvents(s, MONDAY_NOW, a, [syntheticEvent("a1", { subject: "Last week" }), syntheticEvent("a2", { subject: "Next week", start: "2026-12-01T10:00:00Z", end: "2026-12-01T11:00:00Z" })]);
+    },
+    children: ui,
+  });
+  expect(screen.getByText("Next week")).toBeTruthy();
+  expect(screen.queryByText("Last week")).toBeNull();
+});
+
 test("the header shows the principal and the latest import", async () => {
   await renderApp({
     now: MONDAY_NOW,
@@ -102,6 +115,19 @@ test("the header shows the principal and the latest import", async () => {
     children: ui,
   });
   expect(screen.getByText("PRINCIPAL-A · First principal · Imported Mon 23 Nov 09:00 by user-a")).toBeTruthy();
+});
+
+test("the header names who imported", async () => {
+  await renderApp({
+    now: MONDAY_NOW,
+    seed: (s) => {
+      s.user("user-a", "Alex Example");
+      const a = s.principal("PRINCIPAL-A", { title: "First principal" });
+      importEvents(s, MONDAY_NOW, a, [syntheticEvent("a1")]);
+    },
+    children: ui,
+  });
+  expect(screen.getByText("PRINCIPAL-A · First principal · Imported Mon 23 Nov 09:00 by Alex Example")).toBeTruthy();
 });
 
 test("a principal with no events shows the empty state, whose action goes to Import", async () => {

@@ -55,6 +55,17 @@ test("an overdue date is shown in the destructive colour with the word overdue",
   expect(date.className).toContain("text-destructive");
 });
 
+test("a row names its assignee from the users table", async () => {
+  await renderApp({
+    seed: (s) => {
+      s.user("user-b", "Blair Sample");
+      s.task({ title: "Offered away", due: "2026-11-24", assignee: "user-b" });
+    },
+    children: <TaskListScreen list="inbox" />,
+  });
+  expect(screen.getByTestId("row-meta").textContent).toBe("Tue 24 NovBlair Sample");
+});
+
 test("a row shows at most three metadata items: date, assignee, principal", async () => {
   await renderApp({
     seed: (s) => {
@@ -158,6 +169,11 @@ test("with no shared project there is one action that creates it", async () => {
   await renderApp({ children: <TaskListScreen list="project" /> });
   fireEvent.click(screen.getByRole("button", { name: "Create the shared project" }));
   expect(screen.getByRole("heading", { name: "Office work" })).toBeTruthy();
+});
+
+test("the create-project action is not a second primary button beside Add task", async () => {
+  await renderApp({ children: <TaskListScreen list="project" /> });
+  expect(screen.getByRole("button", { name: "Create the shared project" }).className).not.toContain("bg-primary text-primary-foreground");
 });
 
 test("the bin lists my removed tasks and restores one", async () => {

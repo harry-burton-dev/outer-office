@@ -46,17 +46,17 @@ export function assignChoices(task: Task, userId: string): AssignChoice[] {
   }
 }
 
-/** "Offered to user-b by user-a", and so on. */
-export function describeAssignment(task: Task): string {
-  const to = task.assignee || "someone";
-  const by = task.assignedBy || "someone";
+/** "Offered to Blair Sample by Alex Example", and so on, with ids shown through `nameOf`. */
+export function describeAssignment(task: Task, nameOf: (id: string) => string): string {
+  const to = task.assignee ? nameOf(task.assignee) : "someone";
+  const by = task.assignedBy ? nameOf(task.assignedBy) : "someone";
   switch (stateOf(task)) {
     case "none":
       return "Not assigned";
     case "offered":
       return `Offered to ${to} by ${by}`;
     case "accepted":
-      return to === by ? `Taken on by ${to}` : `Accepted by ${to}, assigned by ${by}`;
+      return task.assignee === task.assignedBy ? `Taken on by ${to}` : `Accepted by ${to}, assigned by ${by}`;
     case "declined":
       return `Declined by ${to}, assigned by ${by}`;
   }

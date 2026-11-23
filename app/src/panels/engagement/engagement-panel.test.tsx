@@ -98,6 +98,27 @@ test("add follow-up creates a task linked to the event and tagged to the princip
   expect(JSON.parse(probe().panel)).toMatchObject({ kind: "task" });
 });
 
+test("prep owner is a select of active people that stores the id, and a viewer sees the name", async () => {
+  const { app } = await openPanel((s) => {
+    s.user("user-a", "Alex Example");
+    s.user("user-b", "Blair Sample");
+    s.user("user-c", "Casey Gone", false);
+  });
+  fireEvent.click(await screen.findByRole("tab", { name: "Prep" }));
+  const owner = screen.getByLabelText("Prep owner") as HTMLSelectElement;
+  expect([...owner.options].map((o) => o.textContent)).toEqual(["None", "Alex Example", "Blair Sample"]);
+  fireEvent.change(owner, { target: { value: "user-b" } });
+  expect(rows(app.device, "overlays")[0]).toMatchObject({ prepOwner: "user-b" });
+  await cleanupApp();
+  await openPanel((s, { event }) => {
+    s.user("user-b", "Blair Sample");
+    s.run(overlaySet, { now: MONDAY_NOW, event, prepOwner: "user-b" });
+    s.viewer();
+  });
+  fireEvent.click(await screen.findByRole("tab", { name: "Prep" }));
+  expect(screen.getByText("Blair Sample")).toBeTruthy();
+});
+
 test("a viewer sees values as text and no write controls", async () => {
   await openPanel((s, { event }) => {
     s.run(overlaySet, { now: MONDAY_NOW, event, prep: "in-hand", notes: "Bring the figures" });

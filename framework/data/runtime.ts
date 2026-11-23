@@ -5,11 +5,14 @@ import type { AppDefinition } from "../runtime/definition.ts";
 import { openRegistry, type EngineLike, type Identity } from "./registry.ts";
 import { createView, type TableView, type Store } from "./view.ts";
 import { createConflictStore, type Conflict, type ConflictSink } from "./conflicts.ts";
+import { openUsersView } from "./users.ts";
 import { createRunner, type CommandRegistry, type CommandRun, type Runner } from "./commands.ts";
 
 export interface Data {
   readonly tables: readonly string[];
   view(table: string): TableView;
+  /** The framework's users table, read-only; null when the engine does not sync it. */
+  readonly users: TableView | null;
   readonly conflicts: Store<readonly Conflict[]>;
   run: Runner["run"];
   commandLog(): readonly CommandRun[];
@@ -32,18 +35,21 @@ export function createData(deps: DataDeps): Data {
     if (!found) throw new Error(`unknown table: ${name}`);
     return found;
   };
+  const users = openUsersView(engine, who);
   const conflicts = createConflictStore(views, engine);
   // Flushing the written views makes a run notify screens before it returns.
   const runner = createRunner({ registry, who, commands, source: view, onApplied: (tables) => tables.forEach((t) => view(t).flush()) });
   return {
     tables: registry.names,
     view,
+    users,
     conflicts,
     run: runner.run,
     commandLog: runner.log,
     close() {
       conflicts.close();
       for (const v of views.values()) v.close();
+      users?.close();
     },
   };
 }

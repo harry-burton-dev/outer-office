@@ -2,7 +2,19 @@
 // live, non-gone event, the marks on each, and the latest import line.
 import type { RowOf } from "@trellis/framework";
 import type { DiaryEvent } from "@/calendar/diary-calendar";
+import { addDays, weekdayOf } from "@/domain/dates";
 import { eventsForPrincipal, type Event, type Overlay } from "@/domain/selectors";
+
+const SATURDAY = 6;
+const SUNDAY = 0;
+
+/** The date the diary opens on: today, or on a Saturday or Sunday the coming Monday, since the week view shows weekdays only. */
+export function openingDate(today: string): string {
+  const day = weekdayOf(today);
+  if (day === SATURDAY) return addDays(today, 2);
+  if (day === SUNDAY) return addDays(today, 1);
+  return today;
+}
 
 export type Mark = "Prep needed" | "Flagged" | "Moved";
 export type ImportRow = RowOf<"imports">;

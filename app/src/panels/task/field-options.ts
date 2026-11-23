@@ -13,16 +13,23 @@ export const PRIORITY_OPTIONS: readonly SelectOption[] = [1, 2, 3, 4].map((p) =>
 
 const NONE: SelectOption = { value: "", label: "None" };
 
-/** Active principals plus None, and the task's own tag even if that principal is no longer active. */
+type Principal = RowOf<"principals">;
+
+/**
+ * None and the active principals, plus the task's own tag even if that
+ * principal is no longer active. With no active principal at all, just None.
+ */
+export function principalOptions(active: readonly Principal[], all: readonly Principal[], tag: string | undefined): SelectOption[] {
+  if (active.length === 0) return [NONE];
+  const options = active.map((p) => ({ value: p.id, label: p.code ?? p.id }));
+  const missing = tag && !options.some((o) => o.value === tag) ? [{ value: tag, label: all.find((p) => p.id === tag)?.code ?? "Unknown principal" }] : [];
+  return [NONE, ...options, ...missing];
+}
+
 export function usePrincipalOptions(task: Task): SelectOption[] {
   const active = useActivePrincipals();
   const all = useRecords("principals");
-  return useMemo(() => {
-    const options = active.map((p) => ({ value: p.id, label: p.code ?? p.id }));
-    const tag = task.principal;
-    const missing = tag && !options.some((o) => o.value === tag) ? [{ value: tag, label: all.find((p) => p.id === tag)?.code ?? "Unknown principal" }] : [];
-    return [NONE, ...options, ...missing];
-  }, [active, all, task.principal]);
+  return useMemo(() => principalOptions(active, all, task.principal), [active, all, task.principal]);
 }
 
 /** The user's Inbox and the shared project, and the task's own project if it is another. */

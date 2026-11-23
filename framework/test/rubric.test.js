@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { gates } from "../build/rubric.js";
+import { gates, runGates } from "../build/rubric.js";
 
 const RUBRIC = fileURLToPath(new URL("../build/rubric.js", import.meta.url));
 
@@ -67,4 +67,14 @@ test("CI runs the one ci script, then the rubric as its own step", () => {
   assert.ok(ci >= 0, `ci.yml does not run npm run ci: ${lines.join(" / ")}`);
   assert.ok(lines.indexOf("npm run rubric") > ci, "ci.yml does not run npm run rubric after npm run ci");
   assert.ok(!lines.some((l) => /^npm (test|ci|run (typecheck|build|test))\b/.test(l)), `ci.yml runs checks outside the ci script: ${lines.join(" / ")}`);
+});
+
+test("a framework-only gate is not applicable in a created project and does not fail the rubric", () => {
+  const list = [{ id: "GX", frameworkOnly: true, requirement: "framework only", command: "node -e \"process.exit(1)\"" }];
+  const created = runGates(list, undefined, false);
+  assert.equal(created.rows[0].result, "n/a: framework repository only");
+  assert.equal(created.failed, 0);
+  const framework = runGates(list, undefined, true);
+  assert.equal(framework.rows[0].result, "fail");
+  assert.equal(framework.failed, 1);
 });

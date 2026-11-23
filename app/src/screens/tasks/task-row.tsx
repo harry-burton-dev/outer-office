@@ -6,6 +6,7 @@ import { ArrowDownIcon, ArrowUpIcon, CheckIcon } from "lucide-react";
 import { cn } from "cn";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { usePeople } from "@/app/people";
 import { DateText } from "@/app/ui";
 import type { MetaItem } from "./row-meta";
 
@@ -58,9 +59,13 @@ function CheckMark({ task, onToggle }: CheckMarkProps) {
   );
 }
 
+function AssigneeName({ userId }: { userId: string }) {
+  return <span>{usePeople().nameOf(userId)}</span>;
+}
+
 function MetaPart({ item }: { item: MetaItem }) {
   if (item.kind === "principal") return <Badge variant="outline">{item.code}</Badge>;
-  if (item.kind === "assignee") return <span>{item.userId}</span>;
+  if (item.kind === "assignee") return <AssigneeName userId={item.userId} />;
   return (
     <span className={cn(item.overdue && "text-destructive")}>
       {item.deadline && "Deadline "}

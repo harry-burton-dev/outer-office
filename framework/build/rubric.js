@@ -10,17 +10,17 @@
 //   npm run rubric                      the real gates
 //   node framework/build/rubric.js --gates <file.js>   another list (tests)
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 export const gates = [
-  { id: "G1", requirement: "New project: `create` makes a project that installs, typechecks, tests and builds", command: "node --test framework/build/test/create.test.js" },
-  { id: "G2", requirement: "No leftover names in a created project outside the allowed list", command: "node --test framework/build/test/create-names.test.js" },
+  { id: "G1", frameworkOnly: true, requirement: "New project: `create` makes a project that installs, typechecks, tests and builds", command: "node --test framework/build/test/create.test.js" },
+  { id: "G2", frameworkOnly: true, requirement: "No leftover names in a created project outside the allowed list", command: "node --test framework/build/test/create-names.test.js" },
   { id: "G3", requirement: "One definition file: names follow app/app.config.ts", command: "node --test framework/runtime/test/naming.test.js framework/runtime/test/build-names.test.js" },
-  { id: "G4", requirement: "No business logic in framework folders", command: "node --test framework/runtime/test/empty-app.test.js" },
+  { id: "G4", frameworkOnly: true, requirement: "No business logic in framework folders", command: "node --test framework/runtime/test/empty-app.test.js" },
   { id: "G5", requirement: "Screens import only the framework's public entry", command: "node --test framework/test/boundary.test.js" },
   // The fixed-key check reads dist/, so it needs a build first (`npm run ci` does one).
   { id: "G6", requirement: "Real keys: invited users read each other's data, an outsider cannot; no fixed key in the build", command: "node --test framework/runtime/test/identity/g6.test.js && npm run check:no-test-key" },
@@ -41,15 +41,23 @@ export const gates = [
 
 const TAIL_LINES = 30;
 
+// G1, G2 and G4 test the framework repository itself: making a project, and its
+// own example app. A project made from the framework does not carry those
+// tests (see LEFT_OUT in create.js), so there they are reported as not
+// applicable and do not count as failures.
+const NOT_APPLICABLE = "n/a: framework repository only";
+const inFrameworkRepository = () => existsSync(join(ROOT, "framework", "build", "create.js"));
+
 /** Runs each gate in `list` from `cwd`. Returns { rows, failed }. */
-export function runGates(list, cwd = ROOT) {
+export function runGates(list, cwd = ROOT, inFramework = inFrameworkRepository()) {
   const rows = list.map((gate) => {
+    if (gate.frameworkOnly && !inFramework) return { gate, result: NOT_APPLICABLE, output: "" };
     if (gate.present && !gate.present()) return { gate, result: "fail: check not present", output: "" };
     const run = spawnSync(gate.command, { cwd, shell: true, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
     const output = `${run.stdout ?? ""}${run.stderr ?? ""}${run.error ? String(run.error) : ""}`;
     return { gate, result: run.status === 0 ? "pass" : "fail", output };
   });
-  return { rows, failed: rows.filter((r) => r.result !== "pass").length };
+  return { rows, failed: rows.filter((r) => r.result !== "pass" && r.result !== NOT_APPLICABLE).length };
 }
 
 export function formatTable(rows) {

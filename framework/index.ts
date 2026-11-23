@@ -22,6 +22,8 @@ export {
   useField,
   useCommand,
   useConflicts,
+  useUsers,
+  type WorkspaceUser,
   useResolveConflict,
   resolveConflict,
   type FieldState,

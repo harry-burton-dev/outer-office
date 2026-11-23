@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useRecords } from "@trellis/framework";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApp } from "@/app/app-state";
+import { usePeople } from "@/app/people";
 import { formatDay } from "@/domain/dates";
 import { whenText } from "./import-model";
 
@@ -15,6 +16,7 @@ const dayOf = (iso: string | undefined, zone: string) => (iso && !Number.isNaN(D
 export function ImportHistory({ principal }: ImportHistoryProps) {
   const { timezone } = useApp();
   const imports = useRecords("imports");
+  const { nameOf } = usePeople();
   const rows = useMemo(
     () => imports.filter((r) => r.principal === principal).sort((a, b) => (b.at ?? "").localeCompare(a.at ?? "") || a.id.localeCompare(b.id)),
     [imports, principal],
@@ -42,7 +44,7 @@ export function ImportHistory({ principal }: ImportHistoryProps) {
             {rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell>{whenText({ start: r.at ?? "", allDay: false }, timezone)}</TableCell>
-                <TableCell>{r.by ?? ""}</TableCell>
+                <TableCell>{r.by ? nameOf(r.by) : ""}</TableCell>
                 <TableCell>
                   {dayOf(r.rangeStart, timezone)} to {dayOf(r.rangeEnd, timezone)}
                 </TableCell>

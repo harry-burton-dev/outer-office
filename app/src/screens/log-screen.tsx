@@ -39,6 +39,7 @@ export function LogScreen() {
   const [area, setArea] = useState<AreaFilter>("all");
   const [limit, setLimit] = useState(PAGE_SIZE);
   const rows = useMemo(() => (principalId === null ? [] : logRowsFor(log, principalId, area)), [log, principalId, area]);
+  const hasAny = useMemo(() => principalId !== null && logRowsFor(log, principalId, "all").length > 0, [log, principalId]);
   const chooseArea = (next: AreaFilter) => {
     setArea(next);
     setLimit(PAGE_SIZE);
@@ -47,7 +48,7 @@ export function LogScreen() {
     <div className="flex flex-col gap-4">
       <PageHeader title="Log" actions={<AreaSelect value={area} onChange={chooseArea} />} />
       {rows.length === 0 ? (
-        <EmptyState title="Nothing logged yet." />
+        <EmptyState title={hasAny ? "No entries for this filter" : "Nothing logged yet."} />
       ) : (
         <>
           <LogTable rows={rows.slice(0, limit)} />

@@ -1,9 +1,9 @@
 // Quick add's names to ids, case-insensitively: the project by name (the
 // shared project or "inbox"), the section within that project, the principal
-// by code, the person against the known user ids (kept as typed when unknown,
-// since the users table is not readable from the app). A name that can't be
-// resolved is reported and left out of the task.
-import type { RowOf } from "@trellis/framework";
+// by code, the person by id or name among the active users (the first word of a
+// name is enough when only one person has it). A name that can't be resolved
+// is reported and left out of the task.
+import type { RowOf, WorkspaceUser } from "@trellis/framework";
 import type { QuickAdd } from "@/domain/quick-add";
 import type { TaskAddInput } from "@/domain/commands";
 
@@ -26,7 +26,8 @@ export interface ResolveContext {
   inbox: Project | undefined;
   sections: readonly Section[];
   principals: readonly Principal[];
-  users: readonly string[];
+  /** The users table; only active people can be given a task. */
+  users: readonly WorkspaceUser[];
 }
 
 export interface Resolved {
@@ -64,10 +65,21 @@ function resolvePrincipal(code: string | undefined, principals: readonly Princip
   return { principal: found?.id, chip };
 }
 
-function resolvePerson(name: string | undefined, users: readonly string[]) {
+const firstWord = (name: string) => name.trim().split(/\s+/)[0] ?? "";
+
+function findPerson(name: string, users: readonly WorkspaceUser[]): WorkspaceUser | undefined {
+  const active = users.filter((u) => u.active);
+  const exact = active.find((u) => same(u.id, name)) ?? active.find((u) => same(u.name, name));
+  if (exact) return exact;
+  const byFirst = active.filter((u) => same(firstWord(u.name), name));
+  return byFirst.length === 1 ? byFirst[0] : undefined;
+}
+
+function resolvePerson(name: string | undefined, users: readonly WorkspaceUser[]) {
   if (name === undefined) return {};
-  const assignee = users.find((u) => same(u, name)) ?? name;
-  return { assignee, chip: { kind: "person", label: assignee, found: true } satisfies Chip };
+  const found = findPerson(name, users);
+  const chip: Chip = { kind: "person", label: found?.name ?? name, found: found !== undefined };
+  return { assignee: found?.id, chip };
 }
 
 export function resolveQuickAdd(parsed: QuickAdd, context: ResolveContext): Resolved {

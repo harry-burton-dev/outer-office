@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { defineCommand, type Tx } from "@trellis/framework";
-import { importApply } from "@/domain/commands";
+import { importApply, projectSave, sectionSave, taskAssign, taskLink, taskMove } from "@/domain/commands";
 import { AppProbe, cleanupApp, NOW, probe, renderApp, type Seeder } from "@/app/testing/render-app";
 import { idOf, rows } from "@/domain/commands/testing/world";
 import { LogScreen } from "../log-screen";
@@ -23,6 +23,11 @@ const writeLogRows = defineCommand("test.log.write", (tx: Tx, input: LogSeed) =>
     const at = new Date(Date.parse(NOW) - (input.count - i) * 60_000).toISOString();
     tx.put("log", tx.newId(), { at, by: "user-a", principal: input.principal, area: input.area ?? "setup", kind: "edited", event: input.event ?? "", task: "", from: "", to: "", note: `Row ${i}` });
   }
+});
+
+// Test-only: a principal with no log row, which principal.save never leaves.
+const putPrincipal = defineCommand("test.log.putPrincipal", (tx: Tx, input: { code: string }) => {
+  tx.put("principals", tx.id("principal", input.code), { code: input.code, title: "Principal", order: 1, active: true });
 });
 
 const MEETING = { uid: "m1", recurrenceId: "", start: "2026-11-24T14:00:00.000Z", end: "2026-11-24T15:00:00.000Z", allDay: false, subject: "Budget meeting", location: "", organizer: "", categories: "", showAs: "busy", masked: false, sourceModified: "" };
@@ -107,9 +112,42 @@ describe("log screen", () => {
     expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
   });
 
-  test("says nothing is logged yet when no rows match", async () => {
+  test("says no entries for this filter when the area matches nothing", async () => {
     await renderApp({ seed: (s) => s.principal("PRINCIPAL-A"), children: <LogScreen /> });
     await chooseArea("Overlay");
+    expect(screen.getByRole("heading", { name: "No entries for this filter" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Nothing logged yet." })).toBeNull();
+  });
+
+  test("says nothing is logged yet when the principal has no rows at all", async () => {
+    await renderApp({ seed: (s) => s.run(putPrincipal, { code: "PRINCIPAL-A" }), children: <LogScreen /> });
     expect(screen.getByRole("heading", { name: "Nothing logged yet." })).toBeTruthy();
+  });
+
+  test("shows who by name, and a task move's sections, a link's event and an assignee by name", async () => {
+    await renderApp({
+      seed: (s) => {
+        s.user("user-a", "Alex Example");
+        s.user("user-b", "Blair Sample");
+        s.principal("PRINCIPAL-A");
+        const a = idFor(s, "PRINCIPAL-A");
+        s.run(importApply, { now: NOW, principal: a, file: "a.ics", diff: DIFF });
+        const project = s.run(projectSave, { now: NOW, name: "Office work" });
+        const section = s.run(sectionSave, { now: NOW, project, name: "Speeches" });
+        const task = s.task({ title: "Draft speech", principal: a, project });
+        s.run(taskMove, { now: NOW, id: task, section });
+        s.run(taskLink, { now: NOW, id: task, event: idOf(s.device, "event", a, "m1") });
+        s.run(taskAssign, { now: NOW, id: task, action: "assign", assignee: "user-b" });
+      },
+      children: <LogScreen />,
+    });
+    await chooseArea("Task");
+    const cells = bodyRows().map((r) => within(r).getAllByRole("cell").map((c) => c.textContent));
+    expect(cells.every((c) => c[1] === "Alex Example")).toBe(true);
+    const of = (what: string) => cells.find((c) => c[3] === what)!;
+    expect(of("Moved").slice(5, 7)).toEqual(["", "Speeches"]);
+    expect(of("Linked")[6]).toBe("Budget meeting");
+    expect(of("Assigned")[6]).toBe("Blair Sample");
+    expect(screen.queryByText(/user-/)).toBeNull();
   });
 });

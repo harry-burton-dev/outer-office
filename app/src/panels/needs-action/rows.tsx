@@ -1,6 +1,7 @@
 // The Needs action sections and their rows. Each row is one button that opens a panel.
 import type { ReactNode } from "react";
 import { useApp } from "@/app/app-state";
+import { usePeople } from "@/app/people";
 import { DateText, TimeText } from "@/app/ui";
 import type { Event, Task } from "@/domain/selectors";
 import { titleOf } from "@/screens/calendar/calendar-data";
@@ -31,11 +32,12 @@ export interface TaskRowProps {
 export function TaskRow({ task, overdue }: TaskRowProps) {
   const { openPanel } = useApp();
   const due = task.due || task.deadline;
+  const { nameOf } = usePeople();
   return (
     <li>
       <button type="button" className={ROW_CLASS} onClick={() => openPanel({ kind: "task", id: task.id })}>
         <span className="min-w-0 flex-1 truncate">{task.title || "Untitled"}</span>
-        {task.assignee && <span className="text-xs text-muted-foreground">{task.assignee}</span>}
+        {task.assignee && <span className="text-xs text-muted-foreground">{nameOf(task.assignee)}</span>}
         {due && <span className={overdue ? "text-xs text-destructive" : "text-xs text-muted-foreground"}><DateText value={due} /></span>}
       </button>
     </li>

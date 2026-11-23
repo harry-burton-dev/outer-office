@@ -6,8 +6,12 @@ import { afterEach, describe, expect, test } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { createElement } from "react";
 import { createCommandRegistry } from "../../data/commands.ts";
-import { makeDataWorld, notesApp } from "../../data/test/_world.js";
-import { DataProvider, resolveConflict, useCommand, useConflicts, useField, useRecord, useRecords, useResolveConflict } from "../hooks.ts";
+import { engineTables, makeDataWorld, notesApp } from "../../data/test/_world.js";
+import { makeWorld } from "../../engine/test/engine/_harness.js";
+import { openTable } from "../../engine/src/records/index.js";
+import { USERS_SCHEMA, USERS_TABLE } from "../../runtime/identity/admin.js";
+import { createData } from "../../data/runtime.ts";
+import { DataProvider, resolveConflict, useCommand, useConflicts, useField, useRecord, useRecords, useResolveConflict, useUsers } from "../hooks.ts";
 
 afterEach(cleanup);
 
@@ -236,5 +240,57 @@ describe("two engines, mounted", () => {
     await sync();
     expect(a.conflicts.getSnapshot()).toEqual([]);
     expect(b.conflicts.getSnapshot()).toEqual([]);
+  });
+});
+
+/** One device whose engine syncs the framework's users table beside the notes, as the host runs it. */
+async function withUsersTable() {
+  const world = await makeWorld({ tables: { ...engineTables(notesApp), [USERS_TABLE]: "yjs" } });
+  const deviceId = "harry-aaaaaaaa";
+  const engine = await world.device(deviceId);
+  const data = createData({ engine, config: notesApp, deviceId, user: "harry", clock: world.clock, random: world.random });
+  const users = openTable({ doc: engine.table(USERS_TABLE), schema: USERS_SCHEMA, deviceId, user: "admin", clock: world.clock });
+  return { data, users };
+}
+
+describe("useUsers", () => {
+  test("lists the users table's people by name, with whether each is active, and follows changes", async () => {
+    const { data, users } = await withUsersTable();
+    users.put("sam", { name: "Sam", role: "member", status: "active" });
+    users.put("harry", { name: "Harry", role: "admin", status: "active" });
+    const seen = mount(data, () => useUsers());
+    expect(seen.latest()).toEqual([
+      { id: "harry", name: "Harry", active: true },
+      { id: "sam", name: "Sam", active: true },
+    ]);
+    await act(async () => {
+      users.put("sam", { name: "Sam", role: "member", status: "inactive" });
+      await Promise.resolve();
+    });
+    expect(seen.latest()).toEqual([
+      { id: "harry", name: "Harry", active: true },
+      { id: "sam", name: "Sam", active: false },
+    ]);
+  });
+
+  test("falls back to the id for a user with no name", async () => {
+    const { data, users } = await withUsersTable();
+    users.put("kim", { role: "member", status: "active" });
+    expect(mount(data, () => useUsers()).latest()).toEqual([{ id: "kim", name: "kim", active: true }]);
+  });
+
+  test("does not re-render when an app table changes", async () => {
+    const { data, users } = await withUsersTable();
+    users.put("sam", { name: "Sam", role: "member", status: "active" });
+    const seen = mount(data, () => useUsers());
+    const before = seen.renders();
+    act(() => void data.run("records.create", { table: "notes", id: "n1", fields: { title: "Hi" } }));
+    expect(seen.renders()).toBe(before);
+  });
+
+  test("is an empty list when the engine has no users table", async () => {
+    const { a } = await pair();
+    expect(a.users).toBeNull();
+    expect(mount(a, () => useUsers()).latest()).toEqual([]);
   });
 });

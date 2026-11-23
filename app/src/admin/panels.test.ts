@@ -3,8 +3,9 @@ import { describe, expect, test } from "vitest";
 import type { AdminPanel, AdminPanelContext } from "@trellis/framework";
 import { adminPanels } from "./index";
 import { officePanel } from "./office-panel";
+import { peoplePanel } from "./people-panel";
 import { principalsPanel } from "./principals-panel";
-import { byId, oneDevice, rows, type Device } from "../domain/commands/testing/world";
+import { byId, idOf, oneDevice, rows, type Device } from "../domain/commands/testing/world";
 
 const el: AdminPanelContext["el"] = (tag, props = {}, ...children) => {
   const node = Object.assign(document.createElement(tag), props);
@@ -28,8 +29,8 @@ const type = (box: HTMLElement, selector: string, value: string): void => void (
 const click = (box: HTMLElement, selector: string): void => (box.querySelector(selector) as HTMLButtonElement).click();
 const status = (box: HTMLElement): string => box.querySelector("p.muted:last-child")?.textContent ?? "";
 
-test("the app offers the Office and Principals sections", () => {
-  expect(adminPanels.map((p) => p.title)).toEqual(["Office", "Principals"]);
+test("the app offers the Office, Principals and People sections", () => {
+  expect(adminPanels.map((p) => p.title)).toEqual(["Office", "Principals", "People"]);
 });
 
 describe("Office", () => {
@@ -62,6 +63,41 @@ describe("Office", () => {
     expect(status(box)).toContain("HH:MM");
     expect(byId(device, "office", "office")).toBeUndefined();
     expect(input(box, "#office-day-start").value).toBe("8am");
+  });
+});
+
+describe("People", () => {
+  const modeSelect = (box: HTMLElement, id: string): HTMLSelectElement => box.querySelector(`tr[data-user='${id}'] select`) as HTMLSelectElement;
+
+  test("lists each user by name with their mode, and says viewer mode is not a security control", async () => {
+    const device = await oneDevice("admin");
+    device.putUser({ id: "userb", name: "Blair Sample" });
+    device.putUser({ id: "usera", name: "Alex Example", active: false });
+    const box = mount(peoplePanel(), device);
+    expect(box.textContent).toContain("hides the editing controls");
+    expect(box.textContent).toContain("not a security control");
+    const names = [...box.querySelectorAll("tbody tr")].map((tr) => (tr as HTMLTableRowElement).cells[0]!.textContent);
+    expect(names).toEqual(["Alex Example", "Blair Sample"]);
+    expect(modeSelect(box, "userb").value).toBe("assistant");
+    expect((box.querySelector("tr[data-user='usera']") as HTMLTableRowElement).cells[1]!.textContent).toBe("Inactive");
+  });
+
+  test("changing the mode saves it with people.setMode and logs it", async () => {
+    const device = await oneDevice("admin");
+    device.putUser({ id: "userb", name: "Blair Sample" });
+    const box = mount(peoplePanel(), device);
+    const select = modeSelect(box, "userb");
+    select.value = "viewer";
+    select.dispatchEvent(new Event("change"));
+    expect(byId(device, "people", idOf(device, "person", "userb"))).toMatchObject({ userId: "userb", mode: "viewer" });
+    expect(rows(device, "log").map((r) => [r.area, r.kind])).toEqual([["setup", "mode-changed"]]);
+    expect(status(box)).toBe("Blair Sample is now a viewer.");
+    expect(modeSelect(box, "userb").value).toBe("viewer");
+  });
+
+  test("says when there are no users yet", async () => {
+    const device = await oneDevice("admin");
+    expect(mount(peoplePanel(), device).textContent).toContain("No users yet.");
   });
 });
 

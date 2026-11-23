@@ -1,7 +1,7 @@
 // Quick add: one line of text, a preview of what was understood, and Enter to
 // add. The frame owns the Dialog root (open is useApp().quickAddOpen).
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useRecords } from "@trellis/framework";
+import { useRecords, useUsers } from "@trellis/framework";
 import { Button } from "@/components/ui/button";
 import { DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,7 @@ import { useApp } from "@/app/app-state";
 import { useSharedProject } from "@/app/frame-data";
 import { commands } from "@/domain/commands";
 import { parseQuickAdd } from "@/domain/quick-add";
-import { useInbox, useKnownUsers } from "@/screens/tasks/people";
+import { useInbox } from "@/screens/tasks/people";
 import { ErrorLine } from "@/screens/tasks/list-parts";
 import { useRun } from "@/screens/tasks/use-run";
 import { QuickAddPreview } from "./quick-add/preview";
@@ -23,7 +23,7 @@ function useResolved(text: string): Resolved {
   const inbox = useInbox(userId);
   const sections = useRecords("sections");
   const principals = useRecords("principals");
-  const users = useKnownUsers(userId);
+  const users = useUsers();
   return useMemo(
     () => resolveQuickAdd(parseQuickAdd(text, { today }), { shared, inbox, sections, principals, users }),
     [text, today, shared, inbox, sections, principals, users],

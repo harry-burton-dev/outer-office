@@ -456,6 +456,42 @@ The function behind [`useResolveConflict`](#useresolveconflict), for code that h
 function resolveConflict(data: Data, conflict: { table: string; id: string; field: string }, value: unknown): CommandResult<void>
 ```
 
+### `useUsers`
+
+Returns everyone in the workspace's users table: the people the admin page has invited.
+
+```ts signature
+function useUsers(): readonly WorkspaceUser[]
+```
+
+**Returns** the users, sorted by name. The list is empty until the users table has synced to this computer.
+
+```tsx
+import { useUsers } from "@trellis/framework";
+
+export function PersonName({ id }: { id: string }) {
+  const users = useUsers();
+  return <span>{users.find((user) => user.id === id)?.name ?? id}</span>;
+}
+```
+
+**Caveats**
+
+- The list is read-only. Users are added and marked inactive on the admin page.
+- Inactive users stay in the list, so old records still show their names. Check `active` before offering someone as a choice.
+
+### `WorkspaceUser`
+
+One person in the users table.
+
+```ts signature
+interface WorkspaceUser {
+  readonly id: string;
+  readonly name: string; // the id when the record has no name
+  readonly active: boolean;
+}
+```
+
 ### `useHealth`
 
 Returns the sync status, kept current.
@@ -1103,6 +1139,7 @@ One device's data: its tables, its open conflicts, and the function that runs co
 interface Data {
   readonly tables: readonly string[];
   view(table: string): TableView;
+  readonly users: TableView | null;
   readonly conflicts: Store<readonly Conflict[]>;
   run<I, V>(command: string | CommandDef<I, V>, input: I): CommandResult<V>;
   commandLog(): readonly CommandRun[];
@@ -1110,6 +1147,7 @@ interface Data {
 }
 ```
 
+- `users`: the framework's users table, read-only. It is null when the sync engine does not sync it. [`useUsers`](#useusers) reads it. An admin panel can read it as `ctx.data.users?.rows()`.
 - `run`: runs a command. [`useCommand`](#usecommand) calls it.
 - `commandLog()`: the most recent runs on this device, up to 200, kept in memory.
 

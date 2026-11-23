@@ -9,7 +9,7 @@ import type { CommandDef, CommandResult } from "../data/commands.ts";
 import type { Conflict } from "../data/conflicts.ts";
 import type { AnyRow, Candidate, Config, FieldsOf, RowOf, TableName, ValueOf } from "../data/schema.ts";
 import { select, stable, type Query } from "../data/select.ts";
-import { same } from "../data/view.ts";
+import { same, type TableView } from "../data/view.ts";
 
 const DataContext = createContext<Data | null>(null);
 
@@ -30,7 +30,12 @@ function useData(): Data {
  * `keep` hands back the previous value when the new one is equivalent.
  */
 function useFromView<T>(table: string, key: unknown, compute: (rows: readonly AnyRow[]) => T, keep: (prev: T | undefined, next: T) => T): T {
-  const view = useData().view(table);
+  return useFromSource(useData().view(table), key, compute, keep);
+}
+
+type RowsSource = Pick<TableView, "rows" | "store">;
+
+function useFromSource<T>(view: RowsSource, key: unknown, compute: (rows: readonly AnyRow[]) => T, keep: (prev: T | undefined, next: T) => T): T {
   const memo = useRef<{ view: unknown; rows: readonly AnyRow[]; key: unknown; value: T } | null>(null);
   const getSnapshot = () => {
     const rows = view.rows();
@@ -53,6 +58,30 @@ export function useRecords<T extends TableName>(table: T, query?: Query<RowOf<T>
 /** One record by id, deleted or not (check `_deleted`); undefined when there is none. */
 export function useRecord<T extends TableName>(table: T, id: string): RowOf<T> | undefined {
   return useFromView(table, id, (rows) => rows.find((r) => r.id === id) as RowOf<T> | undefined, stable);
+}
+
+/** One person in the workspace's users table. */
+export interface WorkspaceUser {
+  readonly id: string;
+  /** Their display name; the id when the record has none. */
+  readonly name: string;
+  /** False once the admin page marks them inactive. */
+  readonly active: boolean;
+}
+
+const NO_ROWS: readonly AnyRow[] = [];
+const NO_USERS: RowsSource = { rows: () => NO_ROWS, store: { subscribe: () => () => undefined, getSnapshot: () => NO_ROWS } };
+
+function toUsers(rows: readonly AnyRow[]): readonly WorkspaceUser[] {
+  return rows
+    .filter((row) => !row._deleted)
+    .map((row) => ({ id: row.id, name: typeof row.name === "string" && row.name.trim() !== "" ? row.name : row.id, active: row.status !== "inactive" }))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+}
+
+/** Everyone in the workspace's users table, by name; an empty list until it has synced, or when there is none. */
+export function useUsers(): readonly WorkspaceUser[] {
+  return useFromSource(useData().users ?? NO_USERS, null, toUsers, keepSame);
 }
 
 type FieldName<T extends TableName> = keyof FieldsOf<Config["tables"][T]> & string;

@@ -131,9 +131,30 @@ test("with no principals the principal screens point to the admin page and task 
   expect(screen.queryByText("No principals yet")).toBeNull();
 });
 
+test("Add task is the primary button only on the task screens", async () => {
+  await renderApp({ seed: (s) => { s.principal("PRINCIPAL-A"); s.ackPrivacy(); s.run(projectSave, { now: NOW, name: "Office work" }); } });
+  const addTask = () => screen.getByRole("button", { name: "Add task" });
+  const isPrimary = () => addTask().className.includes("bg-primary text-primary-foreground");
+  for (const item of ["Calendar", "Import", "Log"]) {
+    fireEvent.click(navItem(item));
+    expect(isPrimary(), item).toBe(false);
+    expect(addTask().className, item).toContain("border-border");
+  }
+  for (const item of ["Inbox", "Today", "Office work", "Bin"]) {
+    fireEvent.click(navItem(item));
+    expect(isPrimary(), item).toBe(true);
+  }
+});
+
 test("the signed-in user's name shows in the top bar", async () => {
   await renderApp({ name: "Synthetic User" });
   expect(screen.getByText("Synthetic User")).toBeTruthy();
+});
+
+test("the top bar prefers the user's name in the users table", async () => {
+  await renderApp({ name: "Session Name", seed: (s) => s.user("user-a", "Alex Example") });
+  expect(screen.getByText("Alex Example")).toBeTruthy();
+  expect(screen.queryByText("Session Name")).toBeNull();
 });
 
 test("pressing Q opens quick add, but not while typing in an input", async () => {

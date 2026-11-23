@@ -3,6 +3,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Field } from "@/app/ui";
 import { useApp } from "@/app/app-state";
+import { usePeople } from "@/app/people";
+import { PersonSelect } from "@/app/person-select";
 import type { Event } from "@/domain/selectors";
 import { BlurField } from "./blur-field";
 import { FollowUps } from "./follow-ups";
@@ -40,6 +42,29 @@ function PrepSelect({ value, onChange }: PrepSelectProps) {
   );
 }
 
+interface PrepOwnerProps {
+  value: string;
+  readOnly: boolean;
+  onSave(userId: string): void;
+}
+
+function PrepOwner({ value, readOnly, onSave }: PrepOwnerProps) {
+  const { nameOf } = usePeople();
+  if (readOnly) {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-muted-foreground">Prep owner</span>
+        <p>{value ? nameOf(value) : "None"}</p>
+      </div>
+    );
+  }
+  return (
+    <Field label="Prep owner" htmlFor="engagement-prep-owner">
+      <PersonSelect id="engagement-prep-owner" emptyLabel="None" value={value} onChange={(next) => next !== value && onSave(next)} />
+    </Field>
+  );
+}
+
 export function PrepTab({ event, overlay }: PrepTabProps) {
   const { isViewer } = useApp();
   const current = overlay.overlay;
@@ -54,7 +79,7 @@ export function PrepTab({ event, overlay }: PrepTabProps) {
       ) : (
         <PrepSelect value={prep} onChange={(next) => overlay.save({ prep: next })} />
       )}
-      <BlurField label="Prep owner" value={current?.prepOwner ?? ""} readOnly={isViewer} onSave={(prepOwner) => overlay.save({ prepOwner })} />
+      <PrepOwner value={current?.prepOwner ?? ""} readOnly={isViewer} onSave={(prepOwner) => overlay.save({ prepOwner })} />
       <BlurField label="Notes" multiline value={current?.notes ?? ""} readOnly={isViewer} onSave={(notes) => overlay.save({ notes })} />
       <BlurField label="Outcome" multiline value={current?.outcome ?? ""} readOnly={isViewer} onSave={(outcome) => overlay.save({ outcome })} />
       <FollowUps event={event} />

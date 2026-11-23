@@ -3,13 +3,14 @@ import { useMemo } from "react";
 import { useRecords } from "@trellis/framework";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApp } from "@/app/app-state";
+import { usePeople } from "@/app/people";
 import { areaText, kindText, valueText, type LogRow } from "./log-model";
+import { logValueText, NOT_SYNCED, type LogLookups } from "./log-refs";
+import { useLogLookups } from "./use-log-lookups";
 
 export interface LogTableProps {
   rows: readonly LogRow[];
 }
-
-const NOT_SYNCED = "not synced yet";
 
 function useSubjects(): (row: LogRow) => string {
   const events = useRecords("events", { includeDeleted: true });
@@ -28,16 +29,18 @@ function useSubjects(): (row: LogRow) => string {
 interface LogLineProps {
   row: LogRow;
   subject: string;
+  who: string;
+  lookups: LogLookups;
 }
 
-function LogLine({ row, subject }: LogLineProps) {
+function LogLine({ row, subject, who, lookups }: LogLineProps) {
   const { timezone, openPanel } = useApp();
   const target = row.event ? { kind: "engagement" as const, id: row.event } : row.task ? { kind: "task" as const, id: row.task } : null;
   const open = target ? () => openPanel(target) : undefined;
   return (
     <TableRow onClick={open} className={target ? "cursor-pointer" : undefined}>
       <TableCell>{valueText(row.at, timezone)}</TableCell>
-      <TableCell>{row.by ?? ""}</TableCell>
+      <TableCell>{who}</TableCell>
       <TableCell>{areaText(row.area)}</TableCell>
       <TableCell>{kindText(row.kind)}</TableCell>
       <TableCell className="max-w-64 truncate">
@@ -49,8 +52,8 @@ function LogLine({ row, subject }: LogLineProps) {
           subject
         )}
       </TableCell>
-      <TableCell>{valueText(row.from, timezone)}</TableCell>
-      <TableCell>{valueText(row.to, timezone)}</TableCell>
+      <TableCell>{logValueText(row, row.from, lookups, timezone)}</TableCell>
+      <TableCell>{logValueText(row, row.to, lookups, timezone)}</TableCell>
       <TableCell className="max-w-64 truncate">{row.note ?? ""}</TableCell>
     </TableRow>
   );
@@ -58,6 +61,8 @@ function LogLine({ row, subject }: LogLineProps) {
 
 export function LogTable({ rows }: LogTableProps) {
   const subjectOf = useSubjects();
+  const lookups = useLogLookups();
+  const { nameOf } = usePeople();
   return (
     <Table aria-label="Log">
       <TableHeader>
@@ -74,7 +79,7 @@ export function LogTable({ rows }: LogTableProps) {
       </TableHeader>
       <TableBody>
         {rows.map((row) => (
-          <LogLine key={row.id} row={row} subject={subjectOf(row)} />
+          <LogLine key={row.id} row={row} subject={subjectOf(row)} who={row.by ? nameOf(row.by) : ""} lookups={lookups} />
         ))}
       </TableBody>
     </Table>

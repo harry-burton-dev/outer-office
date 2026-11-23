@@ -16,7 +16,8 @@
 //     seed              the same Seeder, to change data after the first render;
 //                       its writes are wrapped in act()
 //   Seeder: run(command, input) runs any command and returns its value (throws on failure);
-//     office(fields), principal(code, fields?) -> id, task(input) -> id, viewer(userId?), ackPrivacy()
+//     office(fields), principal(code, fields?) -> id, task(input) -> id, viewer(userId?), ackPrivacy(),
+//     user(id, name, active?) writes a users-table record (the framework's table, read by useUsers)
 //   AppProbe: renders useApp()'s screen, panel, principalId and quickAddOpen as data-* attributes
 //     on an element with data-testid="app-probe"; read them with probe().
 //   cleanupApp(): call in afterEach (unmounts and restores the real clock).
@@ -30,12 +31,12 @@
 import type { ReactNode } from "react";
 import { act, cleanup, render, screen, type RenderResult } from "@testing-library/react";
 import { vi } from "vitest";
-import { DataProvider, defineCommand, type CommandDef, type Tx } from "@trellis/framework";
+import { DataProvider, type CommandDef } from "@trellis/framework";
 import { ShellProvider } from "../../../../framework/runtime/shell/provider";
 import { SessionContext, type TrellisSession } from "../../../../framework/runtime/shell/context";
 import { fakeEngine } from "../../../../framework/runtime/shell/test/helpers/fake-engine";
-import { makeTestWorld, ok, NOW, type Device } from "../../domain/commands/testing/world";
-import { ackPrivacy, officeSave, principalSave, taskAdd, type OfficeSaveInput, type PrincipalSaveInput, type TaskAddInput } from "../../domain/commands";
+import { makeTestWorld, ok, NOW, type Device, type SeedUser } from "../../domain/commands/testing/world";
+import { ackPrivacy, officeSave, principalSave, setMode, taskAdd, type OfficeSaveInput, type PrincipalSaveInput, type TaskAddInput } from "../../domain/commands";
 import { AppProvider, useApp } from "../app-state";
 import { AppFrame } from "../app-frame";
 
@@ -51,6 +52,8 @@ export interface Seeder {
   /** Sets people.mode to viewer for the user (default: the signed-in one). */
   viewer(userId?: string): void;
   ackPrivacy(): void;
+  /** Writes a record in the framework's users table, as the admin page would (active unless said otherwise). */
+  user(id: string, name: string, active?: boolean): void;
 }
 
 export interface RenderAppOptions {
@@ -66,16 +69,6 @@ export interface RenderedApp extends RenderResult {
   readonly seed: Seeder;
 }
 
-interface ModeInput {
-  userId: string;
-  mode: "assistant" | "viewer";
-}
-
-// Test-only: no app command sets people.mode yet. Same id as people.ackPrivacy uses.
-const setMode = defineCommand("test.people.setMode", (tx: Tx, input: ModeInput) => {
-  tx.put("people", tx.id("person", input.userId), { userId: input.userId, mode: input.mode });
-});
-
 function makeSeeder(device: Device, now: string, wrap: (write: () => void) => void): Seeder {
   const run = <I, V>(command: CommandDef<I, V>, input: I): V => {
     let value: V | undefined;
@@ -90,8 +83,9 @@ function makeSeeder(device: Device, now: string, wrap: (write: () => void) => vo
     office: (fields) => void run(officeSave, { now, ...fields }),
     principal: (code, fields = {}) => run(principalSave, { now, code, title: `Principal ${code}`, ...fields }),
     task: (input) => run(taskAdd, { now, ...input }),
-    viewer: (userId = device.user) => run(setMode, { userId, mode: "viewer" }),
+    viewer: (userId = device.user) => void run(setMode, { now, userId, mode: "viewer" }),
     ackPrivacy: () => void run(ackPrivacy, { now }),
+    user: (id, name, active = true) => wrap(() => device.putUser({ id, name, active } satisfies SeedUser)),
   };
 }
 
