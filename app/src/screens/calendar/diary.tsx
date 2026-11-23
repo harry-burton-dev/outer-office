@@ -14,7 +14,7 @@ import { commands } from "@/domain/commands";
 import { lensById } from "@/domain/lenses";
 import { TagMenu } from "@/tags/tag-menu";
 import { useRun } from "../tasks/use-run";
-import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, openingDate, proposalIdOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
+import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, proposalIdOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
 import { EventFaceView, type CardShape } from "./event-face";
 import { cardsOn, fieldsOf, isComplete, progressOf, valuesOf } from "@/domain/cards";
 import { LayerSwitch } from "./layer-switch";
@@ -69,7 +69,7 @@ export function Diary({ principalId }: { principalId: string }) {
     });
   }, [cards, templates]);
   const [view, setView] = useState<DiaryView>("week");
-  const [date, setDate] = useState(() => openingDate(today));
+  const [date, setDate] = useState(today);
   const [lensId, setLensId] = useState<string | null>(null);
   const [layer, setLayer] = useState<Layer>("live");
   const [liveAlpha, setLiveAlpha] = useState(0.35);

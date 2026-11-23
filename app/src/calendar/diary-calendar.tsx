@@ -30,9 +30,9 @@ export interface DiaryCalendarProps {
   date: string;
   /** IANA zone the diary is shown in, e.g. "Europe/London". */
   timeZone: string;
-  /** "08:00": the grid starts one hour earlier. */
+  /** "08:00": the grid starts one hour earlier, or earlier still for an earlier event on screen. */
   dayStart: string;
-  /** "18:00": the grid ends one hour later. */
+  /** "18:00": the grid ends one hour later, or later still for a later event on screen. */
   dayEnd: string;
   onEventClick: (id: string) => void;
   /** Called with the first visible day when today, previous or next moves the calendar. */
@@ -49,7 +49,11 @@ const VIEW_TYPES: Record<DiaryView, string> = { day: "timeGridDay", week: "timeG
 const AVAILABLE_VIEWS = [VIEW_TYPES.day, VIEW_TYPES.week];
 const PLUGINS = [timeGridPlugin];
 const MONDAY = 1;
-const WEEKEND = [0, 6];
+const SUNDAY = 0;
+const SATURDAY = 6;
+const WEEKEND = [SUNDAY, SATURDAY];
+const DAY_MINUTES = 24 * 60;
+const DAY_MS = 86_400_000;
 const HOUR_24 = { hour: "2-digit", minute: "2-digit", hour12: false } as const;
 
 /** The Today button's accessible name starts with its visible text ("This Week" alone would not contain "Today"). */
@@ -70,6 +74,72 @@ export function dayIn(instant: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(instant);
 }
 
+const addDay = (date: string, days: number): string => new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+const weekday = (date: string): number => new Date(`${date}T00:00:00Z`).getUTCDay();
+const minuteOfDay = (time: string): number => {
+  const [h = 0, m = 0] = time.split(":").map(Number);
+  return h * 60 + m;
+};
+/** Minutes after midnight as FullCalendar's "HH:MM:00". */
+const clock = (minutes: number): string => shiftTime("00:00", minutes / 60);
+
+/** The local date and minute of the day of an instant in `timeZone`. */
+function wallClock(instant: string, timeZone: string): { date: string; minute: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(instant));
+  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { date: dayIn(new Date(instant), timeZone), minute: part("hour") * 60 + part("minute") };
+}
+
+/** The days a view shows, first and after-last, as YYYY-MM-DD: the date itself, or its Monday-to-Sunday week. */
+export function viewRange(view: DiaryView, date: string): { first: string; end: string } {
+  if (view === "day") return { first: date, end: addDay(date, 1) };
+  const first = addDay(date, -((weekday(date) - MONDAY + 7) % 7));
+  return { first, end: addDay(first, 7) };
+}
+
+export interface DiaryWindow {
+  slotMinTime: string;
+  slotMaxTime: string;
+  /** Days of the week the week view leaves out: the weekend, unless it is in use. */
+  hiddenDays: number[];
+}
+
+/**
+ * What the grid must show so that no engagement is hidden: the office day with an
+ * hour either side, widened to whole hours around any event earlier or later in the
+ * days on screen; and the weekend, when the week holds an event on it or the date
+ * being looked at is a Saturday or Sunday.
+ */
+export function diaryWindow(events: readonly DiaryEvent[], view: DiaryView, date: string, timeZone: string, dayStart: string, dayEnd: string): DiaryWindow {
+  const { first, end } = viewRange(view, date);
+  let min = minuteOfDay(shiftTime(dayStart, -1));
+  let max = minuteOfDay(shiftTime(dayEnd, 1));
+  let weekend = WEEKEND.includes(weekday(date));
+  const usesWeekend = (from: string, until: string) => {
+    for (let day = from < first ? first : from; day < until && day < end; day = addDay(day, 1)) if (WEEKEND.includes(weekday(day))) return true;
+    return false;
+  };
+  for (const event of events) {
+    if (event.allDay) {
+      const from = dayIn(new Date(event.start), timeZone);
+      const until = dayIn(new Date(event.end), timeZone);
+      if (from < end && until > first) weekend ||= usesWeekend(from, until > from ? until : addDay(from, 1));
+      continue;
+    }
+    const start = wallClock(event.start, timeZone);
+    const stop = wallClock(event.end, timeZone);
+    // An event ending at midnight belongs to the day before.
+    const lastDay = stop.minute === 0 && stop.date > start.date ? addDay(stop.date, -1) : stop.date;
+    if (start.date >= end || lastDay < first) continue;
+    weekend ||= usesWeekend(start.date, addDay(lastDay, 1));
+    // An event over midnight runs to the end of one day and from the start of the next.
+    const overnight = lastDay > start.date;
+    min = Math.min(min, overnight ? 0 : Math.floor(start.minute / 60) * 60);
+    max = Math.max(max, overnight || stop.date > lastDay ? DAY_MINUTES : Math.ceil(stop.minute / 60) * 60);
+  }
+  return { slotMinTime: clock(min), slotMaxTime: clock(Math.min(max, DAY_MINUTES)), hiddenDays: view === "week" && !weekend ? WEEKEND : [] };
+}
+
 /** Timed events keep their UTC instants (FullCalendar shifts them into the zone); all-day events become the zone's calendar days. */
 function toInput({ id, title, start, end, allDay, colour }: DiaryEvent, timeZone: string): EventInput {
   const look = colour ? { color: colour, textColor: "var(--foreground)" } : {};
@@ -88,6 +158,7 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
   const controller = useCalendarController();
   const byId = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
   const inputs = useMemo<EventInput[]>(() => events.map((event) => toInput(event, timeZone)), [events, timeZone]);
+  const grid = useMemo(() => diaryWindow(events, view, date, timeZone, dayStart, dayEnd), [events, view, date, timeZone, dayStart, dayEnd]);
 
   // The props lead: move the calendar when the parent's view or date changes.
   useEffect(() => {
@@ -129,9 +200,9 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
           initialDate={date}
           timeZone={timeZone}
           firstDay={MONDAY}
-          views={{ timeGridWeek: { hiddenDays: WEEKEND } }}
-          slotMinTime={shiftTime(dayStart, -1)}
-          slotMaxTime={shiftTime(dayEnd, 1)}
+          views={{ timeGridWeek: { hiddenDays: grid.hiddenDays } }}
+          slotMinTime={grid.slotMinTime}
+          slotMaxTime={grid.slotMaxTime}
           slotHeaderFormat={HOUR_24}
           eventTimeFormat={HOUR_24}
           todayHint={todayHint}
