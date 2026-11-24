@@ -17,11 +17,10 @@ import definition from "./app-definition.js";
 // flavour, time grid only) and temporal-polyfill added about 287,000 bytes,
 // taking the bundle to 773,823. With every v0.1 screen, the iCalendar parser
 // (about 76,000) and the shadcn components, the whole app is 1,178,591 bytes
-// (343,687 gzipped). The project owner has said size is not a concern, so the
-// budget was 1,400,000. On 2026-11-24, with the OO2 v0.3 work at 1,390,824,
-// Harry said size is no limit, so the budget is 2,500,000: it still catches a
-// runaway dependency, and is raised again rather than trimming a feature.
-export const BUDGETS = { bootstrap: 50_000, bundle: 2_500_000 };
+// (343,687 gzipped). The project owner has said size is not a concern
+// ("there is no limit", 2026-11-24), so the budget is 3,000,000: it only
+// catches a runaway, such as a dependency bundled twice.
+export const BUDGETS = { bootstrap: 50_000, bundle: 3_000_000 };
 
 /** Size, limit and headroom of each build output. `dist` is laid out as the build writes it. */
 export function checkBudgets({ dist, version, limits = BUDGETS }) {

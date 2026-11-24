@@ -5,7 +5,7 @@
 // The payload's events are Microsoft Graph calendarView items, read out of the
 // flow's raw response by automate/graph-calendar.ts, which checks their shape;
 // this module checks count, series masters, UTC times, and the window.
-import type { ImportedEvent } from "./types";
+import type { Attendee, ImportedEvent } from "./types";
 import { eventKey } from "./types";
 import type { ParseResult } from "./parse-ics";
 import { MASKED_SUBJECT } from "./event-fields";
@@ -32,6 +32,26 @@ export interface DiaryEvent {
   sensitivity: "normal" | "personal" | "private" | "confidential";
   lastModifiedDateTime: string;
   attendees?: readonly object[] | null;
+  // What the widened $select adds (OUT-83). Absent when the flow doesn't ask for it.
+  id?: string | null;
+  importance?: string | null;
+  createdDateTime?: string | null;
+  /** Graph responseStatus.response: the principal's own response. */
+  response?: string | null;
+  isOnlineMeeting?: boolean | null;
+  onlineMeetingProvider?: string | null;
+  joinUrl?: string | null;
+  hasAttachments?: boolean | null;
+  webLink?: string | null;
+  isOrganizer?: boolean | null;
+  responseRequested?: boolean | null;
+  allowNewTimeProposals?: boolean | null;
+  organizerAddress?: string | null;
+  locationType?: string | null;
+  /** body.content, asked for as text with Prefer: outlook.body-content-type="text". */
+  body?: string | null;
+  /** The item exactly as Graph sent it, as JSON. */
+  raw?: string | null;
 }
 
 export interface DiaryPayload {
@@ -108,7 +128,7 @@ const RESPONSES: Readonly<Record<string, string>> = {
 
 interface GraphAttendee {
   type?: string;
-  status?: { response?: string } | null;
+  status?: { response?: string; time?: string } | null;
   emailAddress?: { name?: string | null; address?: string | null } | null;
 }
 
@@ -126,12 +146,68 @@ function attendeesOf(list: readonly object[], optional: boolean): string {
     .join("\n");
 }
 
+const ATTENDEE_TYPES = new Set(["required", "optional", "resource"]);
+
+/** Graph attendees as the stored list. */
+const structured = (list: readonly object[]): Attendee[] => (list as readonly GraphAttendee[]).map((a) => ({
+  name: a.emailAddress?.name?.trim() ?? "",
+  address: a.emailAddress?.address?.trim() ?? "",
+  type: (ATTENDEE_TYPES.has(a.type ?? "") ? a.type : "required") as Attendee["type"],
+  response: RESPONSES[a.status?.response ?? ""] ?? "",
+  respondedAt: a.status?.time && !a.status.time.startsWith("0001-") ? a.status.time : "",
+})).filter((a) => a.name !== "" || a.address !== "");
+
 /** Both attendee lists, or nothing when the payload has no attendees, so a missing list is not read as "none". */
-function attendeeFields(event: DiaryEvent, masked: boolean): Pick<ImportedEvent, "requiredAttendees" | "optionalAttendees"> {
+function attendeeFields(event: DiaryEvent, masked: boolean): Pick<ImportedEvent, "requiredAttendees" | "optionalAttendees" | "attendees"> {
   if (!Array.isArray(event.attendees)) return {};
-  if (masked) return { requiredAttendees: "", optionalAttendees: "" };
-  return { requiredAttendees: attendeesOf(event.attendees, false), optionalAttendees: attendeesOf(event.attendees, true) };
+  if (masked) return { requiredAttendees: "", optionalAttendees: "", attendees: "[]" };
+  return {
+    requiredAttendees: attendeesOf(event.attendees, false), optionalAttendees: attendeesOf(event.attendees, true),
+    attendees: JSON.stringify(structured(event.attendees)),
+  };
 }
+
+const OWN_RESPONSES: Readonly<Record<string, string>> = { ...RESPONSES, organizer: "organizer", none: "" };
+const IMPORTANCES = new Set(["low", "normal", "high"]);
+const SENSITIVITY: Readonly<Record<string, string>> = { normal: "normal", personal: "normal", private: "private", confidential: "confidential" };
+
+/** Sets each field the payload carries; leaves out what it doesn't, so an earlier import's value is kept. */
+function carried<T>(value: T | null | undefined): T | undefined {
+  return value === null ? undefined : value;
+}
+
+/** The v3 fields (OUT-83). A masked item keeps only its identity: no body, raw, links or people. */
+function outlookFields(event: DiaryEvent, masked: boolean): Partial<ImportedEvent> {
+  const kind: ImportedEvent["kind"] = event.type === "exception" ? "exception" : event.seriesMasterId ? "occurrence" : "single";
+  const fields: Partial<ImportedEvent> = {
+    source: "automate", kind, outlookId: carried(event.id),
+    importance: event.importance && IMPORTANCES.has(event.importance) ? event.importance : undefined,
+    sensitivity: SENSITIVITY[event.sensitivity],
+    created: event.createdDateTime ? wholeSeconds(event.createdDateTime) : undefined,
+    response: event.response === undefined || event.response === null ? undefined : OWN_RESPONSES[event.response] ?? "",
+    isOrganizer: carried(event.isOrganizer), responseRequested: carried(event.responseRequested),
+    allowNewTimeProposals: carried(event.allowNewTimeProposals),
+  };
+  if (masked) {
+    const blank = <T,>(value: unknown, empty: T): T | undefined => (value === undefined || value === null ? undefined : empty);
+    return {
+      ...fields, raw: blank(event.raw, ""), body: blank(event.body, ""), webLink: blank(event.webLink, ""), joinUrl: blank(event.joinUrl, ""),
+      organizerAddress: blank(event.organizerAddress, ""), locationType: blank(event.locationType, ""),
+      online: blank(event.isOnlineMeeting, false), onlineProvider: blank(event.onlineMeetingProvider, ""),
+      hasAttachments: blank(event.hasAttachments, false),
+    };
+  }
+  return {
+    ...fields, raw: carried(event.raw), body: carried(event.body), webLink: carried(event.webLink), joinUrl: carried(event.joinUrl),
+    organizerAddress: carried(event.organizerAddress), locationType: carried(event.locationType),
+    online: carried(event.isOnlineMeeting), onlineProvider: carried(event.onlineMeetingProvider),
+    hasAttachments: carried(event.hasAttachments),
+  };
+}
+
+/** Drops keys whose value is undefined, so `toEqual` and the diff see only what the payload carries. */
+const defined = <T extends object>(value: T): T =>
+  Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T;
 
 function toImported(event: DiaryEvent, masters: ReadonlyMap<string, string>, zone: string, masked: boolean): ImportedEvent {
   if (!event.isAllDay && event.timeZone !== "UTC") {
@@ -139,15 +215,17 @@ function toImported(event: DiaryEvent, masters: ReadonlyMap<string, string>, zon
   }
   const at = (value: string): number => (event.isAllDay ? officeMidnight(value, zone) : utcMs(value));
   const startMs = at(event.start);
+  const key = keyOf(event, masters, zone);
   const details = {
     subject: event.subject, location: event.location ?? "", organizer: event.organizer ?? "",
     categories: categoriesOf(event.categories), showAs: SHOW_AS[event.showAs] ?? "busy",
     sourceModified: wholeSeconds(event.lastModifiedDateTime),
   };
   return {
-    ...keyOf(event, masters, zone), start: toIso(startMs), end: toIso(Math.max(startMs, at(event.end))), allDay: event.isAllDay,
+    ...key, start: toIso(startMs), end: toIso(Math.max(startMs, at(event.end))), allDay: event.isAllDay,
     ...details, ...(masked ? { subject: MASKED_SUBJECT, location: "", organizer: "", categories: "" } : {}), masked,
-    ...attendeeFields(event, masked),
+    ...attendeeFields(event, masked), ...defined(outlookFields(event, masked)),
+    seriesId: event.seriesMasterId ? key.uid : "",
   };
 }
 

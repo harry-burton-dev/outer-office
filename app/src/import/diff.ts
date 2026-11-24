@@ -2,31 +2,11 @@
 // applying the file would do. Pure: returns new objects, mutates nothing.
 import type { EventChange, ImportDiff, ImportedEvent, StoredEvent } from "./types";
 import { eventKey } from "./types";
+import { fieldChanges } from "./compare";
 import type { ParseResult } from "./parse-ics";
 
-/** The imported fields compared, in contract order. uid and recurrenceId are the key, so always equal. */
-const COMPARED_FIELDS = [
-  "start", "end", "allDay", "subject", "location", "organizer", "categories", "showAs", "masked", "sourceModified",
-  "requiredAttendees", "optionalAttendees", "importance", "sensitivity",
-] as const;
-const TIME_FIELDS: ReadonlySet<string> = new Set(["start", "end", "sourceModified"]);
-
-/** Two ISO strings for the same instant are equal even if written differently. */
-function sameValue(field: string, a: string | boolean, b: string | boolean): boolean {
-  if (a === b) return true;
-  if (!TIME_FIELDS.has(field) || typeof a !== "string" || typeof b !== "string") return false;
-  const [ma, mb] = [Date.parse(a), Date.parse(b)];
-  return !Number.isNaN(ma) && ma === mb;
-}
-
-const differingFields = (before: ImportedEvent, after: ImportedEvent): string[] =>
-    // A field the source does not carry (the sync has no attendees or importance) is not a change.
-  COMPARED_FIELDS.filter((field) => after[field] !== undefined && !sameValue(field, before[field] ?? "", after[field]));
-
-const change = (before: StoredEvent, after: ImportedEvent): EventChange => {
-  const fields = differingFields(before, after);
-  return { before, after, fields, moved: fields.includes("start") };
-};
+const change = (before: StoredEvent, after: ImportedEvent, fields: readonly string[]): EventChange =>
+  ({ before, after, fields, moved: fields.includes("start") });
 
 /** True when both are set and the file's version is older than the stored one. */
 function isOlder(file: string, stored: string): boolean {
@@ -48,19 +28,22 @@ export function diffImport(stored: readonly StoredEvent[], parsed: ParseResult):
   const returned: EventChange[] = [];
   let unchanged = 0;
   let skippedOlder = 0;
+  const filled: EventChange[] = [];
   for (const after of parsed.events) {
     const before = storedByKey.get(eventKey(after));
-    if (!before) added.push(after);
-    else if (before.gone) returned.push(change(before, after));
-    // Outlook moves the modified time for edits the app never reads (the body, a reminder):
+    if (!before) { added.push(after); continue; }
+    const fields = fieldChanges(before, after);
+    if (before.gone) returned.push(change(before, after, fields.changed));
+    // Outlook moves the modified time for edits the app never reads (a reminder):
     // that alone is not a change, or the sync would apply and log one on every run.
-    else if (differingFields(before, after).every((field) => field === "sourceModified")) unchanged += 1;
+    else if (fields.changed.length === 0 && fields.filled.length === 0) unchanged += 1;
     else if (isOlder(after.sourceModified, before.sourceModified)) skippedOlder += 1;
-    else changed.push(change(before, after));
+    else if (fields.changed.length > 0) changed.push(change(before, after, fields.changed));
+    else filled.push(change(before, after, fields.filled));
   }
   const gone = stored.filter((e) => !e.gone && !fileKeys.has(eventKey(e)) && isInRange(e, parsed.rangeStart, parsed.rangeEnd));
   return {
-    rangeStart: parsed.rangeStart, rangeEnd: parsed.rangeEnd, added, changed, gone, returned,
+    rangeStart: parsed.rangeStart, rangeEnd: parsed.rangeEnd, added, changed, filled, gone, returned,
     unchanged, skippedOlder, droppedPrivate: parsed.droppedPrivate, maskedPrivate: parsed.maskedPrivate,
   };
 }
@@ -79,4 +62,4 @@ export function marksMostGone(diff: ImportDiff): boolean {
 }
 
 /** Stored events, not already gone, inside the diff's range. */
-export const storedInRange = (diff: ImportDiff): number => diff.gone.length + diff.changed.length + diff.unchanged + diff.skippedOlder;
+export const storedInRange = (diff: ImportDiff): number => diff.gone.length + diff.changed.length + (diff.filled?.length ?? 0) + diff.unchanged + diff.skippedOlder;

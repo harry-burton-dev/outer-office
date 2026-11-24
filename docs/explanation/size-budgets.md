@@ -7,7 +7,7 @@ The build fails if the app's files are too big. This page explains the two limit
 | File | Budget | Why |
 |---|---|---|
 | The page people open, `<id>.html` | Under 50,000 bytes | It is the one file that cannot update itself. A small file has less to get wrong. |
-| The app file, `<id>-<version>.js` | Under 2,500,000 bytes | Every version is copied through the shared folder to every computer, and is kept there. |
+| The app file, `<id>-<version>.js` | Under 3,000,000 bytes | Every version is copied through the shared folder to every computer, and is kept there. |
 
 Sizes are of the files as written, before any compression. A file at exactly its limit fails.
 
@@ -23,7 +23,7 @@ The second line is the whole of version 0.1: the framework, React, the sync libr
 
 The app budget was 500,000 bytes until the diary calendar was added. FullCalendar 7 and the Temporal polyfill it needs cost about 287,000 bytes, and the iCalendar parser about 76,000. With every screen of version 0.1 the app is 1,178,591 bytes (about 344,000 compressed), so the budget is 1,400,000. The calendar loads FullCalendar's time-grid views and, since drag to propose (OUT-85), its interaction plugin, but not its list or multi-month plugins.
 
-On 2026-11-24 the OO2 v0.3 work brought the app to 1,390,824 bytes. Size is not a limit for this project, so the budget became 2,500,000: high enough never to cut a feature, low enough to catch a dependency pulled in by mistake.
+On 2026-11-24 the OO2 v0.3 work brought the app to 1,390,824 bytes. Size is not a limit for this project, so the budget became 3,000,000: high enough never to cut a feature, low enough to catch a dependency pulled in by mistake.
 
 ## Why the app is one file
 
