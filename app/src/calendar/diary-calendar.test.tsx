@@ -5,7 +5,7 @@
 // is checked through the time FullCalendar prints on each event.
 import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { DiaryCalendar, dayIn, shiftTime, type DiaryCalendarProps } from "./diary-calendar";
+import { DiaryCalendar, dayIn, diaryWindow, shiftTime, viewRange, type DiaryCalendarProps, type DiaryEvent } from "./diary-calendar";
 import { SPIKE_TIME_ZONE, SPIKE_WEEK, SYNTHETIC_EVENTS } from "./spike/synthetic-events";
 
 afterEach(cleanup);
@@ -40,12 +40,31 @@ function renderDiary(overrides: Partial<DiaryCalendarProps> = {}) {
 /** The element holding an event's title, and the event around it. */
 const eventBox = (title: string) => screen.getByText(title, { exact: true }).closest<HTMLElement>("[tabindex], a, [role=button]") ?? screen.getByText(title, { exact: true });
 
-test("the week shows Monday to Friday's events and not the weekend's", () => {
+test("the week shows every event, the weekend's too when it holds one", () => {
   renderDiary();
-  for (const title of ["Weekly review", "Budget planning", "Site visit", "Board briefing", "Strategy session", "Travel day", "Quarterly catch-up"]) {
+  for (const title of ["Weekly review", "Budget planning", "Site visit", "Board briefing", "Strategy session", "Travel day", "Quarterly catch-up", "Weekend reading"]) {
     expect(screen.getByText(title, { exact: true })).toBeTruthy();
   }
-  expect(screen.queryByText("Weekend reading")).toBeNull();
+  expect(screen.getByText(/Sat/)).toBeTruthy();
+});
+
+test("a week with nothing at the weekend shows Monday to Friday", () => {
+  renderDiary({ events: SYNTHETIC_EVENTS.filter((e) => e.id !== "e11") });
+  expect(screen.getByText(/Fri/)).toBeTruthy();
+  expect(screen.queryByText(/Sat/)).toBeNull();
+  expect(screen.queryByText(/Sun/)).toBeNull();
+});
+
+test("an early breakfast and a late dinner widen the grid so both are drawn", () => {
+  const events: DiaryEvent[] = [
+    { id: "b", title: "Breakfast with a donor", start: "2026-11-24T06:15:00Z", end: "2026-11-24T06:55:00Z", allDay: false },
+    { id: "d", title: "Reception and dinner", start: "2026-11-24T19:30:00Z", end: "2026-11-24T22:00:00Z", allDay: false },
+  ];
+  renderDiary({ events, view: "day", date: "2026-11-24", timeZone: "Europe/London" });
+  expect(screen.getByText("Breakfast with a donor", { exact: true })).toBeTruthy();
+  expect(screen.getByText("Reception and dinner", { exact: true })).toBeTruthy();
+  expect(screen.getByText("06:00")).toBeTruthy();
+  expect(screen.getByText("21:00")).toBeTruthy();
 });
 
 test("clicking an event calls onEventClick with its id", () => {
@@ -86,6 +105,45 @@ test("the grid runs from an hour before the day starts to an hour after it ends"
   expect(screen.getByText("18:00")).toBeTruthy();
   expect(screen.queryByText("06:00")).toBeNull();
   expect(screen.queryByText("19:00")).toBeNull();
+});
+
+const at = (id: string, start: string, end: string, allDay = false): DiaryEvent => ({ id, title: id, start, end, allDay });
+const LONDON = "Europe/London";
+
+test("viewRange is the day, or its Monday-to-Sunday week", () => {
+  expect(viewRange("day", "2026-11-28")).toEqual({ first: "2026-11-28", end: "2026-11-29" });
+  expect(viewRange("week", "2026-11-25")).toEqual({ first: "2026-11-23", end: "2026-11-30" });
+  expect(viewRange("week", "2026-11-29")).toEqual({ first: "2026-11-23", end: "2026-11-30" });
+});
+
+test("diaryWindow keeps the office day when every event fits it", () => {
+  expect(diaryWindow([at("a", "2026-11-24T09:00:00Z", "2026-11-24T10:00:00Z")], "week", "2026-11-23", LONDON, "08:00", "18:00"))
+    .toEqual({ slotMinTime: "07:00:00", slotMaxTime: "19:00:00", hiddenDays: [0, 6] });
+});
+
+test("diaryWindow widens to whole hours around early and late events on screen only", () => {
+  const events = [at("b", "2026-11-24T06:15:00Z", "2026-11-24T06:55:00Z"), at("d", "2026-11-24T19:30:00Z", "2026-11-24T22:10:00Z")];
+  expect(diaryWindow(events, "day", "2026-11-24", LONDON, "08:00", "18:00")).toMatchObject({ slotMinTime: "06:00:00", slotMaxTime: "23:00:00" });
+  expect(diaryWindow(events, "day", "2026-11-25", LONDON, "08:00", "18:00")).toMatchObject({ slotMinTime: "07:00:00", slotMaxTime: "19:00:00" });
+  expect(diaryWindow(events, "week", "2026-11-30", LONDON, "08:00", "18:00")).toMatchObject({ slotMinTime: "07:00:00", slotMaxTime: "19:00:00" });
+});
+
+test("diaryWindow reads times in the office zone, and an overnight event opens the whole day", () => {
+  // 07:30 BST is 06:30Z; the grid must start at 07:00 London, not 06:00.
+  expect(diaryWindow([at("x", "2026-10-23T06:30:00Z", "2026-10-23T07:30:00Z")], "day", "2026-10-23", LONDON, "09:00", "17:00")).toMatchObject({ slotMinTime: "07:00:00" });
+  expect(diaryWindow([at("n", "2026-11-24T22:00:00Z", "2026-11-25T02:00:00Z")], "week", "2026-11-23", LONDON, "08:00", "18:00")).toMatchObject({ slotMinTime: "00:00:00", slotMaxTime: "24:00:00" });
+  // Ending exactly at midnight stays on its own day.
+  expect(diaryWindow([at("m", "2026-11-24T21:00:00Z", "2026-11-25T00:00:00Z")], "day", "2026-11-24", LONDON, "08:00", "18:00")).toMatchObject({ slotMinTime: "07:00:00", slotMaxTime: "24:00:00" });
+});
+
+test("diaryWindow shows the weekend for a weekend event, a weekend all-day event, or a weekend date", () => {
+  const show = (events: DiaryEvent[], date = "2026-11-23") => diaryWindow(events, "week", date, LONDON, "08:00", "18:00").hiddenDays;
+  expect(show([at("s", "2026-11-28T10:00:00Z", "2026-11-28T11:00:00Z")])).toEqual([]);
+  expect(show([at("s", "2026-11-29T00:00:00Z", "2026-11-30T00:00:00Z", true)])).toEqual([]);
+  expect(show([at("f", "2026-11-27T00:00:00Z", "2026-11-28T00:00:00Z", true)])).toEqual([0, 6]);
+  expect(show([], "2026-11-28")).toEqual([]);
+  expect(show([at("s", "2026-12-05T10:00:00Z", "2026-12-05T11:00:00Z")])).toEqual([0, 6]);
+  expect(diaryWindow([], "day", "2026-11-23", LONDON, "08:00", "18:00").hiddenDays).toEqual([]);
 });
 
 test("dayIn reads the calendar day in the zone, not in UTC", () => {

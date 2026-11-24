@@ -92,7 +92,7 @@ test("clicking an event opens the engagement panel for it", async () => {
   expect(probe().panel).toBe(JSON.stringify({ kind: "engagement", id }));
 });
 
-test("on a Saturday the week view opens on the coming week", async () => {
+test("on a Saturday the week view opens on this week, with the weekend shown", async () => {
   await renderApp({
     now: "2026-11-28T09:00:00.000Z",
     seed: (s) => {
@@ -101,8 +101,9 @@ test("on a Saturday the week view opens on the coming week", async () => {
     },
     children: ui,
   });
-  expect(screen.getByText("Next week")).toBeTruthy();
-  expect(screen.queryByText("Last week")).toBeNull();
+  expect(screen.getByText("Last week")).toBeTruthy();
+  expect(screen.queryByText("Next week")).toBeNull();
+  expect(screen.getByText(/Sat/)).toBeTruthy();
 });
 
 test("the header shows the principal and the latest import", async () => {

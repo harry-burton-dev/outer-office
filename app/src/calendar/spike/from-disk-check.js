@@ -85,7 +85,7 @@ async function main() {
 
     const week = page.locator("#week");
     for (const title of WEEKDAY_TITLES) check(await week.getByText(title, { exact: true }).first().isVisible(), `week shows "${title}"`);
-    check(!(await week.getByText("Weekend reading").count()), "week hides Saturday's event (Monday to Friday)");
+    check(await week.getByText("Weekend reading", { exact: true }).first().isVisible(), "week shows Saturday's event, so the weekend is not hidden");
     check((await page.locator("[draggable=true]").count()) === 0, "no element is draggable");
 
     await week.getByText("Budget planning", { exact: true }).click();
