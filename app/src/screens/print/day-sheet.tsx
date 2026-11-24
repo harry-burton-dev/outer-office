@@ -52,6 +52,19 @@ function Entry({ entry, zone }: { entry: SheetEntry; zone: string }) {
             <p className="text-sm whitespace-pre-wrap">{entry.notes}</p>
           </section>
         )}
+        {entry.children.length > 0 && (
+          <section aria-label="Run of show" className="flex flex-col gap-1">
+            <h4 className="text-sm font-medium">Run of show</h4>
+            <ol className="text-sm" data-run-of-show="">
+              {entry.children.map((child) => (
+                <li key={child.id} className="grid grid-cols-[7rem_1fr] gap-x-2">
+                  <span className="font-mono tabular-nums">{timeText(child, zone)}</span>
+                  <span className={child.masked ? "text-muted-foreground" : undefined}>{[child.title, child.location !== entry.location ? child.location : ""].filter(Boolean).join(" · ")}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
         {entry.tasks.length > 0 && (
           <section aria-label="Follow-ups" className="flex flex-col gap-1">
             <h4 className="text-sm font-medium">Follow-ups</h4>

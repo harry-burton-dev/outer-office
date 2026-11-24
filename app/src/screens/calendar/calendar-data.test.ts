@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import type { Event, Overlay } from "@/domain/selectors";
 import { diaryData, latestImport, marksFor, type ImportRow } from "./calendar-data";
 
@@ -42,4 +42,51 @@ test("the latest import is the principal's newest", () => {
   ] as ImportRow[];
   expect(latestImport(rows, "p1")?.id).toBe("i2");
   expect(latestImport(rows, "p3")).toBeUndefined();
+});
+
+describe("clashes, quiet, priority and links on the diary (OUT-84)", () => {
+  const at = (time: string) => `2026-11-24T${time}:00Z`;
+  const busy = (id: string, start: string, end: string, over: Partial<Event> = {}) => event({ id, subject: id, start: at(start), end: at(end), showAs: "busy", ...over });
+  const ov = (eventId: string, over: Partial<Overlay> = {}) => overlay({ id: `o-${eventId}`, event: eventId, ...over });
+
+  test("each side of a clash carries its worst severity and who it clashes with", () => {
+    const data = diaryData([busy("a", "09:00", "10:00"), busy("b", "09:30", "10:30"), busy("c", "10:15", "11:00", { showAs: "tentative" })], [], "p1");
+    expect(data.faces.get("a")?.clash).toEqual({ severity: "hard", with: ["b"] });
+    expect(data.faces.get("b")?.clash).toEqual({ severity: "hard", with: ["a", "c"] });
+    expect(data.faces.get("c")?.clash).toEqual({ severity: "soft", with: ["b"] });
+  });
+
+  test("a quiet event shows only its Quiet mark: no clash, flag or priority", () => {
+    const data = diaryData([busy("a", "09:00", "10:00", { moves: 1 }), busy("b", "09:30", "10:30")], [ov("a", { quiet: true, flagged: true, priority: 1 })], "p1");
+    expect(data.faces.get("a")).toMatchObject({ marks: ["Quiet"] });
+    expect(data.faces.get("a")?.clash).toBeUndefined();
+    expect(data.faces.get("a")?.priority).toBeUndefined();
+    expect(data.faces.get("b")?.clash).toBeUndefined();
+  });
+
+  test("priority 1 to 3 is shown; 4, none set, and masked events show none", () => {
+    const events = [busy("a", "09:00", "10:00"), busy("b", "11:00", "12:00"), busy("c", "13:00", "14:00", { masked: true }), busy("d", "15:00", "16:00")];
+    const data = diaryData(events, [ov("a", { priority: 2 }), ov("b", { priority: 4 }), ov("c", { priority: 1 })], "p1");
+    expect(["a", "b", "c", "d"].map((id) => data.faces.get(id)?.priority)).toEqual([2, undefined, undefined, undefined]);
+  });
+
+  test("a linked child inside its parent is drawn within the parent's block, not as its own", () => {
+    const events = [busy("visit", "14:00", "17:00"), busy("speech", "15:00", "15:30"), busy("tour", "14:15", "14:45")];
+    const data = diaryData(events, [ov("speech", { parent: "visit" }), ov("tour", { parent: "visit" })], "p1");
+    expect(data.events.map((e) => e.id)).toEqual(["visit"]);
+    expect(data.faces.get("visit")?.children?.map((c) => c.title)).toEqual(["tour", "speech"]);
+    expect(data.faces.get("visit")?.clash).toBeUndefined();
+  });
+
+  test("a child a sync moved outside its parent is a block of its own, marked", () => {
+    const data = diaryData([busy("visit", "14:00", "16:00"), busy("speech", "16:30", "17:00")], [ov("speech", { parent: "visit" })], "p1");
+    expect(data.events.map((e) => e.id)).toEqual(["visit", "speech"]);
+    expect(data.faces.get("speech")?.marks).toEqual(["Outside its parent"]);
+    expect(data.faces.get("visit")?.children).toBeUndefined();
+  });
+
+  test("the graveyard has no clashes", () => {
+    const data = diaryData([busy("a", "09:00", "10:00", { gone: true }), busy("b", "09:00", "10:00", { gone: true })], [], "p1", [], undefined, { layer: "graveyard", proposals: [] });
+    expect(data.faces.get("a")?.clash).toBeUndefined();
+  });
 });

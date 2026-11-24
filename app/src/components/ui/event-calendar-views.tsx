@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import FullCalendar, { type CalendarOptions, type DayCellInfo } from '@fullcalendar/react'
 // skeleton.css is imported by src/index.css instead: the app's styles reach the single-file bundle only through it.
 import { cn } from '@/lib/utils'
@@ -76,10 +77,15 @@ const dayRowCommonClasses: CalendarOptions = {
 
 export type EventCalendarViewProps =
   CalendarOptions &
-  Required<Pick<CalendarOptions, 'popoverCloseContent'>> // ensure callers define icons
+  Required<Pick<CalendarOptions, 'popoverCloseContent'>> & // ensure callers define icons
+  {
+    /** Extra content under each day header's weekday, given the header's date. */
+    dayHeaderExtra?: (date: Date) => ReactNode
+  }
 
 export function EventCalendarViews({
   views: userViews,
+  dayHeaderExtra,
   ...restOptions
 }: EventCalendarViewProps) {
   return (
@@ -258,6 +264,7 @@ blockEventClass={(info) => cn(
           {info.weekdayText && (
             <div className="text-xs font-medium text-muted-foreground">{info.weekdayText}</div>
           )}
+          {dayHeaderExtra && !info.inPopover && dayHeaderExtra(info.date)}
         </>
       )}
 

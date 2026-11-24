@@ -12,6 +12,9 @@ export interface OfficeForm {
   readonly privatePolicy: string;
   /** "on" or "off", from the Power Automate select. */
   readonly automate: string;
+  /** The day summary's limits (OUT-84); blank keeps what is stored. */
+  readonly longRunHours?: string;
+  readonly placeChangeMinutes?: string;
 }
 
 export interface PrincipalRow {
@@ -52,9 +55,16 @@ export function officeInput(form: OfficeForm, now: string): Built<OfficeSaveInpu
   if (!policy) return failed("Choose whether private items are masked or dropped.");
   const dayStart = form.dayStart.trim();
   const dayEnd = form.dayEnd.trim();
+  const longRun = (form.longRunHours ?? "").trim();
+  const placeChange = (form.placeChangeMinutes ?? "").trim();
+  if (longRun && !Number.isFinite(Number(longRun))) return failed("A long run must be a number of hours, such as 4.");
+  if (placeChange && !Number.isFinite(Number(placeChange))) return failed("A quick change of place must be a number of minutes, such as 30.");
   return {
     ok: true,
-    input: { now, name: form.name.trim(), timezone, privatePolicy: policy, automate: form.automate === "on", ...(dayStart ? { dayStart } : {}), ...(dayEnd ? { dayEnd } : {}) },
+    input: {
+      now, name: form.name.trim(), timezone, privatePolicy: policy, automate: form.automate === "on", ...(dayStart ? { dayStart } : {}), ...(dayEnd ? { dayEnd } : {}),
+      ...(longRun ? { longRunHours: Number(longRun) } : {}), ...(placeChange ? { placeChangeMinutes: Number(placeChange) } : {}),
+    },
   };
 }
 
