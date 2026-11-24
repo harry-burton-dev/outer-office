@@ -19,11 +19,36 @@ const find = (uid: string, options = MASK) => parseAutomate(MAIN_PAYLOAD, option
 let n = 0;
 const stored = (event: ImportedEvent): StoredEvent => ({ ...event, id: `ev-${++n}`, principal: "PRINCIPAL-A", gone: false, moves: 0 });
 
+describe("attendees", () => {
+  const lunch = MAIN_PAYLOAD.events.find((e) => e.subject === "Team lunch") as DiaryEvent;
+  const withAttendees = (event: DiaryEvent): DiaryPayload => ({ ...MAIN_PAYLOAD, events: MAIN_PAYLOAD.events.map((e) => (e === lunch ? event : e)) });
+  const attendees = [
+    { type: "required", status: { response: "accepted" }, emailAddress: { name: "Alex Example", address: "alex@example.invalid" } },
+    { type: "required", status: { response: "none" }, emailAddress: { name: null, address: "sam@example.invalid" } },
+    { type: "optional", status: { response: "tentativelyAccepted" }, emailAddress: { name: "Jo Example", address: "jo@example.invalid" } },
+  ];
+  const parsedLunch = (event: DiaryEvent) => parseAutomate(withAttendees(event), MASK).events.find((e) => e.start === "2026-10-13T11:00:00.000Z");
+
+  test("are read as the .ics parser writes them, required and optional apart", () => {
+    expect(parsedLunch({ ...lunch, attendees })).toMatchObject({
+      requiredAttendees: "Alex Example <alex@example.invalid> · accepted\nsam@example.invalid",
+      optionalAttendees: "Jo Example <jo@example.invalid> · tentative",
+    });
+  });
+
+  test("go when the event is private, and are left out when the payload has none", () => {
+    expect(parsedLunch({ ...lunch, attendees, sensitivity: "private" })).toMatchObject({ requiredAttendees: "", optionalAttendees: "" });
+    const none = parsedLunch({ ...lunch, attendees: null });
+    expect(none?.requiredAttendees).toBeUndefined();
+    expect(none?.optionalAttendees).toBeUndefined();
+  });
+});
+
 describe("cross-source keys: the .ics file and the diary payload for the same diary", () => {
   test("give identical events, field for field", () => {
-    // The .ics file also carries the meeting panel's detail fields (OUT-78), which the
-    // diary payload does not have yet; the two must agree on everything else.
-    const shared = ({ requiredAttendees: _r, optionalAttendees: _o, importance: _i, sensitivity: _s, created: _c, ...rest }: ImportedEvent) => rest;
+    // The .ics file also carries importance, sensitivity and created (OUT-78), which the
+    // diary payload does not have yet; the two must agree on everything else, attendees included.
+    const shared = ({ importance: _i, sensitivity: _s, created: _c, ...rest }: ImportedEvent) => rest;
     const fromIcs = parseIcs(MAIN_FIXTURE, { ...MAIN_WINDOW, privatePolicy: "mask" }).events.map(shared);
     const fromPayload = parseAutomate(MAIN_PAYLOAD, MASK).events;
     expect(fromPayload).toHaveLength(23);

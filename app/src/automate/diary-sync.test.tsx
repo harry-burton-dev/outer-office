@@ -53,7 +53,8 @@ describe("diary sync", () => {
     const events = MAIN_PAYLOAD_EVENTS
       .filter((e) => e.iCalUId !== UID.remoteTeam)
       .map((e) => (e.iCalUId === UID.lunch ? { ...e, start: "2026-10-13T12:00:00.0000000", end: "2026-10-13T13:00:00.0000000", lastModifiedDateTime: later } : e));
-    const added: DiaryEvent = { ...(MAIN_PAYLOAD_EVENTS.find((e) => e.iCalUId === UID.lunch) as DiaryEvent), iCalUId: "new-meeting", subject: "New meeting", lastModifiedDateTime: later };
+    const added: DiaryEvent = { ...(MAIN_PAYLOAD_EVENTS.find((e) => e.iCalUId === UID.lunch) as DiaryEvent), iCalUId: "new-meeting", subject: "New meeting", lastModifiedDateTime: later,
+      attendees: [{ type: "required", status: { response: "accepted" }, emailAddress: { name: "Alex Example", address: "alex@example.invalid" } }] };
     await files.write(`${A}/20261123T213000Z.json`, diaryEvent("2026-11-23T21:30:00Z", payloadOf([...events, added])));
     await app.tick();
 
@@ -61,7 +62,7 @@ describe("diary sync", () => {
     const stored = rows(app.device, "events");
     expect(stored.find((e) => e.uid === UID.lunch)).toMatchObject({ start: "2026-10-13T12:00:00.000Z", moves: 1 });
     expect(stored.find((e) => e.uid === UID.remoteTeam)).toMatchObject({ gone: true });
-    expect(stored.find((e) => e.uid === "new-meeting")).toMatchObject({ subject: "New meeting", gone: false });
+    expect(stored.find((e) => e.uid === "new-meeting")).toMatchObject({ subject: "New meeting", gone: false, requiredAttendees: "Alex Example <alex@example.invalid> · accepted" });
     await app.tick();
     expect([...files.files.keys()]).toEqual([]);
   });

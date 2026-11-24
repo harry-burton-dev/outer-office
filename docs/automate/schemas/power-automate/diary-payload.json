@@ -102,7 +102,7 @@
               "array",
               "null"
             ],
-            "description": "Graph attendees, kept for OO2 (OUT-67, OUT-60). The adapter does not read them yet.",
+            "description": "Graph attendees. The adapter reads them into requiredAttendees and optionalAttendees (OUT-67), and drops them for private items.",
             "items": {
               "type": "object",
               "properties": {
