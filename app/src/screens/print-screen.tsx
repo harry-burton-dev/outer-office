@@ -14,9 +14,19 @@ import { PageHeader } from "@/app/ui";
 import { addDays, weekdayOf } from "@/domain/dates";
 import { sheetDays, type SheetDay } from "@/domain/sheets";
 import { NativeSelect } from "@/panels/task/native-select";
-import { openingDate } from "./calendar/calendar-data";
 import { DaySheet } from "./print/day-sheet";
 import { ForwardLook } from "./print/forward-look";
+
+const SATURDAY = 6;
+const SUNDAY = 0;
+
+/** Today, or the Monday after when today is a weekend: the day a sheet usually wants. */
+function openingDate(today: string): string {
+  const day = weekdayOf(today);
+  if (day === SATURDAY) return addDays(today, 2);
+  if (day === SUNDAY) return addDays(today, 1);
+  return today;
+}
 
 function useSheetDays(principalId: string, from: string, days: number) {
   const { timezone } = useApp();

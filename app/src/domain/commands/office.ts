@@ -14,6 +14,8 @@ export interface OfficeSaveInput {
   dayStart?: string;
   dayEnd?: string;
   privatePolicy?: PrivatePolicy;
+  /** The Power Automate setting: whether the app reads diary updates from the automate/ folder. */
+  automate?: boolean;
 }
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -35,7 +37,8 @@ function checkOffice(tx: Tx, input: OfficeSaveInput): Omit<OfficeSaveInput, "now
   const dayEnd = optionalText(tx, input.dayEnd, "The end of the day");
   for (const time of [dayStart, dayEnd]) if (time !== undefined && !CLOCK.test(time)) tx.fail(`"${time}" is not a time written as HH:MM, such as 08:00.`);
   if (input.privatePolicy !== undefined && input.privatePolicy !== "drop" && input.privatePolicy !== "mask") tx.fail("Private items must be either dropped or masked.");
-  return defined({ name, timezone, dayStart, dayEnd, privatePolicy: input.privatePolicy });
+  const automate = optionalBoolean(tx, input.automate, "Power Automate");
+  return defined({ name, timezone, dayStart, dayEnd, privatePolicy: input.privatePolicy, automate });
 }
 
 export const officeSave = defineCommand("office.save", (tx: Tx, input: OfficeSaveInput) => {

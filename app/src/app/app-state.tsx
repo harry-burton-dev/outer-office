@@ -6,9 +6,10 @@ import { useRecord, useRecords, useSession } from "@trellis/framework";
 import { OFFICE_ID } from "@/domain/commands";
 import { todayIn } from "@/domain/dates";
 import { isViewer as isViewerIn } from "@/domain/selectors";
+import { DiaryInboxProvider } from "@/automate/diary-inbox-state";
 import { resolvePrincipal, useActivePrincipals } from "./principals";
 
-export type Screen = "home" | "calendar" | "import" | "log" | "print" | "inbox" | "today" | "project" | "bin" | "tags" | "templates";
+export type Screen = "home" | "calendar" | "import" | "log" | "print" | "inbox" | "today" | "project" | "bin" | "tags" | "templates" | "stats";
 export type Panel =
   | { kind: "engagement"; id: string }
   | { kind: "task"; id: string }
@@ -98,7 +99,11 @@ export function AppProvider({ children }: { children: ReactNode }): ReactElement
     () => ({ ...navigation, principalId, choosePrincipal: setChosen, userId: user.id, isViewer, timezone, now, today: todayIn(timezone, now) }),
     [navigation, principalId, user.id, isViewer, timezone, now],
   );
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={value}>
+      <DiaryInboxProvider canApply={!isViewer} timeZone={timezone} now={now}>{children}</DiaryInboxProvider>
+    </AppContext.Provider>
+  );
 }
 
 export function useApp(): AppContextValue {

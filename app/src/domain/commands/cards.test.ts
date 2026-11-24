@@ -54,6 +54,9 @@ describe("cards", () => {
     ok(a, cardSet, { now: NOW, id: card, values: { system: "Teams bridge" } });
     expect(valuesOf(byId(a, "cards", card)?.values)).toEqual({ host: "true", system: "Teams bridge" });
     expect(isComplete(progress())).toBe(true);
+    expect(rows(a, "log").filter((l) => l.kind === "card-ready")).toMatchObject([{ event, note: "Dial-in", area: "overlay" }]);
+    ok(a, cardSet, { now: NOW, id: card, values: { host: "false" } });
+    expect(rows(a, "log").filter((l) => l.kind === "card-ready")).toHaveLength(1);
     ok(a, cardRemove, { now: NOW, id: card });
     expect(rows(a, "cards")).toEqual([]);
   });

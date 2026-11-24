@@ -1,7 +1,7 @@
 // Card templates and the cards on meetings (OUT-62).
 import { defineCommand, type Tx } from "@trellis/framework";
-import { FIELD_TYPES, SHAPES, fieldsOf, valuesOf, type TemplateField } from "../cards";
-import { requireNow, requireText } from "./shared";
+import { FIELD_TYPES, SHAPES, fieldsOf, isComplete, progressOf, valuesOf, type TemplateField } from "../cards";
+import { requireNow, requireText, writeLog } from "./shared";
 
 export interface TemplateSaveInput {
   now: string;
@@ -73,9 +73,17 @@ export const cardSet = defineCommand("card.set", (tx: Tx, input: { now: string; 
   const card = tx.get("cards", id);
   if (!card || card._deleted) tx.fail("That card has been removed.");
   if (typeof input.values !== "object" || input.values === null) tx.fail("Nothing to save.");
-  const values = { ...valuesOf(card.values) };
+  const before = valuesOf(card.values);
+  const values = { ...before };
   for (const [key, value] of Object.entries(input.values)) if (typeof value === "string") values[key] = value;
   tx.put("cards", id, { values: JSON.stringify(values) });
+  // Logged when the card becomes complete, so Stats can tell prep done before the meeting from after (OUT-69).
+  const template = tx.get("templates", card.template ?? "");
+  const fields = fieldsOf(template?.fields);
+  if (template && isComplete(progressOf(fields, values)) && !isComplete(progressOf(fields, before))) {
+    const event = tx.get("events", card.event ?? "");
+    writeLog(tx, input.now, { area: "overlay", kind: "card-ready", principal: event?.principal ?? "", event: card.event ?? "", note: template.name ?? "" });
+  }
 });
 
 /** Takes a card off its meeting. */

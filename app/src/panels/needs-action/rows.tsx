@@ -66,3 +66,15 @@ export function EventRow({ event, withDay }: EventRowProps) {
     </li>
   );
 }
+
+/** A diary update from Power Automate that could not be applied: opens the Import screen, which says why. */
+export function DiaryRow() {
+  const { go, closePanel } = useApp();
+  return (
+    <li>
+      <button type="button" className={ROW_CLASS} onClick={() => { closePanel(); go("import"); }}>
+        <span className="min-w-0 flex-1 truncate">Diary update can't be used</span>
+      </button>
+    </li>
+  );
+}

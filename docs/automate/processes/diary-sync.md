@@ -1,6 +1,6 @@
 # Business process: `diary-sync` (processVersion 1)
 
-**What it does.** On a schedule, it reads each principal's calendar and drops one event per principal into the inbox. The app reads the inbox on each sync tick, turns the payload into the same `ParseResult` that an `.ics` import gives, and shows it as "Diary update ready" for review.
+**What it does.** On a schedule, it reads each principal's calendar and drops one event per principal into the inbox. The app reads the inbox on each sync tick, turns the payload into the same `ParseResult` that an `.ics` import gives, and applies it straight away through the same diff, with an import and a log entry when it changes anything. A file it can't use shows in Needs action and on the Import screen with the reason.
 
 | | |
 |---|---|

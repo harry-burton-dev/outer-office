@@ -8,13 +8,13 @@ import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useApp } from "./app-state";
 import { ThemeToggle } from "./theme";
-import { needsActionCount, useNeedsAction } from "./frame-data";
+import { needsActionCount, useDiaryForNeedsAction, useNeedsAction } from "./frame-data";
 import { usePeople } from "./people";
 import { isTaskScreen } from "./screen-content";
 
 function NeedsActionButton() {
   const { openPanel } = useApp();
-  const count = needsActionCount(useNeedsAction());
+  const count = needsActionCount(useNeedsAction()) + (useDiaryForNeedsAction() ? 1 : 0);
   return (
     <Button variant="outline" onClick={() => openPanel({ kind: "needs-action" })}>
       Needs action{" "}

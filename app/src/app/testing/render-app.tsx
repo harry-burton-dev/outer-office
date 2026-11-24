@@ -11,10 +11,13 @@
 //     options.seed      (seed: Seeder) => void, run before the first render
 //     options.children  what to render inside <AppProvider> (default <AppFrame />);
 //                       pass a screen or panel to test it alone, plus <AppProbe /> to read state
+//     options.plainFiles  what useSession().plainFiles returns (default: it throws),
+//                       for example memoryPlainFiles() from automate/testing
 //   RenderedApp: Testing Library's RenderResult plus
 //     device            the user's Device (data runtime on the memory world)
 //     seed              the same Seeder, to change data after the first render;
 //                       its writes are wrapped in act()
+//     tick()            runs the useSession().onTick listeners once, inside act()
 //   Seeder: run(command, input) runs any command and returns its value (throws on failure);
 //     office(fields), principal(code, fields?) -> id, task(input) -> id, viewer(userId?), ackPrivacy(),
 //     user(id, name, active?) writes a users-table record (the framework's table, read by useUsers)
@@ -31,7 +34,7 @@
 import type { ReactNode } from "react";
 import { act, cleanup, render, screen, type RenderResult } from "@testing-library/react";
 import { vi } from "vitest";
-import { DataProvider, type CommandDef } from "@trellis/framework";
+import { DataProvider, type CommandDef, type PlainFiles } from "@trellis/framework";
 import { ShellProvider } from "../../../../framework/runtime/shell/provider";
 import { SessionContext, type TrellisSession } from "../../../../framework/runtime/shell/context";
 import { fakeEngine } from "../../../../framework/runtime/shell/test/helpers/fake-engine";
@@ -62,11 +65,13 @@ export interface RenderAppOptions {
   now?: string;
   seed?: (seed: Seeder) => void;
   children?: ReactNode;
+  plainFiles?: PlainFiles;
 }
 
 export interface RenderedApp extends RenderResult {
   readonly device: Device;
   readonly seed: Seeder;
+  tick(): Promise<void>;
 }
 
 function makeSeeder(device: Device, now: string, wrap: (write: () => void) => void): Seeder {
@@ -112,6 +117,7 @@ export async function renderApp(options: RenderAppOptions = {}): Promise<Rendere
   const world = await makeTestWorld();
   const device = await world.device(user);
   options.seed?.(makeSeeder(device, now, (write) => write()));
+  const listeners = new Set<() => void | Promise<void>>();
   const session: TrellisSession = {
     user: { id: user, name },
     deviceId: `${user}-device`,
@@ -120,9 +126,18 @@ export async function renderApp(options: RenderAppOptions = {}): Promise<Rendere
     builtAt: now,
     openInvite: () => undefined,
     plainFiles: () => {
-      throw new Error("renderApp does not set up plain files");
+      if (!options.plainFiles) throw new Error("renderApp does not set up plain files: pass options.plainFiles");
+      return options.plainFiles;
     },
-    onTick: () => () => undefined,
+    onTick: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+  const tick = async (): Promise<void> => {
+    await act(async () => {
+      for (const listener of [...listeners]) await listener();
+    });
   };
   const result = render(
     <ShellProvider engine={fakeEngine()}>
@@ -133,7 +148,7 @@ export async function renderApp(options: RenderAppOptions = {}): Promise<Rendere
       </DataProvider>
     </ShellProvider>,
   );
-  return { ...result, device, seed: makeSeeder(device, now, (write) => act(write)) };
+  return { ...result, device, seed: makeSeeder(device, now, (write) => act(write)), tick };
 }
 
 export function cleanupApp(): void {

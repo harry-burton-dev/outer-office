@@ -5,6 +5,7 @@ import { useRecord } from "@trellis/framework";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/app/ui";
 import { useApp } from "@/app/app-state";
+import { useDiaryEntry } from "@/automate/diary-inbox-state";
 import { ChooseStep } from "./import/choose-step";
 import { ReviewStep } from "./import/review-step";
 import { ImportHistory } from "./import/import-history";
@@ -17,6 +18,7 @@ interface ImportStepsProps {
 function ImportSteps({ principal }: ImportStepsProps) {
   const record = useRecord("principals", principal);
   const { state, policy, choose, chooseCsv, pickOrder, apply, reset } = useImportFlow(principal);
+  const diary = useDiaryEntry(principal);
   const label = record?.code ?? principal;
   if (state.step === "review") {
     return <ReviewStep {...state} policy={policy} onApply={apply} onCancel={reset} />;
@@ -49,7 +51,16 @@ function ImportSteps({ principal }: ImportStepsProps) {
       </section>
     );
   }
-  return <ChooseStep principalLabel={label} errors={state.errors} busy={state.busy} onFile={(file) => void choose(file)} onCsvFile={(file) => void chooseCsv(file)} />;
+  return (
+    <>
+      {diary && !diary.ok && (
+        <section aria-label="Diary update" className="mb-6 flex flex-col items-start gap-2">
+          <p role="alert" className="text-sm text-destructive">The latest diary update can't be used: {diary.reason}.</p>
+        </section>
+      )}
+      <ChooseStep principalLabel={label} errors={state.errors} busy={state.busy} onFile={(file) => void choose(file)} onCsvFile={(file) => void chooseCsv(file)} />
+    </>
+  );
 }
 
 export function ImportScreen() {
