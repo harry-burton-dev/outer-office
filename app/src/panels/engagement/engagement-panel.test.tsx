@@ -207,3 +207,39 @@ test("the Overview suggests linking under an engagement it sits inside, and link
   fireEvent.click(screen.getByRole("button", { name: "Unlink" }));
   expect(rows(app.device, "overlays").find((r) => r.event === event)?.parent).toBe("");
 });
+
+/** The panel on one engagement of its own. */
+async function openOn(event: Parameters<typeof syntheticEvent>[1] & object, uid = "a2") {
+  const seeded = { event: "" };
+  await renderApp({
+    now: MONDAY_NOW,
+    seed: (s) => {
+      const principal = s.principal("PRINCIPAL-A");
+      importEvents(s, MONDAY_NOW, principal, [syntheticEvent(uid, event)]);
+      seeded.event = eventIdOf(s.device, principal, uid);
+    },
+    children: <Sheet open><PanelFor seeded={seeded} /></Sheet>,
+  });
+  return screen.findByRole("dialog");
+}
+
+test("B40: the body shows as plain text, markup and all, with All Outlook fields from the raw item", async () => {
+  const panel = await openOn({
+    subject: "Board", body: "Agenda\n<b>Budget</b> <script>alert(1)</script>", source: "automate",
+    joinUrl: "https://teams.example/j/1", webLink: "javascript:alert(1)", hasAttachments: true,
+    raw: JSON.stringify({ "@odata.etag": "W/\"1\"", id: "AAMk1", changeKey: "x", subject: "Board" }),
+  });
+  expect(within(panel).getByText(/<b>Budget<\/b> <script>alert\(1\)<\/script>/)).toBeTruthy();
+  expect(panel.querySelector("b, script")).toBeNull();
+  expect(within(panel).getByRole("link", { name: "Join the online meeting" }).getAttribute("href")).toBe("https://teams.example/j/1");
+  expect(within(panel).queryByRole("link", { name: "Open in Outlook" })).toBeNull();
+  expect(within(panel).getByText("Has attachments in Outlook")).toBeTruthy();
+  const all = panel.querySelector('[aria-label="All Outlook fields"]');
+  expect([...(all?.querySelectorAll("dt") ?? [])].map((dt) => dt.textContent)).toEqual(["id", "subject"]);
+});
+
+test("a masked engagement shows no body and no Outlook fields", async () => {
+  const panel = await openOn({ masked: true, subject: "Private, busy", body: "secret", raw: "{\"id\":\"x\"}" }, "a3");
+  expect(panel.textContent).not.toContain("secret");
+  expect(within(panel).queryByText("All Outlook fields")).toBeNull();
+});

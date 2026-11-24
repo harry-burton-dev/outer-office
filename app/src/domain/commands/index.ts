@@ -4,6 +4,7 @@
 import { officeSave, principalSave } from "./office";
 import { importApply } from "./import";
 import { overlaySet } from "./overlay";
+import { seriesOverlaySet } from "./series-overlay";
 import { taskAdd, taskComplete, taskLink, taskMove, taskRemove, taskUpdate } from "./tasks";
 import { taskAssign } from "./task-assign";
 import { projectSave, sectionSave } from "./projects";
@@ -12,20 +13,23 @@ import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, cardUpdate, tabApply, tabRemove, tabUpdate, tabTemplateRemove, tabTemplateSave, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
+import { ruleSettingSet, updateSet } from "./alerts";
 
 export const commands = {
-  officeSave, principalSave, importApply, overlaySet,
+  officeSave, principalSave, importApply, overlaySet, seriesOverlaySet,
   taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove,
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave,
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
   templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
   cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate,
+  ruleSettingSet, updateSet,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate };
+export { officeSave, principalSave, importApply, overlaySet, seriesOverlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate, ruleSettingSet, updateSet };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
+export type { SeriesOverlaySetInput } from "./series-overlay";
 export type { TaskAddInput, TaskUpdateInput, TaskMoveInput, TaskCompleteInput, TaskLinkInput, TaskRemoveInput } from "./tasks";
 export type { TaskAssignInput, AssignAction } from "./task-assign";
 export type { ProjectSaveInput, SectionSaveInput } from "./projects";
@@ -34,5 +38,6 @@ export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } fr
 export type { TemplateSaveInput, TabTemplateSaveInput, TabVia } from "./cards";
 export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
+export type { RuleSettingSetInput, UpdateSetInput, UpdateAction } from "./alerts";
 export { OFFICE_ID } from "./office";
 export { INBOX_NAME } from "./projects";

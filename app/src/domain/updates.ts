@@ -1,0 +1,362 @@
+// Updates (v0.3 brief 5.3, OUT-86): what the rules post for one user, worked
+// out when read from the log, the diary and the user's rule settings. Nothing
+// here is stored; only each user's updateState row for an update key is.
+//
+// Two lanes. **Needs you**: a state rule's update stands while its cause does,
+// and can only be snoozed. **For information**: change rows, coalesced per
+// engagement (the net since the user last saw it), then per series, then per
+// sync run; seen, dismissed, snoozed or pinned, and gone 14 days after the
+// newest change unless pinned. Pure: no hooks.
+import type { RowOf } from "@trellis/framework";
+import { todayIn } from "./dates";
+import { FIRST_LOOK_DAYS, ME } from "./home";
+import { isOverdue } from "./selectors";
+import { RULES, type ChangeContext, type ChangeRule, type Lane, type RuleSetting } from "./rules";
+
+type LogRow = RowOf<"log">;
+type TaskRow = RowOf<"tasks">;
+type EventRow = RowOf<"events">;
+type OverlayRow = RowOf<"overlays">;
+type SeenRow = RowOf<"seen">;
+type UpdateStateRow = RowOf<"updateState">;
+
+export const EXPIRY_DAYS = 14;
+const DAY_MS = 86_400_000;
+const HOUR_MS = 3_600_000;
+
+/** The log note of a Power Automate run starts with this (apply-diary's SYNC_FILE). */
+const SYNC_NOTE = "Power Automate sync";
+
+export interface UpdatesInput {
+  user: string;
+  /** ISO UTC instant. */
+  now: string;
+  timezone: string;
+  dayStart: string;
+  dayEnd: string;
+  /** The principals Home shows, in order. */
+  principals: readonly { id: string }[];
+  log: readonly LogRow[];
+  tasks: readonly TaskRow[];
+  events: readonly EventRow[];
+  overlays: readonly OverlayRow[];
+  seen: readonly SeenRow[];
+  /** Every user's rows: another user's dismissal shows as "dealt with". */
+  updateState: readonly UpdateStateRow[];
+  /** settingsFor(user, …). */
+  settings: ReadonlyMap<string, RuleSetting>;
+  sync: {
+    /** The office's Power Automate setting; sync-late only fires when it is on. */
+    on: boolean;
+    /** The newest sync each principal is known to have had, ISO UTC. */
+    last: ReadonlyMap<string, string>;
+    /** Why a principal's newest sync was held back. */
+    heldBack: ReadonlyMap<string, string>;
+  };
+}
+
+export interface DealtWith {
+  by: string;
+  at: string;
+}
+
+export interface Update {
+  /** The coalesce key: updateState is stored under it. */
+  key: string;
+  lane: Lane;
+  /** A principal id, or ME. */
+  scope: string;
+  /** The rules it matched, in the order they were first matched. */
+  rules: string[];
+  /** The newest change it holds, or when its cause began ("" when not known). */
+  at: string;
+  event?: string;
+  task?: string;
+  /** Change kinds, net: a meeting moved and moved back holds no "moved". */
+  kinds: string[];
+  /** A net move. */
+  from?: string;
+  to?: string;
+  note?: string;
+  /** The change rows it holds, oldest first. */
+  rows: LogRow[];
+  /** The engagements a series or sync-run update holds. */
+  members: Update[];
+  pinned: boolean;
+  dealtWith?: DealtWith;
+}
+
+export interface UpdateGroup {
+  scope: string;
+  /** When the user last marked the scope seen, or "". */
+  seenAt: string;
+  needs: Update[];
+  info: Update[];
+}
+
+const live = <T extends { _deleted: boolean }>(row: T) => !row._deleted;
+const byAt = (a: LogRow, b: LogRow) => (a.at ?? "").localeCompare(b.at ?? "") || a.id.localeCompare(b.id);
+const newestFirst = (a: Update, b: Update) => b.at.localeCompare(a.at) || a.key.localeCompare(b.key);
+const runOf = (row: LogRow) => `${row.principal ?? ""}|${row.at ?? ""}|${row.by ?? ""}`;
+const subjectOf = (row: LogRow) => (row.event ? `e:${row.event}` : row.task ? `t:${row.task}` : `row:${row.id}`);
+
+/** Occurrences of one series share a UID; a single event has no series. */
+const seriesOf = (event: EventRow | undefined): string => (event && event.recurrenceId ? (event.uid ?? "") : "");
+
+const hasOfficeData = (overlay: OverlayRow | undefined): boolean =>
+  overlay !== undefined && live(overlay) &&
+  (Boolean(overlay.notes?.trim()) || Boolean(overlay.outcome?.trim()) || overlay.flagged === true || (overlay.prep ?? "none") !== "none");
+
+interface Ctx {
+  input: UpdatesInput;
+  state: ReadonlyMap<string, UpdateStateRow>;
+  scopeSeen: ReadonlyMap<string, string>;
+  firstLook: string;
+}
+
+/** The net of one engagement's rows, or undefined when they cancel out. */
+function net(rows: readonly LogRow[]): Pick<Update, "kinds" | "from" | "to"> | undefined {
+  const calendarRows = rows.filter((r) => r.area === "calendar");
+  const first = calendarRows[0]?.kind;
+  let existed = first !== "added" && first !== "returned";
+  const before = existed;
+  for (const r of calendarRows) {
+    if (r.kind === "added" || r.kind === "returned") existed = true;
+    if (r.kind === "gone") existed = false;
+  }
+  const after = existed;
+  const moves = calendarRows.filter((r) => r.kind === "moved");
+  const from = moves[0]?.from ?? "";
+  const to = moves[moves.length - 1]?.to ?? "";
+  const moved = moves.length > 0 && from !== to;
+  const other = [...new Set(rows.filter((r) => r.area !== "calendar").map((r) => r.kind ?? ""))];
+  const changed = calendarRows.some((r) => r.kind === "changed");
+  let kinds: string[];
+  if (!before && !after) kinds = [];
+  else if (!before) kinds = [first === "returned" ? "returned" : "added"];
+  else if (!after) kinds = ["gone"];
+  else kinds = [...(moved ? ["moved"] : []), ...(changed ? ["changed"] : [])];
+  kinds = [...kinds, ...other];
+  if (kinds.length === 0) return undefined;
+  return { kinds, ...(moved && before && after ? { from, to } : {}) };
+}
+
+function dealtWith(ctx: Ctx, key: string, after: string, subject: { event?: string; task?: string }): DealtWith | undefined {
+  const { user, log, updateState } = ctx.input;
+  const marks = updateState
+    .filter((s) => live(s) && s.key === key && s.userId !== user && s.state === "dismissed")
+    .map((s) => ({ by: s.userId ?? "", at: s.at ?? "" }));
+  const acts = log
+    .filter((r) => live(r) && r.by !== user && (r.at ?? "") > after && r.area !== "calendar" && r.area !== "import" &&
+      ((subject.event && r.event === subject.event) || (subject.task && r.task === subject.task)))
+    .map((r) => ({ by: r.by ?? "", at: r.at ?? "" }));
+  return [...marks, ...acts].sort((a, b) => b.at.localeCompare(a.at))[0];
+}
+
+/** The rules on for the user, change rules only, sync-applied aside. */
+function changeRules(settings: ReadonlyMap<string, RuleSetting>): ChangeRule[] {
+  return RULES.filter((r): r is ChangeRule => r.kind === "change" && r.id !== "sync-applied" && settings.get(r.id)?.on === true);
+}
+
+/** For-information updates, before the user's state hides any. */
+function infoUpdates(ctx: Ctx): Update[] {
+  const { input } = ctx;
+  const { user, log, tasks, events, settings } = input;
+  const taskById = new Map(tasks.map((t) => [t.id, t]));
+  const eventById = new Map(events.map((e) => [e.id, e]));
+  const context: ChangeContext = {
+    user, task: (id) => taskById.get(id), event: (id) => eventById.get(id),
+    timezone: input.timezone, dayStart: input.dayStart, dayEnd: input.dayEnd,
+  };
+  const rules = changeRules(settings);
+  const live_ = log.filter(live).sort(byAt);
+  // A Power Automate run is nobody's own change, even on the device that applied it.
+  const applied = live_.filter((r) => r.area === "import" && r.kind === "applied");
+  const syncRuns = new Set(applied.filter((r) => (r.note ?? "").startsWith(SYNC_NOTE)).map(runOf));
+  const others = live_.filter((r) => r.by !== user || syncRuns.has(runOf(r)));
+
+  // A subject posts when a rule matches one of its rows; its net reads all of them,
+  // diary rows too, so a meeting added then gone is nothing even with the gone rule off.
+  const groups = new Map<string, { scope: string; rows: LogRow[]; rules: string[] }>();
+  const allOf = new Map<string, LogRow[]>();
+  const hits = new Set<string>();
+  for (const row of others) {
+    const key = subjectOf(row);
+    allOf.set(key, [...(allOf.get(key) ?? []), row]);
+    const matched = rules.filter((r) => r.match(row, context, settings.get(r.id)?.amount ?? 0));
+    if (matched.length === 0) continue;
+    hits.add(row.id);
+    const scope = matched[0].scope === "me" ? ME : (row.principal ?? "");
+    const group = groups.get(key) ?? { scope, rows: [], rules: [] };
+    for (const r of matched) if (!group.rules.includes(r.id)) group.rules.push(r.id);
+    groups.set(key, group);
+  }
+  for (const [key, group] of groups) group.rows = (allOf.get(key) ?? []).filter((r) => hits.has(r.id) || r.area === "calendar");
+
+  const single: Update[] = [];
+  for (const [key, group] of groups) {
+    const seenAt = seenPoint(ctx, key, group.scope);
+    const fresh = group.rows.filter((r) => (r.at ?? "") > seenAt);
+    const pinned = ctx.state.get(key)?.state === "pinned";
+    const rows = fresh.length > 0 ? fresh : pinned ? group.rows : [];
+    if (rows.length === 0) continue;
+    const summary = net(rows);
+    if (!summary) continue;
+    const last = rows[rows.length - 1];
+    const subject = { ...(last.event ? { event: last.event } : {}), ...(last.task ? { task: last.task } : {}) };
+    single.push({
+      key, lane: "info", scope: group.scope, rules: group.rules, at: last.at ?? "", ...subject, ...summary,
+      ...(last.note ? { note: last.note } : {}), rows, members: [], pinned,
+    });
+  }
+
+  const bySeries = foldSeries(ctx, single, eventById);
+  return foldRuns(ctx, bySeries, applied);
+}
+
+/** Two or more engagements of one series become one update. */
+function foldSeries(ctx: Ctx, updates: readonly Update[], eventById: ReadonlyMap<string, EventRow>): Update[] {
+  const bySeries = new Map<string, Update[]>();
+  const rest: Update[] = [];
+  for (const u of updates) {
+    const series = u.event ? seriesOf(eventById.get(u.event)) : "";
+    if (!series) { rest.push(u); continue; }
+    const key = `series:${u.scope}:${series}`;
+    bySeries.set(key, [...(bySeries.get(key) ?? []), u]);
+  }
+  for (const [key, members] of bySeries) {
+    if (members.length === 1) { rest.push(members[0]); continue; }
+    rest.push(container(ctx, key, members, []));
+  }
+  return rest;
+}
+
+/** The engagements one sync run alone changed become its sync-applied update. */
+function foldRuns(ctx: Ctx, updates: Update[], applied: readonly LogRow[]): Update[] {
+  if (ctx.input.settings.get("sync-applied")?.on !== true) return updates;
+  const user = ctx.input.user;
+  const runs = new Map(applied.filter((r) => r.by !== user || (r.note ?? "").startsWith(SYNC_NOTE)).map((r) => [runOf(r), r]));
+  const byRun = new Map<string, Update[]>();
+  const rest: Update[] = [];
+  for (const u of updates) {
+    const all = [...u.rows, ...u.members.flatMap((m) => m.rows)];
+    const one = new Set(all.map(runOf));
+    const run = one.size === 1 ? [...one][0] : "";
+    if (run && runs.has(run)) byRun.set(run, [...(byRun.get(run) ?? []), u]);
+    else rest.push(u);
+  }
+  for (const [run, row] of runs) {
+    const members = byRun.get(run) ?? [];
+    if (members.length === 1) { rest.push(members[0]); continue; }
+    const scope = row.principal ?? "";
+    const key = `run:${scope}:${row.at ?? ""}`;
+    const seenAt = seenPoint(ctx, key, scope);
+    const pinned = ctx.state.get(key)?.state === "pinned";
+    if ((row.at ?? "") <= seenAt && !pinned && members.length === 0) continue;
+    rest.push({ ...container(ctx, key, members, [row]), rules: ["sync-applied"], note: row.note ?? "" });
+  }
+  return rest;
+}
+
+function container(ctx: Ctx, key: string, members: Update[], rows: LogRow[]): Update {
+  const scope = members[0]?.scope ?? rows[0]?.principal ?? "";
+  const at = [...members.map((m) => m.at), ...rows.map((r) => r.at ?? "")].sort().pop() ?? "";
+  const rules = [...new Set(members.flatMap((m) => m.rules))];
+  const kinds = [...new Set(members.flatMap((m) => m.kinds))];
+  return { key, lane: "info", scope, rules, at, kinds, rows, members: [...members].sort(newestFirst), pinned: ctx.state.get(key)?.state === "pinned" };
+}
+
+/** The user saw an update up to here: the scope's "mark all seen", or the update's own seen or dismissed. */
+function seenPoint(ctx: Ctx, key: string, scope: string): string {
+  const own = ctx.state.get(key);
+  const marked = own && (own.state === "seen" || own.state === "dismissed") ? (own.at ?? "") : "";
+  const scopeAt = ctx.scopeSeen.get(scope) || ctx.firstLook;
+  return marked > scopeAt ? marked : scopeAt;
+}
+
+/** Needs-you updates: one per standing cause. */
+function needsUpdates(ctx: Ctx): Update[] {
+  const { input } = ctx;
+  const { user, now, settings, sync } = input;
+  const on = (id: string) => settings.get(id)?.on === true;
+  const amount = (id: string) => settings.get(id)?.amount ?? 0;
+  const principals = new Set(input.principals.map((p) => p.id));
+  const today = todayIn(input.timezone, now);
+  const overlayOf = new Map(input.overlays.filter(live).map((o) => [o.event ?? "", o]));
+  const openTasks = input.tasks.filter((t) => live(t) && t.done !== true);
+  const linked = new Set(input.tasks.filter(live).map((t) => t.event).filter((e): e is string => Boolean(e)));
+  const events = input.events.filter((e) => live(e) && principals.has(e.principal ?? ""));
+  const out: Update[] = [];
+  const add = (rule: string, scope: string, subject: string, at: string, extra: Partial<Update> = {}) =>
+    out.push({ key: `${rule}|${subject}`, lane: "needs", scope, rules: [rule], at, kinds: [], rows: [], members: [], pinned: false, ...extra });
+
+  if (on("task-overdue")) {
+    for (const t of openTasks) {
+      if (!principals.has(t.principal ?? "") || !isOverdue(t, today)) continue;
+      add("task-overdue", t.principal ?? "", t.id, [t.due, t.deadline].filter(Boolean).sort()[0] ?? "", { task: t.id });
+    }
+  }
+  if (on("task-offered")) {
+    for (const t of openTasks) {
+      if (t.assignee !== user || t.assignment !== "offered" || t.assignedBy === user) continue;
+      add("task-offered", ME, t.id, "", { task: t.id });
+    }
+  }
+  if (on("prep-due")) {
+    const from = Date.parse(now);
+    const until = from + amount("prep-due") * HOUR_MS;
+    for (const e of events) {
+      const start = Date.parse(e.start ?? "");
+      if (e.gone || overlayOf.get(e.id)?.prep !== "needed" || !(start >= from && start < until)) continue;
+      add("prep-due", e.principal ?? "", e.id, e.start ?? "", { event: e.id });
+    }
+  }
+  if (on("gone-no-reason")) {
+    for (const e of events) {
+      const overlay = overlayOf.get(e.id);
+      if (e.gone !== true || overlay?.archived || !(hasOfficeData(overlay) || linked.has(e.id))) continue;
+      add("gone-no-reason", e.principal ?? "", e.id, e.start ?? "", { event: e.id });
+    }
+  }
+  if (sync.on && on("sync-late")) {
+    for (const p of input.principals) {
+      const last = sync.last.get(p.id) ?? "";
+      if (last && Date.parse(now) - Date.parse(last) < amount("sync-late") * HOUR_MS) continue;
+      add("sync-late", p.id, p.id, last, last ? { note: last } : {});
+    }
+  }
+  if (on("sync-held-back")) {
+    for (const p of input.principals) {
+      const reason = sync.heldBack.get(p.id);
+      if (reason !== undefined) add("sync-held-back", p.id, p.id, "", { note: reason });
+    }
+  }
+  return out;
+}
+
+/** Every update for the user, one group per principal (in order) and "For you" last. */
+export function updatesFor(input: UpdatesInput): UpdateGroup[] {
+  const { user, now } = input;
+  const state = new Map(input.updateState.filter((s) => live(s) && s.userId === user).map((s) => [s.key ?? "", s]));
+  const scopeSeen = new Map(input.seen.filter((s) => live(s) && s.userId === user).map((s) => [s.scope ?? "", s.at ?? ""]));
+  const firstLook = new Date(Date.parse(now) - FIRST_LOOK_DAYS * DAY_MS).toISOString();
+  const ctx: Ctx = { input, state, scopeSeen, firstLook };
+  const expiry = new Date(Date.parse(now) - EXPIRY_DAYS * DAY_MS).toISOString();
+  const snoozed = (u: Update) => {
+    const s = state.get(u.key);
+    return s?.state === "snoozed" && (s.until ?? "") > now;
+  };
+  const withDealt = (u: Update): Update => {
+    const d = dealtWith(ctx, u.key, u.at, u);
+    return d ? { ...u, dealtWith: d } : u;
+  };
+  const info = infoUpdates(ctx).filter((u) => !snoozed(u) && (u.pinned || u.at >= expiry)).map(withDealt);
+  const needs = needsUpdates(ctx).filter((u) => !snoozed(u)).map(withDealt);
+  const scopes = [...input.principals.map((p) => p.id), ME];
+  return scopes.map((scope) => ({
+    scope,
+    seenAt: scopeSeen.get(scope) ?? "",
+    needs: needs.filter((u) => u.scope === scope),
+    info: info.filter((u) => u.scope === scope).sort(newestFirst),
+  }));
+}
