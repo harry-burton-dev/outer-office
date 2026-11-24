@@ -14,13 +14,11 @@ describe("lenses", () => {
     expect(read("completeness", { location: "Room 1", organizer: "A", requiredAttendees: "B", categories: "Board" }, "needed").strength).toBe(0.8);
   });
 
-  test("seniority follows the office's tag order", () => {
-    const tags = [{ id: "t1", name: "Board", order: 0 }, { id: "t2", name: "Internal", order: 1 }, { id: "t3", name: "Admin", order: 2 }] as never[];
-    const senior = (categories: string) => lensById("seniority")!.read(event({ categories }), undefined, NOW, tags).strength;
-    expect(senior("Board")).toBe(1);
-    expect(senior("Internal, Board")).toBe(1);
-    expect(senior("Admin")).toBeCloseTo(0.15);
-    expect(senior("")).toBe(0.05);
+  test("priority ranks by the office's priority, p1 strongest and none set faintest", () => {
+    const strength = (priority?: number) => lensById("priority")!.read(event({}), priority === undefined ? undefined : ({ priority } as never), NOW, []).strength;
+    expect([1, 2, 3, 4].map(strength)).toEqual([1, 0.7, 0.4, 0.05]);
+    expect(strength()).toBe(0.05);
+    expect(lensById("seniority")).toBeUndefined();
   });
 
   test("freshness fades over thirty days", () => {

@@ -11,9 +11,11 @@ const config = {
   tables: {
     // The data model of design/v0.1-brief.md.
     office: {
-      version: 2,
+      version: 3,
       // automate: the "Power Automate" setting (OO1). Off until an admin turns it on.
-      fields: { name: str, timezone: str, dayStart: str, dayEnd: str, privatePolicy: str, automate: bool },
+      // Version 3: the day summary's limits (OUT-84): a run longer than longRunHours
+      // without a break, and place changes less than placeChangeMinutes apart.
+      fields: { name: str, timezone: str, dayStart: str, dayEnd: str, privatePolicy: str, automate: bool, longRunHours: num, placeChangeMinutes: num },
     },
     principals: {
       version: 1,
@@ -40,11 +42,16 @@ const config = {
       },
     },
     overlays: {
-      version: 4,
+      version: 5,
       // Version 2: tags, comma-separated tag ids (OUT-76).
       // Version 3: archived, when the office archived the event ("" when it is not).
       // Version 4: archiveReason, why it was archived (OUT-66; "" when it is not).
-      fields: { event: str, prep: str, flagged: bool, prepOwner: askStr, notes: "text", outcome: "text", tags: str, archived: str, archiveReason: str },
+      // Version 5 (OUT-84): quiet (never clashes), parent (the event it is linked
+      // under, or ""), and priority (1 to 4, the task scale; 4 is none set).
+      fields: {
+        event: str, prep: str, flagged: bool, prepOwner: askStr, notes: "text", outcome: "text", tags: str, archived: str, archiveReason: str,
+        quiet: bool, parent: str, priority: num,
+      },
     },
     // The office's tags, shared by tasks and events (OUT-76). An event also
     // carries a tag when one of its Outlook categories has the tag's name.
@@ -114,11 +121,13 @@ const config = {
   migrations: {
     office: {
       1: (record) => ({ ...record, automate: record.automate ?? false }),
+      2: (record) => ({ ...record, longRunHours: record.longRunHours ?? 4, placeChangeMinutes: record.placeChangeMinutes ?? 30 }),
     },
     overlays: {
       1: (record) => ({ ...record, tags: record.tags ?? "" }),
       2: (record) => ({ ...record, archived: record.archived ?? "" }),
       3: (record) => ({ ...record, archiveReason: record.archiveReason ?? (record.archived ? "unknown" : "") }),
+      4: (record) => ({ ...record, quiet: record.quiet ?? false, parent: record.parent ?? "", priority: record.priority ?? 4 }),
     },
     proposals: {
       1: (record) => ({

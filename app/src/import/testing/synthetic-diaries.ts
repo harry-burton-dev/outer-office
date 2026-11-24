@@ -170,7 +170,87 @@ function diaryFor(p: Principal, monday: Date, now: Date): { base: Meeting[]; ser
     "SUMMARY:Travel: Edinburgh", `DTSTART;VALUE=DATE:${ymd(travel)}`, `DTEND;VALUE=DATE:${ymd(addDays(travel, 1))}`,
     "LOCATION:Edinburgh", "CATEGORIES:External", "TRANSP:OPAQUE", "X-MICROSOFT-CDO-BUSYSTATUS:OOF", "X-MICROSOFT-CDO-ALLDAYEVENT:TRUE",
   ])]];
+  if (p.code === PLANTED_PRINCIPAL) {
+    // The planted day holds only the planted engagements (and the weekly private item), so its clashes are known exactly.
+    const day = ymd(addDays(monday, PLANTED_WEEKDAY));
+    return { base: base.filter((m) => m.category === "Personal" || ymd(m.day) !== day), series, allDay };
+  }
   return { base, series, allDay };
+}
+
+/** The principal and days with planted clashes and day-summary conditions (OUT-84). */
+export const PLANTED_PRINCIPAL = "PRINCIPAL-A";
+/** Wednesday of the week of `now`: clashes of every timed severity, a tentative pair, a visit with a speech inside it. */
+const PLANTED_WEEKDAY = 2;
+/** Saturday of that week: an all-day out-of-office day with a timed engagement on it. */
+const PLANTED_WEEKEND = 5;
+
+/** The planted clashes, as [first subject, second subject, severity]. Nothing else clashes on the planted days. */
+export const PLANTED_CLASHES: readonly (readonly [string, string, "hard" | "soft" | "away"])[] = [
+  ["Board pre-meet", "Investor call", "hard"],
+  ["Hold: sector call", "Budget check-in", "soft"],
+  ["Lunch: sector leads", "Press photo", "soft"],
+  ["Visit: Northfield Works", "Speech: apprentices", "hard"],
+  ["Leave", "School fair speech", "away"],
+];
+
+/** What the planted Wednesday's day summary shows, with the office day 08:00 to 18:00 and the default limits. */
+export const PLANTED_SUMMARY = {
+  clashes: { hard: 2, soft: 2, away: 0 },
+  // Room 2.01 to The Granary (15 minutes), and Northfield Works to Mansion House (none).
+  placeChanges: 2,
+  // 14:00 to 18:30 without a break.
+  longRun: 270,
+  early: "07:30",
+  late: "18:30",
+  linkedOutside: 0,
+} as const;
+
+/** The planted days as YYYY-MM-DD. */
+export const plantedDays = (now: Date): { weekday: string; weekend: string } => {
+  const monday = mondayOf(now);
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { weekday: iso(addDays(monday, PLANTED_WEEKDAY)), weekend: iso(addDays(monday, PLANTED_WEEKEND)) };
+};
+
+interface Planted {
+  subject: string;
+  at: string;
+  minutes: number;
+  location: string;
+  status: "BUSY" | "TENTATIVE" | "FREE";
+}
+
+const PLANTED: readonly Planted[] = [
+  { subject: "Early breakfast", at: "0730", minutes: 30, location: "The Wolseley", status: "BUSY" },
+  { subject: "Reading time", at: "0800", minutes: 30, location: "Office", status: "FREE" },
+  { subject: "Board pre-meet", at: "0900", minutes: 60, location: "Board room", status: "BUSY" },
+  { subject: "Investor call", at: "0930", minutes: 60, location: VIDEO, status: "BUSY" },
+  { subject: "Hold: sector call", at: "1100", minutes: 60, location: VIDEO, status: "TENTATIVE" },
+  { subject: "Budget check-in", at: "1130", minutes: 30, location: "Room 2.01", status: "BUSY" },
+  { subject: "Lunch: sector leads", at: "1215", minutes: 30, location: "The Granary, Kings Cross", status: "TENTATIVE" },
+  { subject: "Press photo", at: "1230", minutes: 30, location: "The Granary, Kings Cross", status: "TENTATIVE" },
+  { subject: "Visit: Northfield Works", at: "1400", minutes: 180, location: "Northfield Works", status: "BUSY" },
+  { subject: "Speech: apprentices", at: "1500", minutes: 30, location: "Northfield Works", status: "BUSY" },
+  { subject: "Evening reception", at: "1700", minutes: 90, location: "Mansion House", status: "BUSY" },
+];
+
+function plantedEvents(monday: Date, now: Date, uid: (n: number) => string): string[][] {
+  const day = addDays(monday, PLANTED_WEEKDAY);
+  const weekend = addDays(monday, PLANTED_WEEKEND);
+  const timed = (p: Planted, on: Date, i: number) => vevent(uid(i), [
+    `SUMMARY:${p.subject}`, tz("DTSTART", localTime(on, p.at)), tz("DTEND", localTime(on, p.at, p.minutes)),
+    `LOCATION:${p.location}`, `LAST-MODIFIED:${stamp(addDays(now, -5))}`,
+    p.status === "FREE" ? "TRANSP:TRANSPARENT" : "TRANSP:OPAQUE", `X-MICROSOFT-CDO-BUSYSTATUS:${p.status}`,
+  ]);
+  return [
+    ...PLANTED.map((p, i) => [...timed(p, day, i)]),
+    [...vevent(uid(PLANTED.length), [
+      "SUMMARY:Leave", `DTSTART;VALUE=DATE:${ymd(weekend)}`, `DTEND;VALUE=DATE:${ymd(addDays(weekend, 1))}`,
+      "TRANSP:OPAQUE", "X-MICROSOFT-CDO-BUSYSTATUS:OOF", "X-MICROSOFT-CDO-ALLDAYEVENT:TRUE",
+    ])],
+    [...timed({ subject: "School fair speech", at: "1000", minutes: 60, location: "Village hall", status: "BUSY" }, weekend, PLANTED.length + 1)],
+  ];
 }
 
 /** The update: some meetings move, some are cancelled, a few are new, all touched "now". */
@@ -201,8 +281,9 @@ export function syntheticDiaries(now: Date): DiaryFile[] {
   return PRINCIPALS.flatMap((p) => {
     const rand = random(p.seed + 2);
     const { base, series, allDay } = diaryFor(p, monday, now);
+    const planted = p.code === PLANTED_PRINCIPAL ? plantedEvents(monday, now, (i) => outlookUid(p.seed * 1000 + 800 + i)) : [];
     const file = (meetings: readonly Meeting[]): string =>
-      calendar([...meetings.map((m) => meetingLines(m, rand, p.name)), ...series, ...allDay]);
+      calendar([...meetings.map((m) => meetingLines(m, rand, p.name)), ...series, ...allDay, ...planted]);
     return [
       { fileName: `${p.code}.ics`, text: file(base) },
       { fileName: `${p.code}-update.ics`, text: file(updated(base, p.seed, now)) },
