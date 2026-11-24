@@ -4,6 +4,7 @@
 import { officeSave, principalSave } from "./office";
 import { importApply } from "./import";
 import { overlaySet } from "./overlay";
+import { seriesOverlaySet } from "./series-overlay";
 import { taskAdd, taskComplete, taskLink, taskMove, taskRemove, taskUpdate } from "./tasks";
 import { taskAssign } from "./task-assign";
 import { projectSave, sectionSave } from "./projects";
@@ -16,7 +17,7 @@ import { automateRecordRun } from "./automate";
 import { ruleSettingSet, updateSet } from "./alerts";
 
 export const commands = {
-  officeSave, principalSave, importApply, overlaySet,
+  officeSave, principalSave, importApply, overlaySet, seriesOverlaySet,
   taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove,
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave,
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
@@ -24,10 +25,11 @@ export const commands = {
   ruleSettingSet, updateSet, automateRecordRun,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, ruleSettingSet, updateSet, automateRecordRun };
+export { officeSave, principalSave, importApply, overlaySet, seriesOverlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, ruleSettingSet, updateSet, automateRecordRun };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
+export type { SeriesOverlaySetInput } from "./series-overlay";
 export type { TaskAddInput, TaskUpdateInput, TaskMoveInput, TaskCompleteInput, TaskLinkInput, TaskRemoveInput } from "./tasks";
 export type { TaskAssignInput, AssignAction } from "./task-assign";
 export type { ProjectSaveInput, SectionSaveInput } from "./projects";
