@@ -5,7 +5,7 @@ import { TAG_COLOURS, eventTags } from "../tags";
 import { importApply } from "./import";
 import { principalSave } from "./office";
 import { overlaySet } from "./overlay";
-import { tagRemove, tagSave, tagsSet } from "./tags";
+import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { taskAdd } from "./tasks";
 import { byId, fails, idOf, NOW, ok, oneDevice, rows } from "./testing/world";
 
@@ -66,20 +66,47 @@ describe("tags.set", () => {
 });
 
 describe("eventTags", () => {
-  test("an event carries its own tags and the tags named by its Outlook categories", async () => {
+  test("B5: an event carries only its own tags; a category with a tag's name doesn't apply it", async () => {
     const { a, event } = await setUp();
     const urgent = ok(a, tagSave, { now: NOW, name: "Urgent" });
     ok(a, tagSave, { now: NOW, name: "board" });
-    ok(a, tagSave, { now: NOW, name: "Unused" });
     ok(a, tagsSet, { now: NOW, target: "event", id: event, tags: [urgent] });
     const overlay = byId(a, "overlays", idOf(a, "overlay", event));
-    expect(eventTags(byId(a, "events", event)?.categories, overlay?.tags, rows(a, "tags")).map((t) => t.name)).toEqual(["Urgent", "board"]);
+    expect(byId(a, "events", event)?.categories).toBe("Board, Travel");
+    expect(eventTags(overlay?.tags, rows(a, "tags")).map((t) => t.name)).toEqual(["Urgent"]);
+    expect(rows(a, "categories").map((c) => c.name).sort()).toEqual(["Board", "Travel"]);
   });
 
   test("a removed tag is no longer shown", async () => {
     const { a, event } = await setUp();
     const board = ok(a, tagSave, { now: NOW, name: "Board" });
+    ok(a, tagsSet, { now: NOW, target: "event", id: event, tags: [board] });
     ok(a, tagRemove, { now: NOW, id: board });
-    expect(eventTags(byId(a, "events", event)?.categories, "", rows(a, "tags"))).toEqual([]);
+    expect(eventTags(byId(a, "overlays", idOf(a, "overlay", event))?.tags, rows(a, "tags"))).toEqual([]);
+  });
+});
+
+describe("tags.set log rows", () => {
+  test("each tag put on or taken off writes one row naming it; setting the same tags writes none", async () => {
+    const { a, event } = await setUp();
+    const [urgent, board] = [ok(a, tagSave, { now: NOW, name: "Urgent" }), ok(a, tagSave, { now: NOW, name: "Board" })];
+    const tagLog = () => rows(a, "log").filter((r) => r.kind?.startsWith("tag-")).map((r) => [r.area, r.kind, r.event, r.note]).sort();
+    ok(a, tagsSet, { now: NOW, target: "event", id: event, tags: [urgent, board] });
+    expect(tagLog()).toEqual([["overlay", "tag-added", event, "Board"], ["overlay", "tag-added", event, "Urgent"]]);
+    ok(a, tagsSet, { now: NOW, target: "event", id: event, tags: [board] });
+    ok(a, tagsSet, { now: NOW, target: "event", id: event, tags: [board] });
+    expect(tagLog()).toHaveLength(3);
+    expect(tagLog()).toContainEqual(["overlay", "tag-removed", event, "Urgent"]);
+  });
+});
+
+describe("category.save", () => {
+  test("sets a category's colour and order, and refuses an unknown one or colour", async () => {
+    const { a } = await setUp();
+    const board = idOf(a, "category", "board");
+    ok(a, categorySave, { now: NOW, id: board, colour: TAG_COLOURS[3].value, order: 5 });
+    expect(byId(a, "categories", board)).toMatchObject({ name: "Board", colour: TAG_COLOURS[3].value, order: 5 });
+    expect(fails(a, categorySave, { now: NOW, id: board, colour: "#000000" })).toContain("tag colours");
+    expect(fails(a, categorySave, { now: NOW, id: "nope", colour: TAG_COLOURS[0].value })).toContain("hasn't arrived");
   });
 });
