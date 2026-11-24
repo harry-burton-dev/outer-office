@@ -1,6 +1,8 @@
 // A text input or textarea that keeps a draft while focused and saves on blur
-// when the text changed. A viewer sees the stored text only.
-import { useId, useState } from "react";
+// when the text changed. It also saves an unsaved draft when it unmounts,
+// because closing the panel with Escape removes the field without a blur.
+// A viewer sees the stored text only.
+import { useEffect, useId, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/app/ui";
@@ -16,6 +18,12 @@ export interface BlurFieldProps {
 export function BlurField({ label, value, multiline = false, readOnly, onSave }: BlurFieldProps) {
   const id = useId();
   const [draft, setDraft] = useState<string | null>(null);
+  const pending = useRef({ draft, value, onSave });
+  pending.current = { draft, value, onSave };
+  useEffect(() => () => {
+    const { draft: d, value: v, onSave: save } = pending.current;
+    if (d !== null && d !== v) save(d);
+  }, []);
   if (readOnly) {
     return (
       <div className="flex flex-col gap-1">
@@ -27,6 +35,7 @@ export function BlurField({ label, value, multiline = false, readOnly, onSave }:
   const shown = draft ?? value;
   const commit = () => {
     if (draft !== null && draft !== value) onSave(draft);
+    pending.current.draft = null;
     setDraft(null);
   };
   const common = { id, value: shown, onBlur: commit };

@@ -146,8 +146,7 @@ async function flagAndNote(A, B) {
   await panel.getByRole("switch", { name: "Flag" }).click();
   await panel.getByRole("tab", { name: "Notes" }).click();
   await panel.getByRole("textbox", { name: "Notes" }).fill(NOTE);
-  await panel.getByRole("textbox", { name: "Notes" }).blur();
-  await B.page.waitForTimeout(200);
+  // Escape straight from the field, with no blur first: the note must still save (OUT-80).
   await app.closeDialog(B);
   await save(B);
   const marked = await readUntil(A, app.calendarShows, (v) => app.eventTitled(v, SUBJECTS.budget)?.marks.includes("Flagged"));
