@@ -104,6 +104,8 @@ export interface ImportDiff {
   gone: readonly StoredEvent[];
   /** Stored as gone, and present in the file again. */
   returned: readonly EventChange[];
+  /** Series whose occurrences this diff re-keys (import/rekey.ts). Left out means none. */
+  rekeys?: readonly import("./rekey").SeriesRekey[];
   unchanged: number;
   /** In the file, but older than what is stored. */
   skippedOlder: number;
