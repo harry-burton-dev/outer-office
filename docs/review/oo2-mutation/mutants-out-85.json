@@ -12,5 +12,13 @@
  {"id": "OUT85-B11", "what": "drag: ghosts on the Proposed layer can move", "file": "app/src/screens/calendar/diary.tsx", "find": "if (layer === \"proposed\" && face.ghost) return false;", "replace": ""},
  {"id": "OUT85-B12", "what": "undo: Ctrl+Z withdraws instead of restoring the earlier proposal", "file": "app/src/screens/calendar/diary.tsx", "find": "      else move.run({ event: lastMove.entry, ...lastMove.before });", "replace": "      else withdraw.run({ event: lastMove.entry });"},
  {"id": "OUT85-B13", "what": "keyboard: a move is 30 minutes a step", "file": "app/src/calendar/diary-calendar.tsx", "find": "export const SNAP_MINUTES = 15;", "replace": "export const SNAP_MINUTES = 30;"},
- {"id": "OUT85-B14", "what": "drag back to Outlook's time doesn't withdraw", "file": "app/src/screens/calendar/diary.tsx", "find": "return proposed ? withdraw.run({ event: id }) : true;", "replace": "return true;"}
+ {"id": "OUT85-B14", "what": "drag back to Outlook's time doesn't withdraw", "file": "app/src/screens/calendar/diary.tsx", "find": "return proposed ? withdraw.run({ event: id }) : true;", "replace": "return true;"},
+ {"id": "OUT85-B15", "what": "wizard: the higher-priority one gives way", "file": "app/src/domain/clash-wizard.ts", "find": "pa !== pb ? pa > pb :", "replace": "pa !== pb ? pa < pb :"},
+ {"id": "OUT85-B16", "what": "wizard: the longer one gives way", "file": "app/src/domain/clash-wizard.ts", "find": "lengthOf(a) < lengthOf(b) : false", "replace": "lengthOf(a) > lengthOf(b) : false"},
+ {"id": "OUT85-B17", "what": "wizard: steps ignore earlier fixes", "file": "app/src/domain/clash-wizard.ts", "find": "    const now = withFixes(world, chosen);\n", "replace": "    const now = world;\n"},
+ {"id": "OUT85-B18", "what": "wizard: the other one is offered first", "file": "app/src/domain/clash-wizard.ts", "find": "for (const id of [lower, other]) {", "replace": "for (const id of [other, lower]) {"},
+ {"id": "OUT85-B20", "what": "wizard.apply: a note goes on one engagement only", "file": "app/src/domain/commands/wizard.ts", "find": "for (const id of fix.events) at(", "replace": "for (const id of fix.events.slice(0, 1)) at("},
+ {"id": "OUT85-B21", "what": "wizard.apply: a note replaces the notes already there", "file": "app/src/domain/commands/wizard.ts", "find": "[current?._deleted ? \"\" : (current?.notes ?? \"\"), ...dated]", "replace": "[...dated]"},
+ {"id": "OUT85-B22", "what": "wizard.apply: quiet is dropped", "file": "app/src/domain/commands/wizard.ts", "find": "overlaySet.handler(tx, { now, event, quiet: change.quiet,", "replace": "overlaySet.handler(tx, { now, event,"},
+ {"id": "OUT85-B23", "what": "wizard: quiet clashes are counted", "file": "app/src/domain/clash-wizard.ts", "find": "return clashes(mine, world.overlays, world.zone)", "replace": "return clashes(mine, [], world.zone)"}
 ]

@@ -32,7 +32,7 @@ export interface MoveDialogProps {
 }
 
 /** The principal's proposals as rows at their proposed times, for Find a time: a move under its engagement's id, a new meeting under its diary id. */
-function proposedRows(proposals: readonly Proposal[], events: readonly Event[]): Event[] {
+export function proposedRows(proposals: readonly Proposal[], events: readonly Event[]): Event[] {
   const byId = new Map(events.map((e) => [e.id, e]));
   return proposals.filter((p) => !p._deleted && p.start && p.end).flatMap((p): Event[] => {
     if (p.kind === "new") return [{ id: newId(p.id), _deleted: false, _conflicts: {}, principal: p.principal, start: p.start, end: p.end, allDay: p.allDay, showAs: p.showAs || "busy" } as Event];
