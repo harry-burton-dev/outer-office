@@ -82,6 +82,13 @@ const config = {
         firstStart: str, lastStart: str, count: num, exceptions: num,
       },
     },
+    // The office's tags, Quiet and priority on a whole series (OUT-84, D8).
+    // Id tx.id("seriesOverlay", series record id). They apply to future
+    // occurrences, and to occurrences a later import adds. Office data only.
+    seriesOverlays: {
+      version: 1,
+      fields: { series: str, tags: str, quiet: bool, priority: num },
+    },
     overlays: {
       version: 5,
       // Version 2: tags, comma-separated tag ids (OUT-76).
@@ -152,10 +159,12 @@ const config = {
       },
     },
     imports: {
-      version: 1,
+      version: 2,
       fields: {
         principal: str, at: str, by: str, rangeStart: str, rangeEnd: str,
         added: num, changed: num, gone: num,
+        // Version 2: automate, ics or csv; "" when not known (OUT-83).
+        source: str,
       },
     },
   },
@@ -179,6 +188,7 @@ const config = {
     },
     tasks: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
     people: { 1: (record) => ({ ...record, watchOff: record.watchOff ?? "" }) },
+    imports: { 1: (record) => ({ ...record, source: record.source ?? "" }) },
     events: {
       1: (record) => ({
         ...record,
