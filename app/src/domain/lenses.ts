@@ -3,10 +3,10 @@
 // colour is. A lens can also swap the text an event shows (location). A lens
 // never changes data. Lenses sit in tabs by data category.
 import type { Event, Overlay } from "./selectors";
-import { eventTags, sortedTags, type Tag } from "./tags";
+import type { Tag } from "./tags";
 
-export type LensCategory = "Quality" | "People" | "Time" | "Place";
-export const LENS_CATEGORIES: readonly LensCategory[] = ["Quality", "People", "Time", "Place"];
+export type LensCategory = "Quality" | "Priority" | "Time" | "Place";
+export const LENS_CATEGORIES: readonly LensCategory[] = ["Quality", "Priority", "Time", "Place"];
 
 export interface LensReading {
   /** 0 is faint, 1 is full colour. */
@@ -27,7 +27,7 @@ export interface Lens {
 const filled = (value: string | undefined): boolean => (value ?? "").trim() !== "";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FRESH_DAYS = 30;
-const ONLINE = /teams|zoom|webex|google meet|https?:\/\//i;
+export const ONLINE = /teams|zoom|webex|google meet|https?:\/\//i;
 
 const completeness: Lens = {
   id: "completeness",
@@ -40,18 +40,16 @@ const completeness: Lens = {
   },
 };
 
-const seniority: Lens = {
-  id: "seniority",
-  name: "Seniority",
-  category: "People",
-  hint: "By the office's tag order: full colour carries the top tag, faint the bottom or none.",
-  // Tag order, not Outlook importance: the office controls it, and the sync carries no importance.
-  read: (event, overlay, _now, tags) => {
-    const order = sortedTags(tags);
-    const top = eventTags(event.categories, overlay?.tags, tags).reduce((best, t) => Math.min(best, order.indexOf(t)), order.length);
-    if (top === order.length) return { strength: 0.05 };
-    return { strength: order.length === 1 ? 1 : 1 - (0.85 * top) / (order.length - 1) };
-  },
+/** How strong each priority shows: p1 full colour, p4 (none set) faint. */
+export const PRIORITY_STRENGTH: Readonly<Record<number, number>> = { 1: 1, 2: 0.7, 3: 0.4, 4: 0.05 };
+
+// The office's own priority, p1 to p4 on the task scale (D14). It replaced the Seniority lens.
+const priority: Lens = {
+  id: "priority",
+  name: "Priority",
+  category: "Priority",
+  hint: "By the office's priority: full colour is p1, faint is p4 or none set.",
+  read: (_event, overlay) => ({ strength: PRIORITY_STRENGTH[overlay?.priority ?? 4] ?? PRIORITY_STRENGTH[4] }),
 };
 
 const freshness: Lens = {
@@ -79,7 +77,7 @@ const location: Lens = {
   },
 };
 
-export const LENSES: readonly Lens[] = [completeness, seniority, freshness, location];
+export const LENSES: readonly Lens[] = [completeness, priority, freshness, location];
 
 export const lensById = (id: string | null): Lens | undefined => LENSES.find((lens) => lens.id === id);
 
