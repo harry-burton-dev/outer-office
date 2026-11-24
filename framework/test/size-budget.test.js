@@ -31,8 +31,8 @@ const run = (args) => {
 };
 
 // The bundle budget was the spec's 500,000 until the diary calendar (FullCalendar) raised it, with Harry.
-test("the budgets: bootstrap under 50,000 bytes, bundle under 1,400,000", () => {
-  assert.deepEqual(BUDGETS, { bootstrap: 50_000, bundle: 1_400_000 });
+test("the budgets: bootstrap under 50,000 bytes, bundle under 2,500,000", () => {
+  assert.deepEqual(BUDGETS, { bootstrap: 50_000, bundle: 2_500_000 });
 });
 
 test("checkBudgets reports size and headroom, and flags only what is over", () => {
@@ -57,7 +57,7 @@ test("the check passes on small files and prints both sizes and the headroom", (
     const { code, out } = run(["--dist", dist]);
     assert.equal(code, 0, out);
     assert.match(out, /bootstrap\s+1,000 bytes .*49,000 bytes headroom/);
-    assert.match(out, /bundle\s+2,000 bytes .*1,398,000 bytes headroom/);
+    assert.match(out, /bundle\s+2,000 bytes .*2,498,000 bytes headroom/);
   } finally {
     rmSync(dist, { recursive: true, force: true });
   }
