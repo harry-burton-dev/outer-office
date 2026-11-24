@@ -61,7 +61,7 @@ function LiveAlpha({ value, onChange }: { value: number; onChange(value: number)
   );
 }
 
-type Dialogs = { kind: "move"; target: MoveTarget } | { kind: "propose"; day: string; editing?: Proposal } | { kind: "wizard"; from: string; to: string } | null;
+type Dialogs = { kind: "move"; target: MoveTarget; suggest?: boolean } | { kind: "propose"; day: string; editing?: Proposal } | { kind: "wizard"; from: string; to: string } | null;
 
 /** The last drag or keyboard move, so Ctrl+Z can take it back: the entry, what it was called, where it went, and the proposal it replaced. */
 interface LastMove {
@@ -107,7 +107,12 @@ export function Diary({ principalId }: { principalId: string }) {
   const move = useRun(commands.proposalMove);
   const moveGroup = useRun(commands.proposalMoveGroup);
   const renew = useRun(commands.proposalNew);
+  const suggest = useRun(commands.suggestionMake);
+  const take = useRun(commands.suggestionTake);
+  const dismiss = useRun(commands.suggestionDismiss);
+  const suggestions = useRecords("suggestions");
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
+  const [lastSuggestion, setLastSuggestion] = useState<{ title: string; start: string } | null>(null);
 
   const data = useMemo(() => {
     const lens = lensById(lensId);
@@ -159,12 +164,23 @@ export function Diary({ principalId }: { principalId: string }) {
     // A ghost moves the real entry; on the live layer the real entry is the ghost, so it moves from the proposed time.
     const proposal = proposals.find((p) => !p._deleted && p.kind !== "new" && p.event === id);
     const from = proposal?.start && proposal.end ? { start: proposal.start, end: proposal.end } : { start: event.start, end: event.end };
-    const actions = isViewer ? undefined : layer === "graveyard" ? (
+    const openSuggestions = suggestions.filter((s) => !s._deleted && s.state === "open" && s.event === id);
+    const actions = isViewer ? (
+      layer !== "graveyard" && canMove(event.id) && <ContextMenuItem onClick={() => setDialog({ kind: "move", target: { id, title: face.title, ...from }, suggest: true })}>Suggest a move…</ContextMenuItem>
+    ) : layer === "graveyard" ? (
       face.archived && <ContextMenuItem onClick={() => archive.run({ event: id, archived: false })}>Bring back from the archive</ContextMenuItem>
     ) : (
       <>
         <ContextMenuItem onClick={() => setDialog({ kind: "move", target: { id, title: face.title, ...from } })}>Move…</ContextMenuItem>
         {face.proposed && <ContextMenuItem onClick={() => withdraw.run({ event: id })}>Withdraw the proposal</ContextMenuItem>}
+        {openSuggestions.length > 0 && <ContextMenuSeparator />}
+        {openSuggestions.map((s) => (
+          <div key={s.id} data-suggestion={s.id}>
+            <ContextMenuLabel>Suggested: {suggestionLabel(s)}</ContextMenuLabel>
+            <ContextMenuItem onClick={() => take.run({ id: s.id })}>Take the suggestion</ContextMenuItem>
+            <ContextMenuItem onClick={() => dismiss.run({ id: s.id })}>Dismiss it</ContextMenuItem>
+          </div>
+        ))}
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => archive.run({ event: id, quiet: !quietOf(id) })}>{quietOf(id) ? "Not quiet" : "Quiet: never clashes"}</ContextMenuItem>
         <ContextMenuLabel>Priority</ContextMenuLabel>
@@ -193,17 +209,25 @@ export function Diary({ principalId }: { principalId: string }) {
 
   const eventById = useMemo(() => new Map(events.filter((e) => !e._deleted).map((e) => [e.id, e])), [events]);
 
-  /** An engagement that isn't masked, gone, archived or all-day can be moved, and so can a proposal; a ghost can't. Viewers get no onMove at all (their suggestions, D15, come later). */
+  /** What a suggestion would do, in words. */
+  const suggestionLabel = (s: (typeof suggestions)[number]): string => {
+    if (s.kind === "move") return `move to ${formatDay(s.start ?? "", timezone)}, ${formatTime(s.start ?? "", timezone)}`;
+    if (s.kind === "quiet") return "set it quiet";
+    if (s.kind === "link") return `link it under ${eventById.get(s.parent ?? "")?.subject || "another engagement"}`;
+    return `add the note "${s.note ?? ""}"`;
+  };
+
+  /** An engagement that isn't masked, gone, archived or all-day can be moved, and so can a proposal (not by a viewer); a ghost can't. */
   const canMove = useCallback((entryId: string): boolean => {
     if (layer === "graveyard") return false;
     const face = data.faces.get(entryId);
     if (!face || face.archived) return false;
     const pid = proposalIdOf(entryId);
-    if (pid !== undefined) return proposals.some((p) => p.id === pid && !p._deleted && !p.allDay);
+    if (pid !== undefined) return !isViewer && proposals.some((p) => p.id === pid && !p._deleted && !p.allDay);
     if (layer === "proposed" && face.ghost) return false;
     const event = eventById.get(eventIdOf(entryId));
     return event !== undefined && event.masked !== true && event.gone !== true && event.allDay !== true;
-  }, [layer, data, proposals, eventById]);
+  }, [layer, data, proposals, eventById, isViewer]);
 
   /** Moves a proposed new meeting, or proposes (or re-proposes) a move; back to where Outlook has it withdraws the proposal. */
   const moveTo = (entryId: string, start: string, end: string): boolean => {
@@ -246,6 +270,12 @@ export function Diary({ principalId }: { principalId: string }) {
     const title = data.faces.get(entryId)?.title ?? "The meeting";
     const children = pid === undefined ? childrenOf(eventIdOf(entryId)).map((event) => ({ event, before: proposedAt(event) })) : [];
     if (moveTo(entryId, start, end)) setLastMove({ entry: pid !== undefined ? entryId : eventIdOf(entryId), title, start, before, children });
+  };
+
+  /** A viewer's drag suggests the move (D15); nothing else changes. */
+  const onSuggestMove = (entryId: string, start: string, end: string) => {
+    const title = data.faces.get(entryId)?.title ?? "The meeting";
+    if (suggest.run({ event: eventIdOf(entryId), kind: "move", start, end })) setLastSuggestion({ title, start });
   };
 
   /** Ctrl+Z straight after a move: back to the proposal it replaced, or no proposal at all. */
@@ -303,13 +333,13 @@ export function Diary({ principalId }: { principalId: string }) {
         onNavigate={setDate}
         onViewChange={setView}
         renderEvent={renderEvent}
-        onMove={isViewer ? undefined : onMove}
+        onMove={isViewer ? onSuggestMove : onMove}
         canMove={canMove}
         renderDayHeader={layer === "graveyard" ? undefined : renderDayHeader}
         toolbarExtra={
           <>
             {!isViewer && <Button variant="outline" onClick={propose}><PlusIcon />Propose</Button>}
-            {!isViewer && clashCount > 0 && (
+            {clashCount > 0 && (
               <Button variant="outline" onClick={() => setDialog({ kind: "wizard", ...shownRange })} data-clash-count="">Clashes ({clashCount})</Button>
             )}
             {layer === "proposed" && <LiveAlpha value={liveAlpha} onChange={setLiveAlpha} />}
@@ -319,8 +349,8 @@ export function Diary({ principalId }: { principalId: string }) {
         }
       />
       <Dialog open={dialog !== null} onOpenChange={(next) => !next && setDialog(null)}>
-        {dialog?.kind === "move" && <MoveDialog target={dialog.target} timeZone={timezone} onDone={() => setDialog(null)} />}
-        {dialog?.kind === "wizard" && <ClashWizard principal={principalId} from={dialog.from} to={dialog.to} onDone={() => setDialog(null)} />}
+        {dialog?.kind === "move" && <MoveDialog target={dialog.target} timeZone={timezone} suggest={dialog.suggest} onDone={() => setDialog(null)} />}
+        {dialog?.kind === "wizard" && <ClashWizard principal={principalId} from={dialog.from} to={dialog.to} suggest={isViewer} onDone={() => setDialog(null)} />}
         {dialog?.kind === "propose" && (
           <ProposeDialog principal={principalId} timeZone={timezone} day={dialog.day} editing={dialog.editing} onDone={() => setDialog(null)} />
         )}
@@ -331,7 +361,12 @@ export function Diary({ principalId }: { principalId: string }) {
           <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={undo}>Undo (Ctrl+Z)</Button>
         </p>
       )}
-      {[withdraw.error, drop.error, archive.error, move.error, moveGroup.error, renew.error].filter(Boolean).map((e) => <p key={e} role="alert" className="text-xs text-destructive">{e}</p>)}
+      {lastSuggestion && (
+        <p role="status" className="text-xs text-muted-foreground" data-last-suggestion="">
+          You suggested moving {lastSuggestion.title} to {formatDay(lastSuggestion.start, timezone)}, {formatTime(lastSuggestion.start, timezone)}. An assistant can take it or dismiss it.
+        </p>
+      )}
+      {[withdraw.error, drop.error, archive.error, move.error, moveGroup.error, renew.error, suggest.error, take.error, dismiss.error].filter(Boolean).map((e) => <p key={e} role="alert" className="text-xs text-destructive">{e}</p>)}
     </>
   );
 }

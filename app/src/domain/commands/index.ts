@@ -14,7 +14,7 @@ import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./ca
 import { proposalDrop, proposalMove, proposalMoveGroup, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
 import { wizardApply } from "./wizard";
-import { suggestionDismiss, suggestionMake, suggestionTake } from "./suggestions";
+import { suggestionDismiss, suggestionFromWizard, suggestionMake, suggestionTake } from "./suggestions";
 import { automateRecordRun } from "./automate";
 import { ruleSettingSet, updateSet } from "./alerts";
 
@@ -26,13 +26,13 @@ export const commands = {
   templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
   ruleSettingSet, updateSet, automateRecordRun,
   wizardApply, proposalMoveGroup,
-  suggestionMake, suggestionTake, suggestionDismiss,
+  suggestionMake, suggestionTake, suggestionDismiss, suggestionFromWizard,
 } as const;
 
 export { officeSave, principalSave, importApply, overlaySet, seriesOverlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, ruleSettingSet, updateSet, automateRecordRun };
 export { wizardApply } from "./wizard";
 export { proposalMoveGroup } from "./proposals";
-export { suggestionMake, suggestionTake, suggestionDismiss } from "./suggestions";
+export { suggestionMake, suggestionTake, suggestionDismiss, suggestionFromWizard } from "./suggestions";
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";

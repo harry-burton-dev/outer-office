@@ -81,6 +81,7 @@ describe("suggestions", () => {
   test("a move needs times, a link a parent, and a note its text", async () => {
     const { a, id } = await diary();
     expect(fails(a, suggestionMake, { now: NOW, event: id("speech"), kind: "move" })).toMatch(/date and time/);
+    expect(fails(a, suggestionMake, { now: NOW, event: id("speech"), kind: "move", start: "2026-11-25T10:00:00Z", end: "2026-11-25T10:00:00Z" })).toMatch(/end after it starts/);
     expect(fails(a, suggestionMake, { now: NOW, event: id("speech"), kind: "link" })).toMatch(/link under/);
     expect(fails(a, suggestionMake, { now: NOW, event: id("speech"), kind: "note", note: " " })).toMatch(/note/);
   });

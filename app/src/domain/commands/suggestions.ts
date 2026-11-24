@@ -3,6 +3,7 @@
 // makes exactly the proposal, quiet flag, link or note it describes, or
 // dismisses it. Either way leaves one log row.
 import { defineCommand, type Tx } from "@trellis/framework";
+import type { Fix } from "../clash-wizard";
 import { formatDay } from "../dates";
 import { OFFICE_ID } from "./office";
 import { overlayId, overlaySet } from "./overlay";
@@ -77,4 +78,23 @@ export const suggestionDismiss = defineCommand("suggestion.dismiss", (tx: Tx, in
   const s = openSuggestion(tx, input.id);
   tx.put("suggestions", s.id, { state: "dismissed", doneBy: tx.user });
   writeLog(tx, now, { area: "proposal", kind: "suggestion-dismissed", principal: s.principal ?? "", event: s.event ?? "", note: s.kind ?? "" });
+});
+
+/** A viewer's clash wizard run: one suggestion per fix, a note as one on each engagement. Returns how many. */
+export const suggestionFromWizard = defineCommand("suggestion.fromWizard", (tx: Tx, input: { now: string; fixes: readonly Fix[] }) => {
+  const now = requireNow(tx, input);
+  if (!Array.isArray(input.fixes)) tx.fail("The wizard sent no fixes.");
+  let made = 0;
+  for (const fix of input.fixes) {
+    if (!fix || fix.kind === "leave") continue;
+    if (fix.kind === "note") {
+      if (!Array.isArray(fix.events) || fix.events.length !== 2) tx.fail("A note goes on both engagements in the clash.");
+      for (const event of fix.events) suggestionMake.handler(tx, { now, event, kind: "note", note: fix.note });
+      made += 2;
+    } else {
+      suggestionMake.handler(tx, { now, ...fix });
+      made += 1;
+    }
+  }
+  return made;
 });

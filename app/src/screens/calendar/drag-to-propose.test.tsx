@@ -4,8 +4,8 @@
 // jsdom has no layout, so the keyboard stands in for the mouse: both end in the
 // same onMove (diary-calendar.test.tsx covers the calendar's side).
 import { afterEach, expect, test } from "vitest";
-import { act, fireEvent, screen } from "@testing-library/react";
-import { overlaySet, proposalMove } from "@/domain/commands";
+import { act, fireEvent, screen, within } from "@testing-library/react";
+import { overlaySet, proposalMove, suggestionMake } from "@/domain/commands";
 import { cleanupApp, renderApp, type RenderedApp, type Seeder } from "@/app/testing/render-app";
 import { CalendarScreen } from "../calendar-screen";
 import { eventIdOf, importEvents, markGone, MONDAY_NOW, syntheticEvent } from "./testing/events";
@@ -13,7 +13,7 @@ import { eventIdOf, importEvents, markGone, MONDAY_NOW, syntheticEvent } from ".
 afterEach(cleanupApp);
 
 type Row = { id: string; _deleted?: boolean } & Record<string, unknown>;
-const rows = (app: RenderedApp, table: "events" | "proposals"): Row[] =>
+const rows = (app: RenderedApp, table: "events" | "proposals" | "suggestions"): Row[] =>
   (app.device.data.view(table).rows() as unknown as Row[]).filter((r) => !r._deleted);
 
 const entry = (title: string) => {
@@ -74,11 +74,14 @@ test("masked, gone, archived and all-day engagements can't be moved (B17)", asyn
   expect(rows(app, "proposals")).toHaveLength(0);
 });
 
-test("a viewer can't move anything", async () => {
-  const { app } = await diary((s) => s.viewer());
-  expect(entry("Budget review").hasAttribute("data-movable")).toBe(false);
+test("a viewer's move is a suggestion, not a proposal (D15)", async () => {
+  const { app, id } = await diary((s) => s.viewer());
+  const before = JSON.stringify(rows(app, "events"));
   keys("Budget review", "ArrowDown", "Enter");
   expect(rows(app, "proposals")).toHaveLength(0);
+  expect(rows(app, "suggestions")).toEqual([expect.objectContaining({ event: id, kind: "move", start: "2026-11-24T14:15:00.000Z", state: "open" })]);
+  expect(JSON.stringify(rows(app, "events"))).toBe(before);
+  expect(screen.getByText(/You suggested moving Budget review to Tue 24 Nov, 14:15\./)).toBeTruthy();
 });
 
 test("Ctrl+Z straight after a move withdraws the proposal it made", async () => {
@@ -134,4 +137,21 @@ test("moving a parent proposes a move for each engagement linked under it, and C
   expect(proposals.find((p) => p.event === speech)).toMatchObject({ start: "2026-11-24T14:30:00.000Z", group: id });
   act(() => void fireEvent.keyDown(window, { key: "z", ctrlKey: true }));
   expect(rows(app, "proposals")).toHaveLength(0);
+});
+
+test("an assistant takes a viewer's suggestion from the right-click menu, or dismisses it (D15)", async () => {
+  const { app, id } = await diary((s, a) => {
+    const event = eventIdOf(s.device, a, "a1");
+    s.run(suggestionMake, { now: MONDAY_NOW, event, kind: "move", start: "2026-11-25T09:00:00Z", end: "2026-11-25T10:00:00Z" });
+    s.run(suggestionMake, { now: MONDAY_NOW, event, kind: "quiet" });
+  });
+  fireEvent.contextMenu(screen.getByText("Budget review", { exact: true }), { clientX: 10, clientY: 10 });
+  expect(screen.getByText("Suggested: move to Wed 25 Nov, 09:00")).toBeTruthy();
+  expect(screen.getByText("Suggested: set it quiet")).toBeTruthy();
+  fireEvent.click(within(screen.getByText("Suggested: move to Wed 25 Nov, 09:00").closest<HTMLElement>("[data-suggestion]")!).getByText("Take the suggestion"));
+  expect(rows(app, "proposals")).toEqual([expect.objectContaining({ event: id, start: "2026-11-25T09:00:00Z" })]);
+  fireEvent.contextMenu(screen.getByText("Budget review", { exact: true }), { clientX: 10, clientY: 10 });
+  expect(screen.queryByText(/Suggested: move/)).toBeNull();
+  fireEvent.click(within(screen.getByText("Suggested: set it quiet").closest<HTMLElement>("[data-suggestion]")!).getByText("Dismiss it"));
+  expect(rows(app, "suggestions").map((r) => r.state).sort()).toEqual(["dismissed", "taken"]);
 });
