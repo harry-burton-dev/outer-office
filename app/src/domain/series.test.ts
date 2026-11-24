@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { healthText, isEnding, seriesFor } from "./series";
+import { healthText, isEnding, seriesFor, standingClashes } from "./series";
 import type { Event } from "./selectors";
 
 const NOW = "2026-11-24T12:00:00Z";
@@ -85,5 +85,31 @@ describe("series", () => {
     expect(isEnding(series!, "2026-11-23T08:59:59Z")).toBe(false);
     expect(isEnding(series!, "2026-11-23T09:00:00Z")).toBe(true);
     expect(isEnding(series!, "2026-12-21T09:00:00Z")).toBe(false);
+  });
+});
+
+describe("standing clashes", () => {
+  const slots = weekly(8);
+  const events = [
+    ...slots.map((s) => occ("exec", s)),
+    ...slots.map((s) => occ("ops", s, { start: new Date(Date.parse(s) + 1_800_000).toISOString() })),
+    ...slots.map((s) => occ("rare", s, { start: new Date(Date.parse(s) + 7_200_000).toISOString() })),
+  ];
+  const series = seriesFor(events, "p1", NOW);
+  const pair = (a: string, b: string, i: number) => ({ first: `${a}@${slots[i]}`, second: `${b}@${slots[i]}` });
+
+  test("two series clashing on at least half of one's occurrences show once", () => {
+    const clashes = [...[0, 1, 2, 3].map((i) => pair("exec", "ops", i)), pair("ops", "rare", 5)];
+    const found = standingClashes(series, clashes);
+    expect(found.map((c) => c.key)).toEqual(["exec|ops"]);
+    expect(found[0]?.clashing).toBe(4);
+  });
+
+  test("fewer than half is not standing", () => {
+    expect(standingClashes(series, [0, 1, 2].map((i) => pair("exec", "ops", i)))).toEqual([]);
+  });
+
+  test("clashes with single engagements, or within one series, don't count", () => {
+    expect(standingClashes(series, slots.map((s) => ({ first: `exec@${s}`, second: "single" })))).toEqual([]);
   });
 });
