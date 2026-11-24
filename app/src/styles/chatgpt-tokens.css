@@ -8,6 +8,7 @@
   /* Colour · tinte chatgpt (light) */
   --cg-bg: #ffffff;
   --cg-bg-2: #f5f5f5;
+  --cg-panel: #f5f5f5; /* sidebar */
   --cg-ui: #e5e5e5;
   --cg-ui-2: #d4d4d4;
   --cg-ui-3: #b5b5b5;
@@ -35,12 +36,14 @@
 }
 
 .dark {
-  /* Colour · tinte chatgpt (dark) */
-  --cg-bg: #000000;
-  --cg-bg-2: #262626;
-  --cg-ui: #404040;
-  --cg-ui-2: #525252;
-  --cg-ui-3: #666666;
+  /* Colour · tinte chatgpt (dark), lifted to ChatGPT's #212121 page at Harry's ask:
+     the sidebar sits darker than the page, fills and lines step up from it. */
+  --cg-bg: #212121;
+  --cg-bg-2: #2f2f2f;
+  --cg-panel: #181818;
+  --cg-ui: #3a3a3a;
+  --cg-ui-2: #4a4a4a;
+  --cg-ui-3: #5e5e5e;
   --cg-tx: #ffffff;
   --cg-tx-2: #a3a3a3;
   --cg-tx-3: #737373;

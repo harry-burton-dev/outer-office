@@ -26,6 +26,21 @@ test("an office stored before the day summary reads with a 4-hour run and 30-min
   expect(config.migrations.office[2]({ longRunHours: 6, placeChangeMinutes: 0 })).toEqual({ longRunHours: 6, placeChangeMinutes: 0 });
 });
 
+test("an event stored before v3 gets its attendee list, series identity and empty Outlook fields", () => {
+  const v2 = {
+    uid: "u1", recurrenceId: "2026-11-02T10:00:00.000Z",
+    requiredAttendees: "Alex Example <alex@example.invalid> · accepted\nsam@example.invalid", optionalAttendees: "Jo · tentative",
+  };
+  const v3 = config.migrations.events[2](v2);
+  expect(v3).toMatchObject({ seriesId: "u1", kind: "occurrence", source: "", outlookId: "", body: "", raw: "", online: false });
+  expect(JSON.parse(String(v3.attendees))).toEqual([
+    { name: "Alex Example", address: "alex@example.invalid", type: "required", response: "accepted", respondedAt: "" },
+    { name: "", address: "sam@example.invalid", type: "required", response: "", respondedAt: "" },
+    { name: "Jo", address: "", type: "optional", response: "tentative", respondedAt: "" },
+  ]);
+  expect(config.migrations.events[2]({ uid: "csv:x", recurrenceId: "" })).toMatchObject({ seriesId: "", kind: "single", source: "csv" });
+});
+
 test("a card stored before tabs reads as on no tab, using its template's fields", () => {
   expect(config.migrations.cards[1]({ event: "e1", template: "t1" })).toEqual({ event: "e1", template: "t1", tab: "", fields: "" });
 });

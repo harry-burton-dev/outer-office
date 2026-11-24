@@ -110,3 +110,27 @@ test("the forward look lists four weeks of busy days, a line per engagement with
   expect(budget.textContent).toBe("14:00Budget review (flagged)Room 4Visit done");
   expect(screen.queryByText("Bring the Q3 figures")).toBeNull();
 });
+
+test("B15: the day sheet prints a parent with its children as a timed run of show, in time order", async () => {
+  await renderApp({
+    now: MONDAY_NOW,
+    seed: (s) => {
+      const a = s.principal("PRINCIPAL-A");
+      importEvents(s, MONDAY_NOW, a, [
+        syntheticEvent("v", { subject: "Visit: Northfield Works", location: "Northfield Works", start: "2026-11-24T13:00:00Z", end: "2026-11-24T16:00:00Z" }),
+        syntheticEvent("s", { subject: "Speech: apprentices", location: "Northfield Works", start: "2026-11-24T15:00:00Z", end: "2026-11-24T15:30:00Z" }),
+        syntheticEvent("t", { subject: "Factory tour", location: "Shop floor", start: "2026-11-24T13:15:00Z", end: "2026-11-24T14:00:00Z" }),
+        syntheticEvent("o", { subject: "Unlinked call", start: "2026-11-24T17:00:00Z", end: "2026-11-24T17:30:00Z" }),
+      ]);
+      for (const uid of ["s", "t"]) s.run(overlaySet, { now: MONDAY_NOW, event: eventIdOf(s.device, a, uid), parent: eventIdOf(s.device, a, "v") });
+    },
+    children: <Chosen />,
+  });
+  fireEvent.change(screen.getByLabelText("Day"), { target: { value: TUESDAY } });
+  const titles = Array.from(document.querySelectorAll("[data-sheet-entry] h3")).map((h) => h.textContent);
+  expect(titles).toEqual(["Visit: Northfield Works", "Unlinked call"]);
+  const run = screen.getByRole("region", { name: "Run of show" });
+  expect(Array.from(run.querySelectorAll("li")).map((li) => li.textContent)).toEqual([
+    "13:15–14:00Factory tour · Shop floor", "15:00–15:30Speech: apprentices",
+  ]);
+});

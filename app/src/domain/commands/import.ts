@@ -6,6 +6,8 @@ import { defineCommand, type RowOf, type Tx } from "@trellis/framework";
 import type { ImportDiff, ImportedEvent, StoredEvent } from "../../import/types";
 import { isIsoInstant, requireNow, requireText, writeLog } from "./shared";
 import { settleProposals } from "./proposals";
+import { HISTORY_SKIPS, V3_FIELDS, fieldChanges, valueOf, type ComparedField } from "../../import/compare";
+import { TAG_COLOURS } from "../tags";
 
 export interface ImportApplyInput {
   now: string;
@@ -25,12 +27,8 @@ export interface ImportResult {
 }
 
 type StoredRow = RowOf<"events">;
-type Kind = "added" | "moved" | "changed" | "returned";
-
-const COMPARED = [
-  "start", "end", "allDay", "subject", "location", "organizer", "categories", "showAs", "masked",
-  "requiredAttendees", "optionalAttendees", "importance", "sensitivity",
-] as const;
+/** "filled" writes fields the stored row never had (import/compare.ts): not a change to the meeting, so no calendar log row. */
+type Kind = "added" | "moved" | "changed" | "returned" | "filled";
 
 /**
  * tx.id("event", principal, uid, recurrenceId). tx.id refuses an empty part, so
@@ -55,7 +53,8 @@ function checkDiff(tx: Tx, diff: ImportDiff): void {
   const lists = [diff.added, diff.changed, diff.gone, diff.returned];
   if (lists.some((list) => !Array.isArray(list))) tx.fail("The import is incomplete. Read the file again.");
   if (!isIsoInstant(diff.rangeStart) || !isIsoInstant(diff.rangeEnd) || diff.rangeStart > diff.rangeEnd) tx.fail("The import's date range is not valid. Read the file again.");
-  const incoming = [...diff.added, ...diff.changed.map((c) => c.after), ...diff.returned.map((c) => c.after)];
+  if (diff.filled !== undefined && !Array.isArray(diff.filled)) tx.fail("The import is incomplete. Read the file again.");
+  const incoming = [...diff.added, ...diff.changed.map((c) => c.after), ...(diff.filled ?? []).map((c) => c.after), ...diff.returned.map((c) => c.after)];
   for (const event of incoming) {
     const problem = badEvent(event);
     if (problem) tx.fail(`The file could not be applied: ${problem}.`);
@@ -68,35 +67,63 @@ const isOlder = (incoming: string, stored: string | undefined) =>
   stored !== undefined && stored !== "" && Date.parse(incoming) < Date.parse(stored);
 
 /** What applying one incoming event does to the stored one, or undefined when nothing changes. */
-function planEvent(stored: StoredRow | undefined, event: ImportedEvent): { kind: Kind; fields: readonly string[] } | undefined {
+function planEvent(stored: StoredRow | undefined, event: ImportedEvent): { kind: Kind; fields: readonly ComparedField[] } | undefined {
   if (!stored) return { kind: "added", fields: [] };
   if (isOlder(event.sourceModified, stored.sourceModified)) return undefined;
-  const fields = COMPARED.filter((key) => event[key] !== undefined && (stored[key] ?? "") !== event[key]);
+  const { changed, filled } = fieldChanges(stored as Partial<ImportedEvent>, event);
+  const fields = [...changed, ...filled];
   if (stored.gone) return { kind: "returned", fields };
   if (fields.length === 0) return undefined;
-  return { kind: fields.includes("start") ? "moved" : "changed", fields };
+  if (changed.length === 0) return { kind: "filled", fields };
+  return { kind: changed.includes("start") ? "moved" : "changed", fields };
 }
+
+/** Fields a source may leave out; each keeps what an earlier import stored. */
+const KEPT = ["requiredAttendees", "optionalAttendees", "importance", "sensitivity", "created", "source", "raw", ...V3_FIELDS] as const;
 
 /** A field the source does not carry keeps what an earlier import stored. */
 function eventFields(event: ImportedEvent, stored: StoredRow | undefined, principal: string, importId: string, moves: number) {
   const { uid, recurrenceId, start, end, allDay, subject, location, organizer, categories, showAs, masked, sourceModified } = event;
-  const kept = (key: "requiredAttendees" | "optionalAttendees" | "importance" | "sensitivity" | "created") => event[key] ?? stored?.[key] ?? "";
-  const [requiredAttendees, optionalAttendees, importance, sensitivity, created] =
-    [kept("requiredAttendees"), kept("optionalAttendees"), kept("importance"), kept("sensitivity"), kept("created")];
+  const kept: Record<string, unknown> = {};
+  for (const key of KEPT) {
+    const value = event[key] ?? stored?.[key];
+    if (value !== undefined) kept[key] = value;
+    else if (key !== "source") kept[key] = valueOf({}, key as ComparedField);
+  }
+  if (kept.source === undefined) kept.source = "";
   return {
     principal, uid, recurrenceId, start, end, allDay, subject, location, organizer, categories, showAs, masked, sourceModified,
-    requiredAttendees, optionalAttendees, importance, sensitivity, created, gone: false, moves, importId,
+    ...(kept as Pick<StoredRow, (typeof KEPT)[number]>), gone: false, moves, importId,
   };
 }
 
-function applyIncoming(tx: Tx, now: string, principal: string, importId: string, event: ImportedEvent): Kind | undefined {
+/** One history row per changed field (OUT-83). The body's text is never copied (D7). */
+function writeHistory(tx: Tx, now: string, id: string, importId: string, stored: StoredRow, event: ImportedEvent, fields: readonly ComparedField[]): void {
+  for (const field of fields) {
+    if (HISTORY_SKIPS.has(field)) continue;
+    const secret = field === "body";
+    tx.put("eventHistory", tx.newId(), {
+      event: id, at: now, importId, source: event.source ?? "", field,
+      from: secret ? "" : String(valueOf(stored as Partial<ImportedEvent>, field)), to: secret ? "" : String(valueOf(event, field)),
+    });
+  }
+}
+
+/** What this run wrote for one event, since tx reads don't see the run's own writes. */
+interface Written { seriesId: string; start: string; gone: boolean; kind: string; subject: string; organizer: string }
+
+function applyIncoming(tx: Tx, now: string, principal: string, importId: string, event: ImportedEvent, written: Map<string, Written>): Kind | undefined {
   const id = eventId(tx, principal, event);
   const stored = tx.get("events", id);
   const plan = planEvent(stored, event);
   if (!plan) return undefined;
   if (stored?._deleted) tx.restore("events", id);
   const moved = stored !== undefined && stored.start !== event.start;
-  tx.put("events", id, eventFields(event, stored, principal, importId, (stored?.moves ?? 0) + (moved ? 1 : 0)));
+  const fields = eventFields(event, stored, principal, importId, (stored?.moves ?? 0) + (moved ? 1 : 0));
+  tx.put("events", id, fields);
+  written.set(id, { seriesId: fields.seriesId ?? "", start: event.start, gone: false, kind: fields.kind ?? "", subject: event.subject, organizer: event.organizer });
+  if (stored && !stored._deleted) writeHistory(tx, now, id, importId, stored, event, plan.fields);
+  if (plan.kind === "filled") return plan.kind;
   const others = plan.fields.filter((field) => field !== "start");
   const note = others.length > 0 ? `Changed: ${others.join(", ")}` : "";
   const fromTo = moved ? { from: stored?.start ?? "", to: event.start } : {};
@@ -104,18 +131,63 @@ function applyIncoming(tx: Tx, now: string, principal: string, importId: string,
   return plan.kind;
 }
 
-function applyGone(tx: Tx, now: string, principal: string, importId: string, event: StoredEvent): boolean {
+/** A category record for each name first seen (OUT-83). Masked items carry none. */
+function recordCategories(tx: Tx, now: string, events: readonly ImportedEvent[]): void {
+  const known = new Set(tx.list("categories", { includeDeleted: true }).map((c) => c.id));
+  let order = tx.list("categories").length;
+  for (const event of events) {
+    if (event.masked) continue;
+    for (const name of event.categories.split(",").map((c) => c.trim()).filter(Boolean)) {
+      const id = tx.id("category", name.toLowerCase());
+      if (known.has(id)) continue;
+      known.add(id);
+      tx.put("categories", id, { name, colour: TAG_COLOURS[order % TAG_COLOURS.length]?.value ?? "", order, firstSeen: now });
+      order += 1;
+    }
+  }
+}
+
+/**
+ * Works out the series record of every series this run touched, from its
+ * stored occurrences as they stand after the run. An exception is an
+ * occurrence Outlook marks as one, or a gone occurrence with a later one still
+ * in the diary (v0.3-brief.md section 4).
+ */
+function recordSeries(tx: Tx, principal: string, written: ReadonlyMap<string, Written>): void {
+  const touched = new Set([...written.values()].map((w) => w.seriesId).filter(Boolean));
+  if (touched.size === 0) return;
+  const rows = new Map<string, Written>();
+  for (const e of tx.list("events")) {
+    if (e.principal !== principal || !touched.has(e.seriesId ?? "")) continue;
+    rows.set(e.id, { seriesId: e.seriesId ?? "", start: e.start ?? "", gone: e.gone === true, kind: e.kind ?? "", subject: e.subject ?? "", organizer: e.organizer ?? "" });
+  }
+  for (const [id, w] of written) if (touched.has(w.seriesId)) rows.set(id, { ...rows.get(id), ...w });
+  for (const seriesId of touched) {
+    const all = [...rows.values()].filter((r) => r.seriesId === seriesId).sort((a, b) => a.start.localeCompare(b.start));
+    const live = all.filter((r) => !r.gone);
+    const lastLive = live.at(-1)?.start ?? "";
+    const exceptions = live.filter((r) => r.kind === "exception").length + all.filter((r) => r.gone && r.start < lastLive).length;
+    const latest = live.at(-1) ?? all.at(-1);
+    tx.put("series", tx.id("series", principal, seriesId), {
+      principal, seriesId, subject: latest?.subject ?? "", organizer: latest?.organizer ?? "", pattern: "",
+      firstStart: live[0]?.start ?? "", lastStart: lastLive, count: live.length, exceptions,
+    });
+  }
+}
+
+function applyGone(tx: Tx, now: string, principal: string, importId: string, event: StoredEvent, written: Map<string, Written>): boolean {
   const id = eventId(tx, principal, event);
   const stored = tx.get("events", id);
   if (!stored || stored._deleted || stored.gone) return false;
   tx.put("events", id, { gone: true, importId });
+  written.set(id, { seriesId: stored.seriesId ?? "", start: stored.start ?? "", gone: true, kind: stored.kind ?? "", subject: stored.subject ?? "", organizer: stored.organizer ?? "" });
   writeLog(tx, now, { area: "calendar", kind: "gone", principal, event: id, from: stored.start ?? "" });
   return true;
 }
 
 /** Incoming events once each, by id; a later copy of one event wins. */
 function incomingOf(tx: Tx, principal: string, diff: ImportDiff): readonly ImportedEvent[] {
-  const all = [...diff.added, ...diff.changed.map((c) => c.after), ...diff.returned.map((c) => c.after)];
+  const all = [...diff.added, ...diff.changed.map((c) => c.after), ...(diff.filled ?? []).map((c) => c.after), ...diff.returned.map((c) => c.after)];
   return [...new Map(all.map((event) => [eventId(tx, principal, event), event])).values()];
 }
 
@@ -128,8 +200,11 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
   checkDiff(tx, input.diff);
   const importId = tx.newId();
   const incoming = incomingOf(tx, principal, input.diff);
-  const kinds = incoming.map((event) => applyIncoming(tx, now, principal, importId, event));
-  const gone = input.diff.gone.filter((event) => applyGone(tx, now, principal, importId, event)).length;
+  const written = new Map<string, Written>();
+  const kinds = incoming.map((event) => applyIncoming(tx, now, principal, importId, event, written));
+  const gone = input.diff.gone.filter((event) => applyGone(tx, now, principal, importId, event, written)).length;
+  recordCategories(tx, now, incoming);
+  recordSeries(tx, principal, written);
   const count = (kind: Kind) => kinds.filter((k) => k === kind).length;
   const result = { importId, added: count("added"), changed: count("changed") + count("moved"), gone, returned: count("returned") };
   const { rangeStart, rangeEnd } = input.diff;

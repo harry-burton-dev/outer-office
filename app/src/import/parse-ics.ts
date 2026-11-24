@@ -114,6 +114,9 @@ function toImported(raw: RawOccurrence, masked: boolean): ImportedEvent {
   return {
     uid: raw.uid, recurrenceId: raw.recurrenceId, start: toIso(raw.startMs), end: toIso(raw.endMs), allDay: raw.allDay,
     ...(masked ? maskDetails(details) : details), masked,
+    source: "ics",
+    kind: raw.recurrenceId === "" ? "single" : raw.component.hasProperty("recurrence-id") ? "exception" : "occurrence",
+    seriesId: raw.recurrenceId === "" ? "" : raw.uid,
   };
 }
 

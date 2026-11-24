@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApp } from "@/app/app-state";
 import { EmptyState, PageHeader } from "@/app/ui";
+import { clashes } from "@/domain/clashes";
 import { formatDay, formatTime } from "@/domain/dates";
-import { healthText, seriesFor, type OccurrenceState, type Series } from "@/domain/series";
+import { healthText, seriesFor, standingClashes, type OccurrenceState, type Series, type StandingClash } from "@/domain/series";
 
 const DESCRIPTION =
   "Recurring meetings from Outlook, with those still to come first. Health looks at the last 8 occurrences. Hours a month spread the series' time over the weeks it runs.";
@@ -37,6 +38,21 @@ function Occurrences({ series }: { series: Series }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function StandingClashes({ found }: { found: readonly StandingClash[] }) {
+  return (
+    <section aria-label="Standing clashes" className="rounded-md border border-destructive/40 p-3">
+      <h2 className="pb-1 text-sm font-medium">Standing clashes</h2>
+      <ul className="flex flex-col gap-1 text-sm">
+        {found.map((c) => (
+          <li key={c.key}>
+            {c.a.subject || "(no subject)"} clashes with {c.b.subject || "(no subject)"} on {c.clashing} of its {c.a.count} occurrences
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -73,10 +89,12 @@ function SeriesRow({ series, open, onToggle }: { series: Series; open: boolean; 
 }
 
 export function SeriesScreen() {
-  const { principalId, now } = useApp();
+  const { principalId, now, timezone } = useApp();
   const events = useRecords("events");
+  const overlays = useRecords("overlays");
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const series = useMemo(() => (principalId === null ? [] : seriesFor(events, principalId, now)), [events, principalId, now]);
+  const standing = useMemo(() => standingClashes(series, clashes(events, overlays, timezone)), [series, events, overlays, timezone]);
   const toggle = (key: string) => setOpen((was) => {
     const next = new Set(was);
     if (!next.delete(key)) next.add(key);
@@ -85,6 +103,7 @@ export function SeriesScreen() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Series" description={DESCRIPTION} />
+      {standing.length > 0 && <StandingClashes found={standing} />}
       {series.length === 0 ? (
         <EmptyState title="No recurring meetings" body="Series appear here once an import or the diary sync brings in a recurring meeting." />
       ) : (
