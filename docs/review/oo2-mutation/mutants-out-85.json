@@ -32,5 +32,9 @@
  {"id": "OUT85-B33", "what": "dismiss: the suggestion stays open", "file": "app/src/domain/commands/suggestions.ts", "find": "{ state: \"dismissed\", doneBy: tx.user }", "replace": "{ doneBy: tx.user }"},
  {"id": "OUT85-B34", "what": "fromWizard: a note fix suggests a note on only one engagement", "file": "app/src/domain/commands/suggestions.ts", "find": "for (const event of fix.events) suggestionMake", "replace": "for (const event of fix.events.slice(0, 1)) suggestionMake"},
  {"id": "OUT85-B35", "what": "diary: a viewer's drag proposes instead of suggesting", "file": "app/src/screens/calendar/diary.tsx", "find": "onMove={isViewer ? onSuggestMove : onMove}", "replace": "onMove={onMove}"},
- {"id": "OUT85-B36", "what": "make: a move that ends before it starts is accepted", "file": "app/src/domain/commands/suggestions.ts", "find": "if (input.end <= input.start) tx.fail", "replace": "if (false) tx.fail"}
+ {"id": "OUT85-B36", "what": "make: a move that ends before it starts is accepted", "file": "app/src/domain/commands/suggestions.ts", "find": "if (input.end <= input.start) tx.fail", "replace": "if (false) tx.fail"},
+ {"id": "OUT85-B37", "what": "import: a moved engagement's proposal isn't marked superseded", "file": "app/src/domain/commands/proposals.ts", "find": "        tx.put(\"proposals\", p.id, { superseded: now });\n", "replace": ""},
+ {"id": "OUT85-B38", "what": "import: any change, not only a move, supersedes the proposal", "file": "app/src/domain/commands/proposals.ts", "find": "(before.start !== after.start || before.end !== after.end)", "replace": "true"},
+ {"id": "OUT85-B39", "what": "import: a gone engagement's proposal stays", "file": "app/src/domain/commands/proposals.ts", "find": "if (goneIds.has(p.event ?? \"\")) {", "replace": "if (false) {"},
+ {"id": "OUT85-B40", "what": "import: a re-keyed occurrence's proposal is withdrawn as gone", "file": "app/src/domain/commands/proposals.ts", "find": " || rekeyed.has(p.event ?? \"\")", "replace": ""}
 ]

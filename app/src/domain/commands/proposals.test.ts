@@ -154,3 +154,41 @@ describe("proposed new meetings and archiving", () => {
     expect(faces.find((f) => f.title === "New one")?.veil).toBeUndefined();
   });
 });
+
+describe("proposals after an import (B23)", () => {
+  const moved = (event: string, to: { start: string; end: string }, more = {}) =>
+    ({ ...DIFF, added: [], changed: [{ id: event, before: DIFF.added[0], after: { ...DIFF.added[0]!, ...to, sourceModified: "2026-11-23T10:00:00Z", ...more } }] }) as unknown as ImportDiff;
+
+  test("a sync that moves a proposed engagement somewhere else sets superseded, with a log row", async () => {
+    const { a, principal, event } = await setUp();
+    ok(a, proposalMove, { now: NOW, event, ...LATER });
+    const elsewhere = { start: "2026-11-27T09:00:00Z", end: "2026-11-27T10:00:00Z" };
+    ok(a, importApply, { now: "2026-11-24T12:00:00Z", principal, file: "g.ics", diff: moved(event, elsewhere) });
+    expect(rows(a, "proposals")).toEqual([expect.objectContaining({ event, ...LATER, superseded: "2026-11-24T12:00:00Z" })]);
+    expect(rows(a, "log").filter((l) => l.kind === "superseded")).toEqual([expect.objectContaining({ area: "proposal", event, from: LATER.start, to: elsewhere.start })]);
+  });
+
+  test("a sync that changes only the place leaves the proposal as it was", async () => {
+    const { a, principal, event } = await setUp();
+    ok(a, proposalMove, { now: NOW, event, ...LATER });
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: moved(event, { start: START, end: END }, { location: "Room 9" }) });
+    expect(rows(a, "proposals")).toEqual([expect.objectContaining({ event, superseded: "" })]);
+  });
+
+  test("a sync that removes a proposed engagement withdraws the proposal, with a log row", async () => {
+    const { a, principal, event } = await setUp();
+    ok(a, proposalMove, { now: NOW, event, ...LATER });
+    const gone = { ...DIFF.added[0]!, id: event, principal, gone: false, moves: 0 };
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: { ...DIFF, added: [], gone: [gone] } as unknown as ImportDiff });
+    expect(rows(a, "proposals")).toEqual([]);
+    expect(rows(a, "log").filter((l) => l.area === "proposal" && l.kind === "withdraw")).toEqual([expect.objectContaining({ event, from: LATER.start, note: "Gone from Outlook" })]);
+  });
+
+  test("a proposal made again after it was superseded starts unsuperseded", async () => {
+    const { a, principal, event } = await setUp();
+    ok(a, proposalMove, { now: NOW, event, ...LATER });
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: moved(event, { start: "2026-11-27T09:00:00Z", end: "2026-11-27T10:00:00Z" }) });
+    ok(a, proposalMove, { now: NOW, event, start: "2026-11-30T09:00:00Z", end: "2026-11-30T10:00:00Z" });
+    expect(rows(a, "proposals")).toEqual([expect.objectContaining({ event, superseded: "" })]);
+  });
+});

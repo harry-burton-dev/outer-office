@@ -109,8 +109,12 @@ export interface Landed {
  * sits at the proposed time; a new meeting when the principal has an event with its subject
  * and start. Both are removed and logged as found. A command reads the tables as they were
  * before it ran, so the import passes in what it just wrote (`landed`) and what went (`goneIds`).
+ *
+ * A move whose event the import moved somewhere else is marked `superseded`; one whose event
+ * went is withdrawn, with a log row (v0.3 brief section 4, B23). Events a re-key paired
+ * (`rekeyed`) are left alone: the re-key has already moved their proposals.
  */
-export function settleProposals(tx: Tx, now: string, principal: string, landed: readonly Landed[], goneIds: ReadonlySet<string>): number {
+export function settleProposals(tx: Tx, now: string, principal: string, landed: readonly Landed[], goneIds: ReadonlySet<string>, rekeyed: ReadonlySet<string> = new Set()): number {
   const byId = new Map<string, Landed>(tx.list("events").filter((e) => e.principal === principal && !e.gone).map((e) => [e.id, e]));
   for (const e of landed) byId.set(e.id, e);
   for (const id of goneIds) byId.delete(id);
@@ -121,7 +125,21 @@ export function settleProposals(tx: Tx, now: string, principal: string, landed: 
     const found = p.kind === "new"
       ? events.find((e) => e.start === p.start && same(e.subject, p.subject))
       : events.find((e) => e.id === p.event && e.start === p.start && e.end === p.end);
-    if (!found) continue;
+    if (!found) {
+      if (p.kind === "new" || p._deleted || rekeyed.has(p.event ?? "")) continue;
+      if (goneIds.has(p.event ?? "")) {
+        tx.remove("proposals", p.id);
+        writeLog(tx, now, { area: "proposal", kind: "withdraw", principal, event: p.event ?? "", from: p.start ?? "", note: "Gone from Outlook" });
+        continue;
+      }
+      const before = tx.get("events", p.event ?? "");
+      const after = landed.find((e) => e.id === p.event);
+      if (!p.superseded && before && after && (before.start !== after.start || before.end !== after.end)) {
+        tx.put("proposals", p.id, { superseded: now });
+        writeLog(tx, now, { area: "proposal", kind: "superseded", principal, event: p.event ?? "", from: p.start ?? "", to: after.start ?? "" });
+      }
+      continue;
+    }
     tx.remove("proposals", p.id);
     writeLog(tx, now, { area: "proposal", kind: "settled", principal, event: found.id, to: p.start ?? "" });
     settled += 1;
