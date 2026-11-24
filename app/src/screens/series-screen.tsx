@@ -69,7 +69,7 @@ function SeriesRow({ series, open, onToggle }: { series: Series; open: boolean; 
             {name}
           </button>
         </TableCell>
-        <TableCell className="text-muted-foreground">Repeats</TableCell>
+        <TableCell className={series.pattern ? undefined : "text-muted-foreground"}>{series.pattern || "Repeats"}</TableCell>
         <TableCell className="tabular-nums">{when(series.next?.start, timezone)}</TableCell>
         <TableCell className="text-right tabular-nums">{series.count}</TableCell>
         <TableCell className="text-right tabular-nums">{series.exceptions}</TableCell>
@@ -91,9 +91,10 @@ function SeriesRow({ series, open, onToggle }: { series: Series; open: boolean; 
 export function SeriesScreen() {
   const { principalId, now, timezone } = useApp();
   const events = useRecords("events");
+  const records = useRecords("series");
   const overlays = useRecords("overlays");
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
-  const series = useMemo(() => (principalId === null ? [] : seriesFor(events, principalId, now)), [events, principalId, now]);
+  const series = useMemo(() => (principalId === null ? [] : seriesFor(events, principalId, now, records)), [events, principalId, now, records]);
   const standing = useMemo(() => standingClashes(series, clashes(events, overlays, timezone)), [series, events, overlays, timezone]);
   const toggle = (key: string) => setOpen((was) => {
     const next = new Set(was);
