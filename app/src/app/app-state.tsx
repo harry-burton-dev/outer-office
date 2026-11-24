@@ -9,7 +9,7 @@ import { isViewer as isViewerIn } from "@/domain/selectors";
 import { DiaryInboxProvider } from "@/automate/diary-inbox-state";
 import { resolvePrincipal, useActivePrincipals } from "./principals";
 
-export type Screen = "calendar" | "import" | "log" | "inbox" | "today" | "project" | "bin";
+export type Screen = "calendar" | "import" | "log" | "inbox" | "today" | "project" | "bin" | "tags" | "templates";
 export type Panel =
   | { kind: "engagement"; id: string }
   | { kind: "task"; id: string }

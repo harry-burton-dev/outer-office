@@ -17,6 +17,8 @@ export interface DiaryEvent {
   start: string;
   end: string;
   allDay: boolean;
+  /** The event's colour, from its first tag. */
+  colour?: string;
 }
 
 export type DiaryView = "day" | "week";
@@ -37,7 +39,10 @@ export interface DiaryCalendarProps {
   onNavigate: (date: string) => void;
   onViewChange: (view: DiaryView) => void;
   /** Custom content inside an event; the default is FullCalendar's time and title. */
-  renderEvent?: (event: DiaryEvent) => ReactNode;
+  /** `time` is FullCalendar's time text for the event, in the office zone. */
+  renderEvent?: (event: DiaryEvent, time: string) => ReactNode;
+  /** Extra toolbar controls, shown before the day and week tabs. */
+  toolbarExtra?: ReactNode;
 }
 
 const VIEW_TYPES: Record<DiaryView, string> = { day: "timeGridDay", week: "timeGridWeek" };
@@ -66,9 +71,10 @@ export function dayIn(instant: Date, timeZone: string): string {
 }
 
 /** Timed events keep their UTC instants (FullCalendar shifts them into the zone); all-day events become the zone's calendar days. */
-function toInput({ id, title, start, end, allDay }: DiaryEvent, timeZone: string): EventInput {
-  if (!allDay) return { id, title, start, end, allDay };
-  return { id, title, start: dayIn(new Date(start), timeZone), end: dayIn(new Date(end), timeZone), allDay };
+function toInput({ id, title, start, end, allDay, colour }: DiaryEvent, timeZone: string): EventInput {
+  const look = colour ? { color: colour, textColor: "var(--foreground)" } : {};
+  if (!allDay) return { id, title, start, end, allDay, ...look };
+  return { id, title, start: dayIn(new Date(start), timeZone), end: dayIn(new Date(end), timeZone), allDay, ...look };
 }
 
 /** True when the YYYY-MM-DD `date` falls in the view's current range, read in `timeZone`. */
@@ -78,7 +84,7 @@ function shows(info: { currentStart: Date; currentEnd: Date }, date: string, tim
   return date >= first && date < end;
 }
 
-export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent }: DiaryCalendarProps) {
+export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra }: DiaryCalendarProps) {
   const controller = useCalendarController();
   const byId = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
   const inputs = useMemo<EventInput[]>(() => events.map((event) => toInput(event, timeZone)), [events, timeZone]);
@@ -104,15 +110,17 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
   };
 
   const eventContent = renderEvent
-    ? ({ event }: EventDisplayInfo) => {
+    ? ({ event, timeText }: EventDisplayInfo) => {
         const diaryEvent = byId.get(event.id);
-        return diaryEvent ? renderEvent(diaryEvent) : undefined;
+        return diaryEvent ? renderEvent(diaryEvent, timeText) : undefined;
       }
     : undefined;
 
   return (
-    <div className="flex flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="">
-      <EventCalendarToolbar className="border-b p-3" controller={controller} availableViews={AVAILABLE_VIEWS} />
+    <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="">
+      <EventCalendarToolbar className="border-b p-3" controller={controller} availableViews={AVAILABLE_VIEWS}>
+        {toolbarExtra}
+      </EventCalendarToolbar>
       <div className="min-h-0 grow">
         <EventCalendarViews
           controller={controller}
@@ -127,7 +135,9 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
           slotHeaderFormat={HOUR_24}
           eventTimeFormat={HOUR_24}
           todayHint={todayHint}
-          height="auto"
+          height="100%"
+          expandRows
+          slotDuration="01:00:00"
           editable={false}
           selectable={false}
           events={inputs}

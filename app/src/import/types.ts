@@ -21,6 +21,16 @@ export interface ImportedEvent {
   masked: boolean;
   /** LAST-MODIFIED, or DTSTAMP when absent, as ISO UTC. */
   sourceModified: string;
+  // Optional: a source may not carry them (CSV has no responses, masked items none).
+  /** One attendee per line: "Name <address> · response". Required and optional, as in Outlook. */
+  requiredAttendees?: string;
+  optionalAttendees?: string;
+  /** low | normal | high */
+  importance?: string;
+  /** normal | private | confidential */
+  sensitivity?: string;
+  /** CREATED, as ISO UTC. */
+  created?: string;
 }
 
 /** An event as stored in the `events` table. */

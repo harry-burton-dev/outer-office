@@ -17,7 +17,7 @@ export function AppFrame() {
     <TooltipProvider>
       <SidebarProvider>
         <AppSidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-svh min-w-0 flex-1 flex-col">
           <TopBar />
           <div className="px-6 pt-4 empty:hidden">
             <ConflictPrompt />

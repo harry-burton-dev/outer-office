@@ -1,12 +1,13 @@
 // The top bar: the sidebar toggle, Add task (the primary button on the task
 // screens, outline elsewhere so a screen keeps one primary of its own), Needs
-// action with its count, the sync status and the signed-in user.
+// action with its count, the sync status, light or dark, and the signed-in user.
 import { Plus } from "lucide-react";
 import { HealthIndicator, useSession } from "@trellis/framework";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useApp } from "./app-state";
+import { ThemeToggle } from "./theme";
 import { needsActionCount, useDiaryForNeedsAction, useNeedsAction } from "./frame-data";
 import { usePeople } from "./people";
 import { isTaskScreen } from "./screen-content";
@@ -41,6 +42,7 @@ export function TopBar() {
       <NeedsActionButton />
       <div className="ml-auto flex min-w-0 items-center gap-4">
         <HealthIndicator compact />
+        <ThemeToggle />
         <span className="truncate text-sm">{name}</span>
       </div>
     </header>

@@ -14,6 +14,7 @@ export const AREAS = [
   { value: "task", label: "Task" },
   { value: "import", label: "Import" },
   { value: "setup", label: "Setup" },
+  { value: "proposal", label: "Proposal" },
 ] as const;
 
 export type AreaFilter = (typeof AREAS)[number]["value"];
@@ -26,6 +27,8 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
   assigned: "Assigned", accepted: "Accepted", declined: "Declined", recalled: "Recalled",
   "office-created": "Office set up", "office-changed": "Office changed",
   "principal-added": "Principal added", "principal-changed": "Principal changed",
+  move: "Move proposed", withdraw: "Proposal withdrawn", new: "Meeting proposed", settled: "Found in Outlook",
+  archived: "Archived", unarchived: "Back from the archive",
 };
 
 /** A log kind in plain words: "prep" is "Prep changed"; an unknown kind is tidied. */

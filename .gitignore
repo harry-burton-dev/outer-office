@@ -7,3 +7,4 @@ framework/engine/results/
 *.log
 .claude/
 epics/
+samples/

@@ -21,7 +21,10 @@ const stored = (event: ImportedEvent): StoredEvent => ({ ...event, id: `ev-${++n
 
 describe("cross-source keys: the .ics file and the diary payload for the same diary", () => {
   test("give identical events, field for field", () => {
-    const fromIcs = parseIcs(MAIN_FIXTURE, { ...MAIN_WINDOW, privatePolicy: "mask" }).events;
+    // The .ics file also carries the meeting panel's detail fields (OUT-78), which the
+    // diary payload does not have yet; the two must agree on everything else.
+    const shared = ({ requiredAttendees: _r, optionalAttendees: _o, importance: _i, sensitivity: _s, created: _c, ...rest }: ImportedEvent) => rest;
+    const fromIcs = parseIcs(MAIN_FIXTURE, { ...MAIN_WINDOW, privatePolicy: "mask" }).events.map(shared);
     const fromPayload = parseAutomate(MAIN_PAYLOAD, MASK).events;
     expect(fromPayload).toHaveLength(23);
     expect(fromPayload).toEqual(fromIcs);
