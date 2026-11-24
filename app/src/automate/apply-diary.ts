@@ -25,7 +25,10 @@ export interface ApplyContext {
 }
 
 /** applied and unchanged updates are used up; refused ones stay, with the reason. */
-export type ApplyOutcome = { kind: "applied" } | { kind: "unchanged" } | { kind: "refused"; reason: string };
+export type ApplyOutcome =
+  | { kind: "applied"; added: number; changed: number; gone: number }
+  | { kind: "unchanged" }
+  | { kind: "refused"; reason: string };
 
 export function applyDiaryUpdate(update: DiaryUpdate, ctx: ApplyContext): ApplyOutcome {
   const principal = ctx.principals.find((p) => !p._deleted && p.code === update.principal);
@@ -39,5 +42,6 @@ export function applyDiaryUpdate(update: DiaryUpdate, ctx: ApplyContext): ApplyO
     return { kind: "refused", reason };
   }
   const result = ctx.run({ now: ctx.now, principal: principal.id, file: SYNC_FILE, diff });
-  return result.ok ? { kind: "applied" } : { kind: "refused", reason: result.error };
+  if (!result.ok) return { kind: "refused", reason: result.error };
+  return { kind: "applied", added: diff.added.length, changed: diff.changed.length + diff.returned.length, gone: diff.gone.length };
 }

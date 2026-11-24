@@ -18,8 +18,9 @@ import definition from "./app-definition.js";
 // taking the bundle to 773,823. With every v0.1 screen, the iCalendar parser
 // (about 76,000) and the shadcn components, the whole app is 1,178,591 bytes
 // (343,687 gzipped). The project owner has said size is not a concern, so the
-// budget is 1,400,000, which leaves about 220,000 bytes.
-export const BUDGETS = { bootstrap: 50_000, bundle: 1_400_000 };
+// budget was 1,400,000. The Automate page (OUT-91) and its Markdown renderer
+// took the app to 1,452,899; with v0.3 still landing, the budget is 2,000,000.
+export const BUDGETS = { bootstrap: 50_000, bundle: 2_000_000 };
 
 /** Size, limit and headroom of each build output. `dist` is laid out as the build writes it. */
 export function checkBudgets({ dist, version, limits = BUDGETS }) {
