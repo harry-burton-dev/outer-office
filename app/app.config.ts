@@ -1,4 +1,5 @@
 import type { AppDefinition } from "@trellis/framework";
+import { attendeesFromLines } from "./src/import/attendees.ts";
 
 const str = { kind: "latest", type: "string" } as const;
 const num = { kind: "latest", type: "number" } as const;
@@ -11,9 +12,11 @@ const config = {
   tables: {
     // The data model of design/v0.1-brief.md.
     office: {
-      version: 2,
+      version: 3,
       // automate: the "Power Automate" setting (OO1). Off until an admin turns it on.
-      fields: { name: str, timezone: str, dayStart: str, dayEnd: str, privatePolicy: str, automate: bool },
+      // Version 3: the day summary's limits (OUT-84): a run longer than longRunHours
+      // without a break, and place changes less than placeChangeMinutes apart.
+      fields: { name: str, timezone: str, dayStart: str, dayEnd: str, privatePolicy: str, automate: bool, longRunHours: num, placeChangeMinutes: num },
     },
     principals: {
       version: 1,
@@ -42,21 +45,54 @@ const config = {
       fields: { userId: str, key: str, state: str, until: str, at: str },
     },
     events: {
-      version: 2,
+      version: 3,
       fields: {
         principal: str, uid: str, recurrenceId: str, start: str, end: str, allDay: bool,
         subject: str, location: str, organizer: str, categories: str, showAs: str,
         masked: bool, gone: bool, sourceModified: str, moves: num, importId: str,
         // Version 2: the rest of what the diary sync carries (OUT-78).
         requiredAttendees: str, optionalAttendees: str, importance: str, sensitivity: str, created: str,
+        // Version 3: everything Outlook sends (OUT-83, v0.3-brief.md section 3).
+        // requiredAttendees and optionalAttendees are still written, from attendees.
+        seriesId: str, outlookId: str, kind: str, source: str, attendees: "text",
+        organizerAddress: str, locationType: str, online: bool, onlineProvider: str, joinUrl: str,
+        hasAttachments: bool, webLink: str, response: str,
+        isOrganizer: bool, responseRequested: bool, allowNewTimeProposals: bool,
+        body: "text", raw: "text",
+      },
+    },
+    // One row per field an import changed (OUT-83). For body, from and to stay
+    // "" so the text isn't copied (D7). Written by imports only.
+    eventHistory: {
+      version: 1,
+      fields: { event: str, at: str, importId: str, source: str, field: str, from: "text", to: "text" },
+    },
+    // Outlook categories, found by imports (OUT-83). Separate from tags: a
+    // category never applies a tag. Id tx.id("category", lower-case name).
+    categories: {
+      version: 1,
+      fields: { name: str, colour: str, order: num, firstSeen: str },
+    },
+    // One recurring meeting as a whole (OUT-83). Id tx.id("series", principal,
+    // seriesId). Worked out again by imports from the stored occurrences.
+    series: {
+      version: 1,
+      fields: {
+        principal: str, seriesId: str, subject: str, organizer: str, pattern: str,
+        firstStart: str, lastStart: str, count: num, exceptions: num,
       },
     },
     overlays: {
-      version: 4,
+      version: 5,
       // Version 2: tags, comma-separated tag ids (OUT-76).
       // Version 3: archived, when the office archived the event ("" when it is not).
       // Version 4: archiveReason, why it was archived (OUT-66; "" when it is not).
-      fields: { event: str, prep: str, flagged: bool, prepOwner: askStr, notes: "text", outcome: "text", tags: str, archived: str, archiveReason: str },
+      // Version 5 (OUT-84): quiet (never clashes), parent (the event it is linked
+      // under, or ""), and priority (1 to 4, the task scale; 4 is none set).
+      fields: {
+        event: str, prep: str, flagged: bool, prepOwner: askStr, notes: "text", outcome: "text", tags: str, archived: str, archiveReason: str,
+        quiet: bool, parent: str, priority: num,
+      },
     },
     // The office's tags, shared by tasks and events (OUT-76). An event also
     // carries a tag when one of its Outlook categories has the tag's name.
@@ -126,11 +162,13 @@ const config = {
   migrations: {
     office: {
       1: (record) => ({ ...record, automate: record.automate ?? false }),
+      2: (record) => ({ ...record, longRunHours: record.longRunHours ?? 4, placeChangeMinutes: record.placeChangeMinutes ?? 30 }),
     },
     overlays: {
       1: (record) => ({ ...record, tags: record.tags ?? "" }),
       2: (record) => ({ ...record, archived: record.archived ?? "" }),
       3: (record) => ({ ...record, archiveReason: record.archiveReason ?? (record.archived ? "unknown" : "") }),
+      4: (record) => ({ ...record, quiet: record.quiet ?? false, parent: record.parent ?? "", priority: record.priority ?? 4 }),
     },
     proposals: {
       1: (record) => ({
@@ -146,6 +184,20 @@ const config = {
         ...record,
         requiredAttendees: record.requiredAttendees ?? "", optionalAttendees: record.optionalAttendees ?? "",
         importance: record.importance ?? "", sensitivity: record.sensitivity ?? "", created: record.created ?? "",
+      }),
+      // source stays "" (not known) for a row from before v3, except a CSV row's derived uid.
+      2: (record) => ({
+        ...record,
+        seriesId: record.seriesId ?? (record.recurrenceId ? record.uid ?? "" : ""),
+        kind: record.kind ?? (record.recurrenceId ? "occurrence" : "single"),
+        source: record.source ?? (String(record.uid ?? "").startsWith("csv:") ? "csv" : ""),
+        outlookId: record.outlookId ?? "",
+        attendees: record.attendees ?? JSON.stringify(attendeesFromLines(String(record.requiredAttendees ?? ""), String(record.optionalAttendees ?? ""))),
+        organizerAddress: record.organizerAddress ?? "", locationType: record.locationType ?? "",
+        online: record.online ?? false, onlineProvider: record.onlineProvider ?? "", joinUrl: record.joinUrl ?? "",
+        hasAttachments: record.hasAttachments ?? false, webLink: record.webLink ?? "", response: record.response ?? "",
+        isOrganizer: record.isOrganizer ?? false, responseRequested: record.responseRequested ?? false,
+        allowNewTimeProposals: record.allowNewTimeProposals ?? false, body: record.body ?? "", raw: record.raw ?? "",
       }),
     },
   },

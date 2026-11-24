@@ -2,16 +2,16 @@
 // test suite, puts the file back, and prints CAUGHT or MISSED with the tests
 // that failed. Every planted bug should be CAUGHT.
 //   node docs/review/oo2-mutation/run.mjs [M01 M02 ...]
-import { readdirSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+// Planted bugs are read from mutants.json and every mutants-*.json here.
+import { readFileSync, readdirSync, writeFileSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const out = fileURLToPath(new URL("./out.json", import.meta.url));
-// mutants.json (the OO2 review) and each feature's own *-mutants.json.
-const dir = new URL("./", import.meta.url);
-const mutants = readdirSync(dir).filter((f) => f.endsWith("mutants.json")).sort()
-  .flatMap((f) => JSON.parse(readFileSync(new URL(f, dir), "utf8")));
+// mutants.json and any mutants-*.json beside it (one per issue, so threads don't edit one file).
+const files = readdirSync(new URL("./", import.meta.url)).filter((f) => /^mutants(-.+)?\.json$/.test(f)).sort();
+const mutants = files.flatMap((f) => JSON.parse(readFileSync(new URL(`./${f}`, import.meta.url), "utf8")));
 const only = process.argv.slice(2);
 let missed = 0;
 for (const m of mutants) {

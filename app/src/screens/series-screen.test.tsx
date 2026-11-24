@@ -29,6 +29,9 @@ test("the series and exceptions shown match the synthetic diary's", async () => 
   expect(counted.reduce((sum, cells) => sum + Number(cells[4]), 0)).toBe(exceptions);
   expect(counted.map((cells) => cells[1])).toEqual(series.map(() => "Repeats"));
 
+  const standing = within(screen.getByRole("region", { name: "Standing clashes" })).getAllByRole("listitem");
+  expect(standing.map((li) => li.textContent)).toEqual(["Executive team clashes with Operations review on 8 of its 8 occurrences"]);
+
   fireEvent.click(screen.getByRole("button", { name: "Executive team" }));
   const list = screen.getByRole("list", { name: "Occurrences of Executive team" });
   const items = within(list).getAllByRole("button");

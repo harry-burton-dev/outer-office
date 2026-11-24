@@ -29,6 +29,12 @@ describe("office.save", () => {
     expect(rows(a, "log").map((r) => r.note)).toContain("Changed: automate");
   });
 
+  test("sets the day summary's limits", async () => {
+    const a = await oneDevice();
+    ok(a, officeSave, { now: NOW, name: "Test Office", timezone: "Europe/London", longRunHours: 5, placeChangeMinutes: 0 });
+    expect(byId(a, "office", "office")).toMatchObject({ longRunHours: 5, placeChangeMinutes: 0 });
+  });
+
   test.each([
     [{ now: NOW, name: "Test Office" }, "needs a name and a time zone"],
     [{ now: NOW, name: "Test Office", timezone: "Mars/Base" }, "not a time zone"],
@@ -38,6 +44,10 @@ describe("office.save", () => {
     [{ now: NOW, name: "Test Office", timezone: "Europe/London", privatePolicy: "keep" as "drop" }, "dropped or masked"],
     [{ now: NOW, name: "Test Office", timezone: "Europe/London", automate: "on" as unknown as boolean }, "yes or no"],
     [{ now: "yesterday", name: "Test Office", timezone: "Europe/London" }, "current time"],
+    [{ now: NOW, name: "Test Office", timezone: "Europe/London", longRunHours: 0 }, "more than 0"],
+    [{ now: NOW, name: "Test Office", timezone: "Europe/London", longRunHours: 25 }, "at most 24"],
+    [{ now: NOW, name: "Test Office", timezone: "Europe/London", placeChangeMinutes: -1 }, "0 to 1,440"],
+    [{ now: NOW, name: "Test Office", timezone: "Europe/London", placeChangeMinutes: "30" as unknown as number }, "must be a number"],
   ])("fails on bad input and writes nothing (%#)", async (input, message) => {
     const a = await oneDevice();
     const before = snapshot(a);

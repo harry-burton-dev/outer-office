@@ -1,11 +1,15 @@
-// The diary: a read-only day and week calendar built from FullCalendar's shadcn
-// event calendar (forma flavour). It composes the shipped toolbar and views
-// itself rather than using <EventCalendar>, because that component always loads
-// the interaction, list and multi-month plugins: the diary loads time grid only,
-// so nothing can be dragged, resized or created, and the bundle stays smaller.
-import { useEffect, useMemo, type ReactNode } from "react";
-import { useCalendarController, type DatesSetInfo, type EventClickInfo, type EventDisplayInfo, type EventInput } from "@fullcalendar/react";
+// The diary: a day and week calendar built from FullCalendar's shadcn event
+// calendar (forma flavour). It composes the shipped toolbar and views itself
+// rather than using <EventCalendar>, because that component always loads the
+// list and multi-month plugins. The diary loads time grid, and interaction only
+// when it is given onMove: then an engagement it allows can be dragged on a
+// 15-minute snap, or moved with the arrow keys, and the diary is told where it
+// went. Nothing can be resized or created by dragging.
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCalendarController, type DatesSetInfo, type EventClickInfo, type EventDisplayInfo, type EventDropInfo, type EventInput } from "@fullcalendar/react";
+import interactionPlugin from "@fullcalendar/react/interaction";
 import timeGridPlugin from "@fullcalendar/react/timegrid";
+import { dateIn, formatDay, formatTime, instantIn } from "@/domain/dates";
 import { EventCalendarToolbar } from "@/components/event-calendar-toolbar";
 import { EventCalendarViews } from "@/components/ui/event-calendar-views";
 import { EventCalendarCloseIcon } from "@/components/event-calendar-icons";
@@ -43,11 +47,21 @@ export interface DiaryCalendarProps {
   renderEvent?: (event: DiaryEvent, time: string) => ReactNode;
   /** Extra toolbar controls, shown before the day and week tabs. */
   toolbarExtra?: ReactNode;
+  /** Called when an engagement is dropped, or moved with the keyboard and kept, with its new ISO UTC instants. */
+  onMove?: (id: string, start: string, end: string) => void;
+  /** Whether an entry can be moved; with onMove and no canMove, every timed entry can. All-day entries never can. */
+  canMove?: (id: string) => boolean;
+  /** Extra content on each day's header, given its date (YYYY-MM-DD in the zone). */
+  renderDayHeader?: (date: string) => ReactNode;
 }
 
 const VIEW_TYPES: Record<DiaryView, string> = { day: "timeGridDay", week: "timeGridWeek" };
 const AVAILABLE_VIEWS = [VIEW_TYPES.day, VIEW_TYPES.week];
 const PLUGINS = [timeGridPlugin];
+const MOVING_PLUGINS = [timeGridPlugin, interactionPlugin];
+/** Drags and arrow keys move in steps of this many minutes. */
+export const SNAP_MINUTES = 15;
+const SNAP = "00:15:00";
 const MONDAY = 1;
 const SUNDAY = 0;
 const SATURDAY = 6;
@@ -141,11 +155,44 @@ export function diaryWindow(events: readonly DiaryEvent[], view: DiaryView, date
 }
 
 /** Timed events keep their UTC instants (FullCalendar shifts them into the zone); all-day events become the zone's calendar days. */
-function toInput({ id, title, start, end, allDay, colour }: DiaryEvent, timeZone: string): EventInput {
+function toInput({ id, title, start, end, allDay, colour }: DiaryEvent, timeZone: string, movable: boolean): EventInput {
   const look = colour ? { color: colour, textColor: "var(--foreground)" } : {};
-  if (!allDay) return { id, title, start, end, allDay, ...look };
-  return { id, title, start: dayIn(new Date(start), timeZone), end: dayIn(new Date(end), timeZone), allDay, ...look };
+  if (!allDay) return { id, title, start, end, allDay, startEditable: movable, durationEditable: false, ...look };
+  return { id, title, start: dayIn(new Date(start), timeZone), end: dayIn(new Date(end), timeZone), allDay, editable: false, ...look };
 }
+
+/**
+ * Where an entry lands when moved by `minutes` and `days` on the wall clock of
+ * `timeZone`, keeping its length. Days are calendar days, so 09:00 stays 09:00
+ * across a clock change.
+ */
+export function shifted(event: Pick<DiaryEvent, "start" | "end">, minutes: number, days: number, timeZone: string): { start: string; end: string } {
+  const startMs = Date.parse(event.start);
+  const length = Date.parse(event.end) - startMs;
+  const minute = minuteOfDay(formatTime(event.start, timeZone)) + minutes;
+  const date = addDay(dateIn(event.start, timeZone), days + Math.floor(minute / DAY_MINUTES));
+  const wall = ((minute % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES;
+  const start = instantIn(date, clock(wall).slice(0, 5), timeZone);
+  return { start, end: new Date(Date.parse(start) + length).toISOString() };
+}
+
+/** A keyboard move under way: the entry and how far it has gone. */
+interface KeyMove {
+  id: string;
+  minutes: number;
+  days: number;
+}
+
+const ARROWS: Record<string, { minutes: number; days: number }> = {
+  ArrowUp: { minutes: -SNAP_MINUTES, days: 0 },
+  ArrowDown: { minutes: SNAP_MINUTES, days: 0 },
+  ArrowLeft: { minutes: 0, days: -1 },
+  ArrowRight: { minutes: 0, days: 1 },
+};
+
+/** The entry id inside a focused event, from the content the diary draws. */
+const entryIdIn = (target: EventTarget): string | undefined =>
+  target instanceof HTMLElement ? (target.closest("[data-entry-id]") ?? target.querySelector("[data-entry-id]"))?.getAttribute("data-entry-id") ?? undefined : undefined;
 
 /** True when the YYYY-MM-DD `date` falls in the view's current range, read in `timeZone`. */
 function shows(info: { currentStart: Date; currentEnd: Date }, date: string, timeZone: string): boolean {
@@ -154,10 +201,18 @@ function shows(info: { currentStart: Date; currentEnd: Date }, date: string, tim
   return date >= first && date < end;
 }
 
-export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra }: DiaryCalendarProps) {
+export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra, onMove, canMove, renderDayHeader }: DiaryCalendarProps) {
   const controller = useCalendarController();
   const byId = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
-  const inputs = useMemo<EventInput[]>(() => events.map((event) => toInput(event, timeZone)), [events, timeZone]);
+  const moves = onMove !== undefined;
+  const movable = (event: DiaryEvent) => moves && !event.allDay && (canMove?.(event.id) ?? true);
+  const inputs = useMemo<EventInput[]>(
+    () => events.map((event) => toInput(event, timeZone, moves && !event.allDay && (canMove?.(event.id) ?? true))),
+    [events, timeZone, moves, canMove],
+  );
+  const [keyMove, setKeyMove] = useState<KeyMove | null>(null);
+  const keyTarget = keyMove ? byId.get(keyMove.id) : undefined;
+  const keyLanding = keyMove && keyTarget ? shifted(keyTarget, keyMove.minutes, keyMove.days, timeZone) : undefined;
   const grid = useMemo(() => diaryWindow(events, view, date, timeZone, dayStart, dayEnd), [events, view, date, timeZone, dayStart, dayEnd]);
 
   // The props lead: move the calendar when the parent's view or date changes.
@@ -183,19 +238,60 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
   const eventContent = renderEvent
     ? ({ event, timeText }: EventDisplayInfo) => {
         const diaryEvent = byId.get(event.id);
-        return diaryEvent ? renderEvent(diaryEvent, timeText) : undefined;
+        return diaryEvent ? <div className="min-w-0" data-entry-id={diaryEvent.id} data-movable={movable(diaryEvent) ? "" : undefined}>{renderEvent(diaryEvent, timeText)}</div> : undefined;
       }
     : undefined;
 
+  // A drop never moves the entry itself: the diary is told, and draws what it then holds.
+  const eventDrop = ({ event, revert }: EventDropInfo) => {
+    revert();
+    const moved = byId.get(event.id);
+    if (!moved || !event.start) return;
+    const start = event.start.toISOString();
+    const end = new Date(event.start.getTime() + Date.parse(moved.end) - Date.parse(moved.start)).toISOString();
+    if (Date.parse(start) !== Date.parse(moved.start)) onMove?.(moved.id, start, end);
+  };
+
+  // The keyboard: arrows move a focused entry by the snap step (left and right by a day), Enter keeps it, Escape cancels.
+  const onKeyDownCapture = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!onMove) return;
+    const entryId = entryIdIn(e.target);
+    const entry = entryId ? byId.get(entryId) : undefined;
+    if (!entry || !movable(entry)) return;
+    const { id } = entry;
+    const step = ARROWS[e.key];
+    if (step && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (step.days !== 0 && view === "day") return;
+      setKeyMove((current) => {
+        const from = current?.id === id ? current : { id, minutes: 0, days: 0 };
+        return { id, minutes: from.minutes + step.minutes, days: from.days + step.days };
+      });
+      return;
+    }
+    if (keyMove?.id !== id) return;
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      setKeyMove(null);
+      if (keyLanding && Date.parse(keyLanding.start) !== Date.parse(entry.start)) onMove(id, keyLanding.start, keyLanding.end);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setKeyMove(null);
+    }
+  };
+
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="">
+    <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="" onKeyDownCapture={onKeyDownCapture}>
       <EventCalendarToolbar className="border-b p-3" controller={controller} availableViews={AVAILABLE_VIEWS}>
         {toolbarExtra}
       </EventCalendarToolbar>
       <div className="min-h-0 grow">
         <EventCalendarViews
           controller={controller}
-          plugins={PLUGINS}
+          plugins={onMove ? MOVING_PLUGINS : PLUGINS}
           initialView={VIEW_TYPES[view]}
           initialDate={date}
           timeZone={timeZone}
@@ -209,15 +305,25 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
           height="100%"
           expandRows
           slotDuration="01:00:00"
-          editable={false}
+          editable={onMove !== undefined}
+          eventDurationEditable={false}
+          snapDuration={SNAP}
           selectable={false}
           events={inputs}
           eventClick={eventClick}
+          eventDrop={eventDrop}
+          eventAllow={(span) => !span.allDay}
           eventContent={eventContent}
           datesSet={datesSet}
           popoverCloseContent={() => <EventCalendarCloseIcon />}
+          dayHeaderExtra={renderDayHeader ? (day) => renderDayHeader(dayIn(day, timeZone)) : undefined}
         />
       </div>
+      <p role="status" aria-live="polite" className={keyLanding ? "border-t px-3 py-2 text-xs" : "sr-only"} data-key-move="">
+        {keyLanding && keyTarget
+          ? `Moving ${keyTarget.title} to ${formatDay(keyLanding.start, timeZone)}, ${formatTime(keyLanding.start, timeZone)} to ${formatTime(keyLanding.end, timeZone)}. Enter proposes it, Escape cancels.`
+          : ""}
+      </p>
     </div>
   );
 }

@@ -1,11 +1,11 @@
 // DiaryCalendar in jsdom: events render, a click reports the id, nothing can be
-// dragged, and London times are right on both sides of the October 2026 clock
+// dragged unless the diary is given onMove, the keyboard moves an entry, and London times are right on both sides of the October 2026 clock
 // change. jsdom has no layout, so positions on the grid are checked in the
 // from-disk spike (spike/from-disk-check.js) instead; here the clock-change case
 // is checked through the time FullCalendar prints on each event.
 import { afterEach, beforeAll, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { DiaryCalendar, dayIn, diaryWindow, shiftTime, viewRange, type DiaryCalendarProps, type DiaryEvent } from "./diary-calendar";
+import { DiaryCalendar, dayIn, diaryWindow, shifted, shiftTime, viewRange, type DiaryCalendarProps, type DiaryEvent } from "./diary-calendar";
 import { SPIKE_TIME_ZONE, SPIKE_WEEK, SYNTHETIC_EVENTS } from "./spike/synthetic-events";
 
 afterEach(cleanup);
@@ -73,7 +73,7 @@ test("clicking an event calls onEventClick with its id", () => {
   expect(props.onEventClick).toHaveBeenCalledWith("e3");
 });
 
-test("no event can be dragged", () => {
+test("without onMove no event can be dragged", () => {
   const { container } = renderDiary();
   expect(container.querySelectorAll("[draggable=true]")).toHaveLength(0);
   const box = eventBox("Weekly review");
@@ -81,6 +81,60 @@ test("no event can be dragged", () => {
   fireEvent.mouseMove(box, { clientX: 10, clientY: 200 });
   fireEvent.mouseUp(box, { clientX: 10, clientY: 200 });
   expect(screen.getByText("Weekly review", { exact: true })).toBeTruthy();
+});
+
+/** The focusable event around an entry's content, as the keyboard reaches it. */
+const focusable = (title: string) => {
+  const box = screen.getByText(title, { exact: true }).closest<HTMLElement>("[data-entry-id]");
+  if (!box) throw new Error(`no entry ${title}`);
+  return box.closest<HTMLElement>("[tabindex], a") ?? box;
+};
+const titled = (event: DiaryEvent) => <span>{event.title}</span>;
+
+test("with onMove, timed events can be dragged and all-day ones can't", () => {
+  const { container } = renderDiary({ onMove: vi.fn(), renderEvent: titled });
+  const draggable = Array.from(container.querySelectorAll("[data-movable]")).map((el) => el.textContent);
+  expect(draggable).toContain("Weekly review");
+  expect(draggable).not.toContain("Travel day");
+});
+
+test("arrow keys move a focused entry by 15 minutes, a day left or right, and Enter keeps it", () => {
+  const onMove = vi.fn();
+  renderDiary({ onMove, renderEvent: titled });
+  const event = SYNTHETIC_EVENTS.find((e) => e.title === "Weekly review")!;
+  const box = focusable("Weekly review");
+  fireEvent.keyDown(box, { key: "ArrowDown" });
+  fireEvent.keyDown(box, { key: "ArrowDown" });
+  fireEvent.keyDown(box, { key: "ArrowRight" });
+  expect(screen.getByRole("status").textContent).toMatch(/^Moving Weekly review to .*Enter proposes it, Escape cancels\.$/);
+  expect(onMove).not.toHaveBeenCalled();
+  fireEvent.keyDown(box, { key: "Enter" });
+  expect(onMove).toHaveBeenCalledTimes(1);
+  expect(onMove).toHaveBeenCalledWith(event.id, ...Object.values(shifted(event, 30, 1, SPIKE_TIME_ZONE)));
+  expect(Date.parse(onMove.mock.calls[0]![1]) - Date.parse(event.start)).toBe(30 * 60_000 + 86_400_000);
+});
+
+test("Escape cancels a keyboard move, and an entry canMove refuses doesn't move", () => {
+  const onMove = vi.fn();
+  renderDiary({ onMove, renderEvent: titled, canMove: (id) => id !== "e3" });
+  const box = focusable("Weekly review");
+  fireEvent.keyDown(box, { key: "ArrowDown" });
+  fireEvent.keyDown(box, { key: "Escape" });
+  fireEvent.keyDown(box, { key: "Enter" });
+  const refused = focusable("Budget planning");
+  fireEvent.keyDown(refused, { key: "ArrowDown" });
+  fireEvent.keyDown(refused, { key: "Enter" });
+  expect(onMove).not.toHaveBeenCalled();
+  expect(screen.getByRole("status").textContent).toBe("");
+});
+
+test("a move keeps the wall-clock time across the clock change and keeps the length", () => {
+  // Friday 23 October 09:00 BST (08:00Z) to Monday 26 October 09:00 GMT (09:00Z).
+  expect(shifted({ start: "2026-10-23T08:00:00Z", end: "2026-10-23T09:00:00Z" }, 0, 3, "Europe/London"))
+    .toEqual({ start: "2026-10-26T09:00:00.000Z", end: "2026-10-26T10:00:00.000Z" });
+  // 23:45 plus 30 minutes is 00:15 the next day.
+  expect(shifted({ start: "2026-11-24T23:45:00Z", end: "2026-11-25T00:15:00Z" }, 30, 0, "Europe/London"))
+    .toEqual({ start: "2026-11-25T00:15:00.000Z", end: "2026-11-25T00:45:00.000Z" });
 });
 
 test("09:00 London shows as 09:00 on both sides of the clock change", () => {
@@ -161,4 +215,11 @@ test("the Today button's accessible name contains its visible text", () => {
   renderDiary();
   const today = screen.getByRole("button", { name: /^today/i });
   expect(today.getAttribute("aria-label")?.toLowerCase()).toContain(today.textContent?.toLowerCase());
+});
+
+test.each(["Europe/London", "America/Los_Angeles", "Pacific/Auckland"])("each day header gets its own date in %s", (timeZone) => {
+  const seen: string[] = [];
+  renderDiary({ view: "week", date: "2026-11-25", timeZone, events: [], renderDayHeader: (date) => { seen.push(date); return <span>{`summary ${date}`}</span>; } });
+  expect([...new Set(seen)]).toEqual(["2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27"]);
+  expect(screen.getByText("summary 2026-11-25")).toBeTruthy();
 });

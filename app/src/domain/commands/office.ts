@@ -16,6 +16,10 @@ export interface OfficeSaveInput {
   privatePolicy?: PrivatePolicy;
   /** The Power Automate setting: whether the app reads diary updates from the automate/ folder. */
   automate?: boolean;
+  /** The day summary flags a run without a break longer than this many hours (OUT-84). */
+  longRunHours?: number;
+  /** The day summary flags place changes less than this many minutes apart (OUT-84). */
+  placeChangeMinutes?: number;
 }
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -38,7 +42,11 @@ function checkOffice(tx: Tx, input: OfficeSaveInput): Omit<OfficeSaveInput, "now
   for (const time of [dayStart, dayEnd]) if (time !== undefined && !CLOCK.test(time)) tx.fail(`"${time}" is not a time written as HH:MM, such as 08:00.`);
   if (input.privatePolicy !== undefined && input.privatePolicy !== "drop" && input.privatePolicy !== "mask") tx.fail("Private items must be either dropped or masked.");
   const automate = optionalBoolean(tx, input.automate, "Power Automate");
-  return defined({ name, timezone, dayStart, dayEnd, privatePolicy: input.privatePolicy, automate });
+  const longRunHours = optionalNumber(tx, input.longRunHours, "The long run limit");
+  if (longRunHours !== undefined && (longRunHours <= 0 || longRunHours > 24)) tx.fail("A long run must be more than 0 and at most 24 hours.");
+  const placeChangeMinutes = optionalNumber(tx, input.placeChangeMinutes, "The place change limit");
+  if (placeChangeMinutes !== undefined && (placeChangeMinutes < 0 || placeChangeMinutes > 24 * 60)) tx.fail("A place change limit must be from 0 to 1,440 minutes.");
+  return defined({ name, timezone, dayStart, dayEnd, privatePolicy: input.privatePolicy, automate, longRunHours, placeChangeMinutes });
 }
 
 export const officeSave = defineCommand("office.save", (tx: Tx, input: OfficeSaveInput) => {
