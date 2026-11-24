@@ -123,7 +123,11 @@ export function derivedUid(event: Pick<ImportedEvent, "start" | "end" | "subject
 
 class SkipRow extends Error {}
 
-interface Row { get(name: string): string }
+interface Row {
+  get(name: string): string;
+  /** The row as received, keyed by the file's own headers. */
+  json(): string;
+}
 
 function readRow(row: Row, options: CsvParseOptions): { event: ImportedEvent; isPrivate: boolean } {
   const zone = options.timeZone;
@@ -152,6 +156,8 @@ function readRow(row: Row, options: CsvParseOptions): { event: ImportedEvent; is
   const base = {
     recurrenceId: "", start: toIso(startMs), end: toIso(endMs), allDay, ...details,
     showAs: SHOW_AS[row.get("show time as").trim().toLowerCase()] ?? "busy", masked: isPrivate, sourceModified: "",
+    source: "csv" as const, kind: "single" as const, seriesId: "",
+    body: isPrivate ? "" : row.get("description").replace(/\r\n/g, "\n").trim(), raw: isPrivate ? "" : row.json(),
   };
   return { event: { uid: derivedUid(base), ...base }, isPrivate };
 }
@@ -176,7 +182,10 @@ export function parseCsv(text: string, options: CsvParseOptions): ParseResult {
   const seen = new Set<string>();
   const events: ImportedEvent[] = [];
   for (const record of rows) {
-    const row: Row = { get: (name) => { const i = columns.indexOf(name); return i < 0 ? "" : (record[i] ?? ""); } };
+    const row: Row = {
+      get: (name) => { const i = columns.indexOf(name); return i < 0 ? "" : (record[i] ?? ""); },
+      json: () => JSON.stringify(Object.fromEntries((header ?? []).map((h, i) => [h.trim(), record[i] ?? ""]))),
+    };
     let read: ReturnType<typeof readRow>;
     try {
       read = readRow(row, options);
@@ -231,7 +240,10 @@ export function joinCsvToStored(parsed: ParseResult, stored: readonly StoredEven
   const events = parsed.events.map((event) => {
     if (storedKeys.has(eventKey(event))) return event;
     const match = candidates.get(matchKey(event))?.shift();
-    return match ? { ...event, uid: match.uid, recurrenceId: match.recurrenceId, sourceModified: match.sourceModified } : event;
+    // CSV has no series: a row joined to an occurrence keeps the stored series identity.
+    return match
+      ? { ...event, uid: match.uid, recurrenceId: match.recurrenceId, sourceModified: match.sourceModified, kind: match.kind, seriesId: match.seriesId }
+      : event;
   });
   return { ...parsed, events: events.sort(compareEvents) };
 }

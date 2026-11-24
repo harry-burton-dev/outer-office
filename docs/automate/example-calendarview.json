@@ -1,7 +1,9 @@
 {
-  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('principal.a%40office.example')/calendar/calendarView(iCalUId,type,seriesMasterId,originalStart,start,end,isAllDay,isCancelled,subject,location,organizer,categories,showAs,sensitivity,lastModifiedDateTime,attendees)",
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('principal.a%40office.example')/calendar/calendarView(id,iCalUId,type,seriesMasterId,originalStart,start,end,isAllDay,isCancelled,subject,location,locations,organizer,categories,showAs,sensitivity,importance,createdDateTime,lastModifiedDateTime,attendees,responseStatus,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,hasAttachments,webLink,isOrganizer,responseRequested,allowNewTimeProposals,body)",
   "value": [
     {
+      "@odata.etag": "W/\"DwAAABYAAAB0\"",
+      "id": "AAMkAGExample01",
       "iCalUId": "040000008200E00074C5B7101A82E00800000000D0E1C4B2F25ADB01000000000000000010000000A1B2C3D4E5F60718293A4B5C6D7E8F90",
       "type": "singleInstance",
       "seriesMasterId": null,
@@ -18,7 +20,10 @@
       "isCancelled": false,
       "subject": "Board briefing",
       "location": {
-        "displayName": "Room 4"
+        "displayName": "Room 4",
+        "locationType": "default",
+        "uniqueId": "Room 4",
+        "uniqueIdType": "private"
       },
       "organizer": {
         "emailAddress": {
@@ -44,9 +49,37 @@
             "address": "ana@office.example"
           }
         }
-      ]
+      ],
+      "locations": [
+        {
+          "displayName": "Room 4",
+          "locationType": "default",
+          "uniqueId": "Room 4",
+          "uniqueIdType": "private"
+        }
+      ],
+      "importance": "high",
+      "createdDateTime": "2026-10-01T08:00:00.0000000Z",
+      "responseStatus": {
+        "response": "organizer",
+        "time": "0001-01-01T00:00:00Z"
+      },
+      "isOnlineMeeting": false,
+      "onlineMeetingProvider": "unknown",
+      "onlineMeeting": null,
+      "hasAttachments": true,
+      "webLink": "https://outlook.office365.com/owa/?itemid=AAMkAGExample01&exvsurl=1&path=/calendar/item",
+      "isOrganizer": true,
+      "responseRequested": true,
+      "allowNewTimeProposals": true,
+      "body": {
+        "contentType": "text",
+        "content": "Agenda\r\n1. Papers\r\n2. Questions"
+      }
     },
     {
+      "@odata.etag": "W/\"DwAAABYAAAB1\"",
+      "id": "AAMkAGExample02",
       "iCalUId": "040000008200E00074C5B7101A82E00807EA0B19D0E1C4B2F25ADB010000000000000000100000005C3B0F8A9E2D4C71A6B8E0F2D4C6A8B0",
       "type": "occurrence",
       "seriesMasterId": "AAMkAGI2SERIES1AAA=",
@@ -63,7 +96,10 @@
       "isCancelled": false,
       "subject": "Weekly team",
       "location": {
-        "displayName": ""
+        "displayName": "",
+        "locationType": "default",
+        "uniqueId": "",
+        "uniqueIdType": "private"
       },
       "organizer": {
         "emailAddress": {
@@ -75,9 +111,32 @@
       "showAs": "busy",
       "sensitivity": "normal",
       "lastModifiedDateTime": "2026-11-01T09:00:00Z",
-      "attendees": []
+      "attendees": [],
+      "locations": [],
+      "importance": "normal",
+      "createdDateTime": "2026-10-01T08:00:00.0000000Z",
+      "responseStatus": {
+        "response": "accepted",
+        "time": "2026-10-02T09:00:00Z"
+      },
+      "isOnlineMeeting": true,
+      "onlineMeetingProvider": "teamsForBusiness",
+      "onlineMeeting": {
+        "joinUrl": "https://teams.example/l/meetup-join/1"
+      },
+      "hasAttachments": false,
+      "webLink": "https://outlook.office365.com/owa/?itemid=AAMkAGExample02&exvsurl=1&path=/calendar/item",
+      "isOrganizer": false,
+      "responseRequested": true,
+      "allowNewTimeProposals": true,
+      "body": {
+        "contentType": "text",
+        "content": "Agenda\r\n1. Papers\r\n2. Questions"
+      }
     },
     {
+      "@odata.etag": "W/\"DwAAABYAAAB2\"",
+      "id": "AAMkAGExample03",
       "iCalUId": "040000008200E00074C5B7101A82E00807EA0C02D0E1C4B2F25ADB010000000000000000100000005C3B0F8A9E2D4C71A6B8E0F2D4C6A8B0",
       "type": "exception",
       "seriesMasterId": "AAMkAGI2SERIES1AAA=",
@@ -94,7 +153,10 @@
       "isCancelled": false,
       "subject": "Weekly team (moved)",
       "location": {
-        "displayName": ""
+        "displayName": "",
+        "locationType": "default",
+        "uniqueId": "",
+        "uniqueIdType": "private"
       },
       "organizer": {
         "emailAddress": {
@@ -106,9 +168,32 @@
       "showAs": "busy",
       "sensitivity": "normal",
       "lastModifiedDateTime": "2026-11-22T16:00:00Z",
-      "attendees": []
+      "attendees": [],
+      "locations": [],
+      "importance": "normal",
+      "createdDateTime": "2026-10-01T08:00:00.0000000Z",
+      "responseStatus": {
+        "response": "accepted",
+        "time": "2026-10-02T09:00:00Z"
+      },
+      "isOnlineMeeting": true,
+      "onlineMeetingProvider": "teamsForBusiness",
+      "onlineMeeting": {
+        "joinUrl": "https://teams.example/l/meetup-join/2"
+      },
+      "hasAttachments": false,
+      "webLink": "https://outlook.office365.com/owa/?itemid=AAMkAGExample03&exvsurl=1&path=/calendar/item",
+      "isOrganizer": false,
+      "responseRequested": true,
+      "allowNewTimeProposals": true,
+      "body": {
+        "contentType": "text",
+        "content": "Agenda\r\n1. Papers\r\n2. Questions"
+      }
     },
     {
+      "@odata.etag": "W/\"DwAAABYAAAB3\"",
+      "id": "AAMkAGExample04",
       "iCalUId": "040000008200E00074C5B7101A82E00800000000D0E1C4B2F25ADB01000000000000000010000000F0E1D2C3B4A5968778695A4B3C2D1E0F",
       "type": "singleInstance",
       "seriesMasterId": null,
@@ -125,7 +210,10 @@
       "isCancelled": false,
       "subject": "Hospital appointment",
       "location": {
-        "displayName": ""
+        "displayName": "",
+        "locationType": "default",
+        "uniqueId": "",
+        "uniqueIdType": "private"
       },
       "organizer": {
         "emailAddress": {
@@ -137,7 +225,26 @@
       "showAs": "oof",
       "sensitivity": "private",
       "lastModifiedDateTime": "2026-11-10T12:00:00Z",
-      "attendees": []
+      "attendees": [],
+      "locations": [],
+      "importance": "normal",
+      "createdDateTime": "2026-10-01T08:00:00.0000000Z",
+      "responseStatus": {
+        "response": "accepted",
+        "time": "2026-10-02T09:00:00Z"
+      },
+      "isOnlineMeeting": false,
+      "onlineMeetingProvider": "unknown",
+      "onlineMeeting": null,
+      "hasAttachments": false,
+      "webLink": "https://outlook.office365.com/owa/?itemid=AAMkAGExample04&exvsurl=1&path=/calendar/item",
+      "isOrganizer": false,
+      "responseRequested": true,
+      "allowNewTimeProposals": true,
+      "body": {
+        "contentType": "text",
+        "content": "Bring the letter."
+      }
     }
   ]
 }

@@ -171,3 +171,22 @@ describe("window edges", () => {
     expect(result.rangeEnd).toBe(S("12-31T00:00"));
   });
 });
+
+describe("series identity and the raw item (OUT-83)", () => {
+  test("a series' instances are occurrences of its UID, an overriding instance is an exception, and a single event is single", () => {
+    const sync = find(UID.projectSync);
+    expect(sync.find((e) => e.recurrenceId === "2026-10-22T13:00:00.000Z")).toMatchObject({ kind: "exception", seriesId: UID.projectSync, source: "ics" });
+    expect(sync.filter((e) => e.kind === "occurrence").every((e) => e.seriesId === UID.projectSync)).toBe(true);
+    const singles = parseIcs(MAIN_FIXTURE, MASK).events.filter((e) => e.recurrenceId === "");
+    expect(singles.length).toBeGreaterThan(0);
+    expect(singles.every((e) => e.kind === "single" && e.seriesId === "")).toBe(true);
+  });
+
+  test("raw is the VEVENT as received, and a masked item keeps none of it", () => {
+    const [weekly] = find(UID.weeklyReview);
+    expect(weekly?.raw).toContain("SUMMARY:Weekly review");
+    const masked = parseIcs(MAIN_FIXTURE, MASK).events.filter((e) => e.masked);
+    expect(masked.length).toBeGreaterThan(0);
+    expect(masked.every((e) => e.raw === "" && e.body === "" && e.attendees === "[]")).toBe(true);
+  });
+});
