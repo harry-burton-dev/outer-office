@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { describe, expect, test } from "vitest";
-import { diffImport } from "./diff";
+import { diffImport, marksMostGone } from "./diff";
 import { parseIcs, type ParseResult } from "./parse-ics";
-import { MAIN_FIXTURE, MAIN_WINDOW } from "./fixtures/outlook-ics";
+import { calendar, MAIN_EVENTS, MAIN_FIXTURE, MAIN_WINDOW, UID } from "./fixtures/outlook-ics";
 import type { ImportedEvent, StoredEvent } from "./types";
 
 const event = (overrides: Partial<ImportedEvent> = {}): ImportedEvent => ({
@@ -107,5 +107,34 @@ describe("diffImport", () => {
     const diff = diffImport([], result);
     expect(diff.added).toHaveLength(22);
     expect(diff.droppedPrivate).toBe(1);
+  });
+
+  test("an event deleted at either end of the export is gone", () => {
+    const options = { ...MAIN_WINDOW, privatePolicy: "mask" } as const;
+    const storedEvents = apply(parseIcs(MAIN_FIXTURE, options).events);
+    const without = (uid: string) => calendar(MAIN_EVENTS.filter((lines) => !lines.includes(`UID:${uid}`)));
+    const lastGone = diffImport(storedEvents, parseIcs(without(UID.workshop), options));
+    expect(lastGone.gone.map((e) => e.uid)).toEqual([UID.workshop]);
+    const firstGone = diffImport(storedEvents, parseIcs(without(UID.standUp), options));
+    expect(firstGone.gone).toHaveLength(8);
+    expect(firstGone.gone.every((e) => e.uid === UID.standUp)).toBe(true);
+  });
+});
+
+describe("marksMostGone", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => stored({ uid: `u${i}`, id: `id-${i}` }));
+
+  test("an empty file against a full diary needs confirming", () => {
+    expect(marksMostGone(diffImport(many(15), parsed([])))).toBe(true);
+  });
+
+  test("half or fewer gone does not", () => {
+    const storedEvents = many(6);
+    const kept = storedEvents.slice(0, 3).map(({ id: _id, principal: _p, gone: _g, moves: _m, ...e }) => e);
+    expect(marksMostGone(diffImport(storedEvents, parsed(kept)))).toBe(false);
+  });
+
+  test("fewer than three gone never does", () => {
+    expect(marksMostGone(diffImport(many(2), parsed([])))).toBe(false);
   });
 });

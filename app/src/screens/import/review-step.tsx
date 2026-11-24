@@ -1,10 +1,13 @@
 // Step two: what applying the file would do, for a person to confirm.
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRecords } from "@trellis/framework";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useApp } from "@/app/app-state";
 import { formatDay } from "@/domain/dates";
+import { marksMostGone, storedInRange } from "@/import/diff";
 import type { ImportDiff } from "@/import/types";
 import type { ImportSource } from "./use-import-flow";
 import { CHANGE_ROW_CAP, changeRows, changesAnything, countsLine, type PrivatePolicy } from "./import-model";
@@ -67,9 +70,28 @@ function Warnings({ warnings }: { warnings: readonly string[] }) {
   );
 }
 
+/** Shown when the file would mark most of the diary gone; Apply waits for the tick. */
+function GoneGuard({ diff, confirmed, onConfirm }: { diff: ImportDiff; confirmed: boolean; onConfirm(value: boolean): void }) {
+  const count = diff.gone.length;
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-destructive/50 p-3">
+      <p role="alert" className="text-sm text-destructive">
+        This file would mark {count} of {storedInRange(diff)} events gone. An empty,
+        partial or older export does this. Check it is the file you meant.
+      </p>
+      <Label>
+        <Checkbox checked={confirmed} onCheckedChange={onConfirm} />
+        Yes, mark {count} events gone
+      </Label>
+    </div>
+  );
+}
+
 export function ReviewStep({ source, fileName, diff, warnings, policy, error, onApply, onCancel }: ReviewStepProps) {
   const { timezone } = useApp();
   const hasChanges = changesAnything(diff);
+  const guarded = marksMostGone(diff);
+  const [confirmed, setConfirmed] = useState(false);
   return (
     <section aria-label="Review" className="flex flex-col gap-4">
       <p className="text-sm">
@@ -84,6 +106,7 @@ export function ReviewStep({ source, fileName, diff, warnings, policy, error, on
       )}
       {hasChanges ? <ChangeTable diff={diff} /> : <p className="text-sm">Nothing to change</p>}
       <Warnings warnings={warnings} />
+      {guarded && <GoneGuard diff={diff} confirmed={confirmed} onConfirm={setConfirmed} />}
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -92,7 +115,9 @@ export function ReviewStep({ source, fileName, diff, warnings, policy, error, on
       <div className="flex gap-2">
         {hasChanges ? (
           <>
-            <Button onClick={onApply}>Apply import</Button>
+            <Button onClick={onApply} disabled={guarded && !confirmed}>
+              Apply import
+            </Button>
             <Button variant="outline" onClick={onCancel}>
               Cancel
             </Button>
