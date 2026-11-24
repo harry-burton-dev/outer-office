@@ -29,7 +29,7 @@ export function TopBar() {
   const people = usePeople();
   const name = people.list.some((u) => u.id === user.id) ? people.nameOf(user.id) : user.name;
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b px-4 print:hidden">
       <SidebarTrigger />
       {isViewer ? (
         <span className="text-sm text-muted-foreground">Read-only view</span>

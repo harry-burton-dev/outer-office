@@ -3,6 +3,7 @@
 import { CalendarScreen } from "@/screens/calendar-screen";
 import { ImportScreen } from "@/screens/import-screen";
 import { LogScreen } from "@/screens/log-screen";
+import { PrintScreen } from "@/screens/print-screen";
 import { TaskListScreen } from "@/screens/task-list-screen";
 import { TagsScreen } from "@/tags/tags-screen";
 import { TemplatesScreen } from "@/cards/templates-screen";
@@ -14,9 +15,10 @@ const TASK_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["inbox", "today", "pr
 
 export const isTaskScreen = (screen: Screen): screen is TaskScreen => TASK_SCREENS.has(screen);
 
-function PrincipalScreen({ screen }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates"> }) {
+function PrincipalScreen({ screen, principalId }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates">; principalId: string }) {
   if (screen === "import") return <ImportScreen />;
   if (screen === "log") return <LogScreen />;
+  if (screen === "print") return <PrintScreen key={principalId} principalId={principalId} />;
   return <CalendarScreen />;
 }
 
@@ -26,5 +28,5 @@ export function ScreenContent() {
   if (screen === "tags") return <TagsScreen />;
   if (screen === "templates") return <TemplatesScreen />;
   if (principalId === null) return <EmptyState title="No principals yet" body="Add them in the admin page." />;
-  return <PrincipalScreen screen={screen} />;
+  return <PrincipalScreen screen={screen} principalId={principalId} />;
 }

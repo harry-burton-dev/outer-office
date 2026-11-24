@@ -8,7 +8,7 @@ import { todayIn } from "@/domain/dates";
 import { isViewer as isViewerIn } from "@/domain/selectors";
 import { resolvePrincipal, useActivePrincipals } from "./principals";
 
-export type Screen = "calendar" | "import" | "log" | "inbox" | "today" | "project" | "bin" | "tags" | "templates";
+export type Screen = "calendar" | "import" | "log" | "print" | "inbox" | "today" | "project" | "bin" | "tags" | "templates";
 export type Panel =
   | { kind: "engagement"; id: string }
   | { kind: "task"; id: string }
