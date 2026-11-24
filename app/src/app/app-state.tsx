@@ -9,7 +9,7 @@ import { isViewer as isViewerIn } from "@/domain/selectors";
 import { DiaryInboxProvider } from "@/automate/diary-inbox-state";
 import { resolvePrincipal, useActivePrincipals } from "./principals";
 
-export type Screen = "home" | "calendar" | "series" | "import" | "log" | "print" | "inbox" | "today" | "project" | "bin" | "tags" | "templates" | "stats" | "alerts";
+export type Screen = "home" | "calendar" | "series" | "import" | "log" | "print" | "inbox" | "today" | "project" | "bin" | "tags" | "templates" | "stats" | "automate" | "alerts";
 export type Panel =
   | { kind: "engagement"; id: string }
   | { kind: "task"; id: string }

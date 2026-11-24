@@ -11,6 +11,7 @@ import { TagsScreen } from "@/tags/tags-screen";
 import { TemplatesScreen } from "@/cards/templates-screen";
 import { StatsScreen } from "@/stats/stats-screen";
 import { AlertsScreen } from "@/screens/alerts-screen";
+import { AutomateScreen } from "@/automate/automate-screen";
 import { useApp, type Screen } from "./app-state";
 import { EmptyState } from "./ui";
 
@@ -19,7 +20,7 @@ const TASK_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["inbox", "today", "pr
 
 export const isTaskScreen = (screen: Screen): screen is TaskScreen => TASK_SCREENS.has(screen);
 
-function PrincipalScreen({ screen, principalId }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates" | "stats" | "home" | "alerts">; principalId: string }) {
+function PrincipalScreen({ screen, principalId }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates" | "stats" | "home" | "automate" | "alerts">; principalId: string }) {
   if (screen === "import") return <ImportScreen />;
   if (screen === "log") return <LogScreen />;
   if (screen === "series") return <SeriesScreen />;
@@ -35,6 +36,7 @@ export function ScreenContent() {
   if (screen === "templates") return <TemplatesScreen />;
   if (screen === "stats") return <StatsScreen />;
   if (screen === "alerts") return <AlertsScreen />;
+  if (screen === "automate") return <AutomateScreen />;
   if (principalId === null) return <EmptyState title="No principals yet" body="Add them in the admin page." />;
   return <PrincipalScreen screen={screen} principalId={principalId} />;
 }
