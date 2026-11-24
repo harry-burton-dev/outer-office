@@ -123,8 +123,13 @@ export function EventCalendarViews({
       ----------------------------------------------------------------------------------------- */
 
 blockEventClass={(info) => cn(
-  'group relative border-(--fc-event-color) print:bg-white bg-[color-mix(in_oklab,var(--fc-event-color)_25%,var(--background))]',
-  info.isInteractive && 'hover:bg-[color-mix(in_oklab,var(--fc-event-color)_30%,var(--background))]',
+  // A quiet surface lightly tinted by its colour; the colour itself is the bar the diary draws.
+  'group relative print:bg-white bg-[color-mix(in_oklab,var(--fc-event-color)_14%,var(--background))]',
+  // On dark, colour mixed into black turns muddy (amber goes brown), so the fill stays grey and the bar carries it.
+  'dark:bg-[color-mix(in_oklab,var(--fc-event-color)_6%,var(--muted))]',
+  'motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300',
+  'motion-safe:transition-[background-color,box-shadow] motion-safe:duration-150',
+  info.isInteractive && 'hover:bg-[color-mix(in_oklab,var(--fc-event-color)_22%,var(--background))] dark:hover:bg-[color-mix(in_oklab,var(--fc-event-color)_10%,var(--accent))] hover:shadow-sm hover:z-10',
   (info.isDragging && !info.isSelected) && 'opacity-75',
 )}
       blockEventTimeClass="whitespace-nowrap overflow-hidden shrink-1"
@@ -135,8 +140,8 @@ blockEventClass={(info) => cn(
 
       rowEventClass={(info) => cn(
         'mb-px not-print:py-px print:border-y items-center',
-        info.isStart && 'border-s-6 rounded-s-sm',
-        info.isEnd && 'not-print:pe-px print:border-e rounded-e-sm',
+        info.isStart && 'rounded-s-md',
+        info.isEnd && 'not-print:pe-px print:border-e rounded-e-md',
       )}
       rowEventBeforeClass={(info) => (
         info.isStartResizable
@@ -176,9 +181,9 @@ blockEventClass={(info) => cn(
       ----------------------------------------------------------------------------------------- */
 
       columnEventClass={(info) => cn(
-        'border-s-6 not-print:pe-px print:border-e ring ring-background',
-        info.isStart && 'not-print:pt-px print:border-t rounded-t-sm',
-        info.isEnd && 'mb-px not-print:pb-px print:border-b rounded-b-sm',
+        'not-print:pe-px print:border-e ring-2 ring-background',
+        info.isStart && 'not-print:pt-px print:border-t rounded-t-(--ag-r-sm)',
+        info.isEnd && 'mb-px not-print:pb-px print:border-b rounded-b-(--ag-r-sm)',
       )}
       columnEventBeforeClass={(info) => cn(
         info.isStartResizable && [
@@ -240,7 +245,7 @@ blockEventClass={(info) => cn(
       dayHeaderContent={(info) => (
         <>
           {info.isToday && (
-            <div className="absolute top-0 inset-x-0 border-t-4 border-primary pointer-events-none" />
+            <div className="absolute top-0 inset-x-2 h-0.5 rounded-full bg-primary pointer-events-none motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-top-1 motion-safe:duration-500" />
           )}
           {info.dayNumberText && (
             <div
@@ -251,7 +256,7 @@ blockEventClass={(info) => cn(
             >{info.dayNumberText}</div>
           )}
           {info.weekdayText && (
-            <div className="text-xs">{info.weekdayText}</div>
+            <div className="font-mono text-[length:var(--ag-label)] tracking-[.06em] uppercase text-muted-foreground">{info.weekdayText}</div>
           )}
         </>
       )}
@@ -433,8 +438,8 @@ blockEventClass={(info) => cn(
 
           slotHeaderClass: 'justify-end',
           slotHeaderInnerClass: (info) => cn(
-            'm-2',
-            info.isNarrow ? xxsTextClass : 'text-xs',
+            'm-2 font-mono tabular-nums text-muted-foreground',
+            info.isNarrow ? xxsTextClass : 'text-[length:var(--ag-label)]',
           ),
           slotHeaderDividerClass: 'border-e',
 

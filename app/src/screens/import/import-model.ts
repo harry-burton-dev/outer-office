@@ -31,6 +31,8 @@ export function toStored(rows: readonly EventRow[], principal: string): StoredEv
       id: r.id, principal, uid: r.uid ?? "", recurrenceId: r.recurrenceId ?? "", start: r.start ?? "", end: r.end ?? "",
       allDay: r.allDay === true, subject: r.subject ?? "", location: r.location ?? "", organizer: r.organizer ?? "",
       categories: r.categories ?? "", showAs: r.showAs ?? "", masked: r.masked === true, sourceModified: r.sourceModified ?? "",
+      requiredAttendees: r.requiredAttendees ?? "", optionalAttendees: r.optionalAttendees ?? "", importance: r.importance ?? "",
+      sensitivity: r.sensitivity ?? "", created: r.created ?? "",
       gone: r.gone === true, moves: r.moves ?? 0,
     }));
 }

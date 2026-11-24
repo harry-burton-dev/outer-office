@@ -15,6 +15,10 @@ export interface OverlaySetInput {
   prepOwner?: string;
   notes?: string;
   outcome?: string;
+  /** True archives the event (it moves to the graveyard); false brings it back. */
+  archived?: boolean;
+  /** With archived true: one of ARCHIVE_REASONS (unknown when left out). */
+  archiveReason?: string;
 }
 
 export const overlayId = (tx: Tx, eventId: string): string => tx.id("overlay", eventId);
@@ -36,6 +40,12 @@ function logChange(tx: Tx, now: string, event: { id: string; principal?: string 
 }
 
 /** Creates or updates the overlay. Logs once, only when prep or the flag changes. Returns the overlay id. */
+/** Why an engagement was archived (OUT-65 Q6). */
+export const ARCHIVE_REASONS = [
+  { value: "cancelled", label: "Cancelled" }, { value: "declined", label: "Declined" }, { value: "moved", label: "Moved" },
+  { value: "replaced", label: "Replaced" }, { value: "unknown", label: "Unknown" },
+] as const;
+
 export const overlaySet = defineCommand("overlay.set", (tx: Tx, input: OverlaySetInput) => {
   const now = requireNow(tx, input);
   const eventId = requireText(tx, input.event, "The engagement");
@@ -47,6 +57,8 @@ export const overlaySet = defineCommand("overlay.set", (tx: Tx, input: OverlaySe
     prepOwner: optionalText(tx, input.prepOwner, "The prep owner"),
     notes: optionalText(tx, input.notes, "The notes") === undefined ? undefined : input.notes,
     outcome: optionalText(tx, input.outcome, "The outcome") === undefined ? undefined : input.outcome,
+    archived: optionalBoolean(tx, input.archived, "Archived") === undefined ? undefined : input.archived ? now : "",
+    archiveReason: input.archived === undefined ? undefined : input.archived ? checkReason(tx, input.archiveReason) : "",
   });
   const id = overlayId(tx, eventId);
   const current = tx.get("overlays", id);
@@ -55,5 +67,16 @@ export const overlaySet = defineCommand("overlay.set", (tx: Tx, input: OverlaySe
   const after = { prep: fields.prep ?? before.prep, flagged: fields.flagged ?? before.flagged };
   tx.put("overlays", id, current ? fields : { prep: "none", flagged: false, ...fields, event: eventId });
   logChange(tx, now, event, before, after);
+  const wasArchived = Boolean(current?.archived);
+  if (input.archived !== undefined && input.archived !== wasArchived) {
+    const note = input.archived ? `Reason: ${ARCHIVE_REASONS.find((r) => r.value === fields.archiveReason)?.label ?? "Unknown"}` : "";
+    writeLog(tx, now, { area: "overlay", kind: input.archived ? "archived" : "unarchived", principal: event.principal ?? "", event: eventId, note });
+  }
   return id;
 });
+
+function checkReason(tx: Tx, reason: unknown): string {
+  if (reason === undefined) return "unknown";
+  if (!ARCHIVE_REASONS.some((r) => r.value === reason)) tx.fail("Choose why it is archived: cancelled, declined, moved, replaced or unknown.");
+  return reason as string;
+}

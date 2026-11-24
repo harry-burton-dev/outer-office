@@ -5,6 +5,7 @@
 import { defineCommand, type RowOf, type Tx } from "@trellis/framework";
 import type { ImportDiff, ImportedEvent, StoredEvent } from "../../import/types";
 import { isIsoInstant, requireNow, requireText, writeLog } from "./shared";
+import { settleProposals } from "./proposals";
 
 export interface ImportApplyInput {
   now: string;
@@ -26,7 +27,10 @@ export interface ImportResult {
 type StoredRow = RowOf<"events">;
 type Kind = "added" | "moved" | "changed" | "returned";
 
-const COMPARED = ["start", "end", "allDay", "subject", "location", "organizer", "categories", "showAs", "masked"] as const;
+const COMPARED = [
+  "start", "end", "allDay", "subject", "location", "organizer", "categories", "showAs", "masked",
+  "requiredAttendees", "optionalAttendees", "importance", "sensitivity",
+] as const;
 
 /**
  * tx.id("event", principal, uid, recurrenceId). tx.id refuses an empty part, so
@@ -67,15 +71,22 @@ const isOlder = (incoming: string, stored: string | undefined) =>
 function planEvent(stored: StoredRow | undefined, event: ImportedEvent): { kind: Kind; fields: readonly string[] } | undefined {
   if (!stored) return { kind: "added", fields: [] };
   if (isOlder(event.sourceModified, stored.sourceModified)) return undefined;
-  const fields = COMPARED.filter((key) => stored[key] !== event[key]);
+  const fields = COMPARED.filter((key) => event[key] !== undefined && (stored[key] ?? "") !== event[key]);
   if (stored.gone) return { kind: "returned", fields };
   if (fields.length === 0) return undefined;
   return { kind: fields.includes("start") ? "moved" : "changed", fields };
 }
 
-function eventFields(event: ImportedEvent, principal: string, importId: string, moves: number) {
+/** A field the source does not carry keeps what an earlier import stored. */
+function eventFields(event: ImportedEvent, stored: StoredRow | undefined, principal: string, importId: string, moves: number) {
   const { uid, recurrenceId, start, end, allDay, subject, location, organizer, categories, showAs, masked, sourceModified } = event;
-  return { principal, uid, recurrenceId, start, end, allDay, subject, location, organizer, categories, showAs, masked, sourceModified, gone: false, moves, importId };
+  const kept = (key: "requiredAttendees" | "optionalAttendees" | "importance" | "sensitivity" | "created") => event[key] ?? stored?.[key] ?? "";
+  const [requiredAttendees, optionalAttendees, importance, sensitivity, created] =
+    [kept("requiredAttendees"), kept("optionalAttendees"), kept("importance"), kept("sensitivity"), kept("created")];
+  return {
+    principal, uid, recurrenceId, start, end, allDay, subject, location, organizer, categories, showAs, masked, sourceModified,
+    requiredAttendees, optionalAttendees, importance, sensitivity, created, gone: false, moves, importId,
+  };
 }
 
 function applyIncoming(tx: Tx, now: string, principal: string, importId: string, event: ImportedEvent): Kind | undefined {
@@ -85,7 +96,7 @@ function applyIncoming(tx: Tx, now: string, principal: string, importId: string,
   if (!plan) return undefined;
   if (stored?._deleted) tx.restore("events", id);
   const moved = stored !== undefined && stored.start !== event.start;
-  tx.put("events", id, eventFields(event, principal, importId, (stored?.moves ?? 0) + (moved ? 1 : 0)));
+  tx.put("events", id, eventFields(event, stored, principal, importId, (stored?.moves ?? 0) + (moved ? 1 : 0)));
   const others = plan.fields.filter((field) => field !== "start");
   const note = others.length > 0 ? `Changed: ${others.join(", ")}` : "";
   const fromTo = moved ? { from: stored?.start ?? "", to: event.start } : {};
@@ -116,7 +127,8 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
   const file = typeof input.file === "string" ? input.file : "";
   checkDiff(tx, input.diff);
   const importId = tx.newId();
-  const kinds = incomingOf(tx, principal, input.diff).map((event) => applyIncoming(tx, now, principal, importId, event));
+  const incoming = incomingOf(tx, principal, input.diff);
+  const kinds = incoming.map((event) => applyIncoming(tx, now, principal, importId, event));
   const gone = input.diff.gone.filter((event) => applyGone(tx, now, principal, importId, event)).length;
   const count = (kind: Kind) => kinds.filter((k) => k === kind).length;
   const result = { importId, added: count("added"), changed: count("changed") + count("moved"), gone, returned: count("returned") };
@@ -126,5 +138,8 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
     area: "import", kind: "applied", principal,
     note: `${file || "Import"}: ${result.added} added, ${result.changed} changed, ${gone} gone, ${result.returned} returned`,
   });
+  // Proposals Outlook now shows are done.
+  const landed = incoming.map((e) => ({ id: eventId(tx, principal, e), start: e.start, end: e.end, subject: e.subject }));
+  settleProposals(tx, now, principal, landed, new Set(input.diff.gone.map((e) => eventId(tx, principal, e))));
   return result;
 });

@@ -1,0 +1,75 @@
+/* InstaLanding design system · Agentic · agentic@1.0.0
+   Extracted from https://instalanding.ai/demos/agentic-art-expo.html
+   Vendored tokens only (the system CSS and specimen were not reachable from the build machine).
+   Fonts (Google Fonts): Host Grotesk 400-700 (display and text), Instrument Serif italic (one word per heading),
+   JetBrains Mono 400-500 (labels). The grain token is left out: the diary has no pictures. */
+:root {
+  /* Color · core */
+  --ag-bg: #EBE6DC;
+  --ag-surface: #F7F4EE;
+  --ag-ink: #0D0C0B;
+  --ag-panel: #0B0A09;
+  --ag-on-panel: #EFE9DF;
+  --ag-accent: #D7FF3F;
+  --ag-ember: #FF5A2E;
+
+  /* Color · derived */
+  --ag-muted: color-mix(in oklab, var(--ag-ink) 54%, var(--ag-bg));
+  --ag-line: color-mix(in oklab, var(--ag-ink) 13%, transparent);
+  --ag-shade: color-mix(in oklab, var(--ag-ink) 9%, var(--ag-bg));
+  --ag-panel-muted: color-mix(in oklab, var(--ag-on-panel) 56%, var(--ag-panel));
+  --ag-panel-line: color-mix(in oklab, var(--ag-on-panel) 15%, transparent);
+
+  /* Type · families */
+  --ag-font-display: "Host Grotesk", system-ui, sans-serif;
+  --ag-font-text: "Host Grotesk", system-ui, sans-serif;
+  --ag-font-serif: "Instrument Serif", Georgia, serif;
+  --ag-font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Type · scale (the app uses the smaller steps; giant titles are for landing pages) */
+  --ag-t-h2: clamp(32px, 4.2vw, 62px);
+  --ag-lede: clamp(19px, 1.7vw, 24px);
+  --ag-text: 17px;
+  --ag-small: 15px;
+  --ag-caption: 13px;
+  --ag-label: 11.5px;
+
+  /* Shape · radii */
+  --ag-r-xl: 30px;
+  --ag-r-lg: 22px;
+  --ag-r-md: 16px;
+  --ag-r-sm: 10px;
+  --ag-r-pill: 999px;
+
+  /* Shape · borders */
+  --ag-hairline: 1px;
+
+  /* Depth */
+  --ag-glass: blur(8px);
+  --ag-shadow-float: 0 40px 80px -40px color-mix(in oklab, var(--ag-ink) 35%, transparent);
+
+  /* Motion */
+  --ag-ease: cubic-bezier(.7,0,.2,1);
+  --ag-dur-quick: .35s;
+  --ag-dur: .4s;
+  --ag-dur-text: .45s;
+  --ag-dur-line: .5s;
+  --ag-dur-open: .6s;
+  --ag-dur-paint: 1.2s;
+
+  /* Space */
+  --ag-frame: 10px;
+  --ag-gutter: clamp(16px, 2.6vw, 40px);
+  --ag-header: 64px;
+}
+
+/* Dark mode is not in agentic@1.0.0. Added in the same scheme: the page becomes the panel,
+   cards lift off it a step, and ink and paper swap. Lime stays the one accent. */
+.dark {
+  --ag-bg: #0B0A09;
+  --ag-surface: #161412;
+  --ag-ink: #EFE9DF;
+  --ag-panel: #1D1B18;
+  --ag-on-panel: #EFE9DF;
+  --ag-shadow-float: none; /* a light ink would make the shadow glow */
+}

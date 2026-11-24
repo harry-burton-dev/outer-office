@@ -77,6 +77,16 @@ describe("import.apply: changes", () => {
     expect(rows(a, "log").find((r) => r.kind === "changed")?.note).toBe("Changed: subject");
   });
 
+  test("a changed attendee response is applied even when nothing else changed", async () => {
+    const { a, principal } = await withPrincipal();
+    ok(a, importApply, { now: NOW, principal, file: "f.ics", diff: diff({ added: [event("e1", { requiredAttendees: "Blake <b@example.org> · no response" })] }) });
+    const after = event("e1", { requiredAttendees: "Blake <b@example.org> · declined", sourceModified: "2026-11-21T09:00:00Z" });
+    const result = ok(a, importApply, { now: LATER, principal, file: "f.ics", diff: diff({ changed: [{ before: stored(a, principal, "e1"), after, fields: ["requiredAttendees"], moved: false }] }) });
+    expect(result.changed).toBe(1);
+    expect(byId(a, "events", idOf(a, "event", principal, "e1"))?.requiredAttendees).toBe("Blake <b@example.org> · declined");
+    expect(rows(a, "log").find((r) => r.kind === "changed")?.note).toBe("Changed: requiredAttendees");
+  });
+
   test("an update older than the stored LAST-MODIFIED is skipped", async () => {
     const { a, principal } = await withPrincipal();
     ok(a, importApply, { now: NOW, principal, file: "f.ics", diff: diff({ added: [event("e1")] }) });

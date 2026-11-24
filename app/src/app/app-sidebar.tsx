@@ -1,7 +1,7 @@
 // The left navigation: the app name, the principal switch, the principal's
 // screens (labelled with its code), then the task lists.
 import type { LucideIcon } from "lucide-react";
-import { CalendarDays, CalendarCheck, FolderOpen, Inbox, ScrollText, Trash2, Upload } from "lucide-react";
+import { CalendarDays, CalendarCheck, FolderOpen, Inbox, ScrollText, LayoutTemplate, Tags, Trash2, Upload } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -30,6 +30,8 @@ const PRINCIPAL_ITEMS: readonly NavItem[] = [
   { screen: "import", label: "Import", icon: Upload },
   { screen: "log", label: "Log", icon: ScrollText },
 ];
+
+const OFFICE_ITEMS: readonly NavItem[] = [{ screen: "tags", label: "Tags", icon: Tags }, { screen: "templates", label: "Templates", icon: LayoutTemplate }];
 
 interface NavGroupProps {
   label: string;
@@ -77,7 +79,7 @@ export function AppSidebar() {
   const taskItems = useTaskItems();
   const chosen = principals.find((p) => p.id === principalId);
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" variant="floating">
       <SidebarHeader>
         <p className="truncate px-2 py-1 text-base font-medium group-data-[collapsible=icon]:hidden">{office?.name || APP_NAME}</p>
         <PrincipalSwitch />
@@ -86,6 +88,7 @@ export function AppSidebar() {
         <nav aria-label="Main">
           <NavGroup label={chosen?.code ?? "Diary"} items={PRINCIPAL_ITEMS} />
           <NavGroup label="Tasks" items={taskItems} />
+          <NavGroup label="Office" items={OFFICE_ITEMS} />
         </nav>
       </SidebarContent>
       <SidebarRail />

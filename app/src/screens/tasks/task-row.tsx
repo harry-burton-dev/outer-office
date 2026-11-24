@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { usePeople } from "@/app/people";
 import { DateText } from "@/app/ui";
+import { useRecords } from "@trellis/framework";
+import { taskTags } from "@/domain/tags";
+import { TagDot } from "@/tags/tag-dot";
+import { TagMenu } from "@/tags/tag-menu";
 import type { MetaItem } from "./row-meta";
 
 type Task = RowOf<"tasks">;
@@ -98,9 +102,20 @@ function MoveControls({ moves, title }: { moves: RowMoves; title: string }) {
   );
 }
 
+function TagDots({ task }: { task: Task }) {
+  const tags = taskTags(task.tags, useRecords("tags"));
+  if (tags.length === 0) return null;
+  return (
+    <span className="flex items-center gap-1" aria-label={`Tags: ${tags.map((t) => t.name).join(", ")}`}>
+      {tags.map((tag) => <TagDot key={tag.id} colour={tag.colour} />)}
+    </span>
+  );
+}
+
 export function TaskRow({ task, meta, onOpen, onToggle, moves, action }: TaskRowProps) {
   const title = titleOf(task);
   return (
+    <TagMenu target="task" id={task.id} own={task.tags} onOpen={onOpen}>
     <li className="group/row flex min-h-9 items-start gap-3 border-b py-2 last:border-b-0" data-testid="task-row">
       <span className="flex h-5 items-center"><CheckMark task={task} onToggle={onToggle} /></span>
       <button
@@ -108,10 +123,14 @@ export function TaskRow({ task, meta, onOpen, onToggle, moves, action }: TaskRow
         onClick={onOpen}
         className="flex min-w-0 flex-1 flex-col items-start gap-1 rounded-sm text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        <span className={cn("truncate text-sm", task.done === true && "text-muted-foreground line-through")}>{title}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <TagDots task={task} />
+          <span className={cn("truncate text-sm", task.done === true && "text-muted-foreground line-through")}>{title}</span>
+        </span>
         <RowMeta meta={meta} />
       </button>
       {action ?? (moves && <MoveControls moves={moves} title={title} />)}
     </li>
+    </TagMenu>
   );
 }
