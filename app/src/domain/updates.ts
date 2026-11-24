@@ -11,7 +11,7 @@ import type { RowOf } from "@trellis/framework";
 import { todayIn } from "./dates";
 import { FIRST_LOOK_DAYS, ME } from "./home";
 import { isDueToday, isOverdue } from "./selectors";
-import { RULES, type ChangeContext, type ChangeRule, type Lane, type RuleSetting } from "./rules";
+import { RULES, ruleById, type ChangeContext, type Lane, type RuleSetting, type Surface, SURFACES } from "./rules";
 
 type LogRow = RowOf<"log">;
 type TaskRow = RowOf<"tasks">;
@@ -19,6 +19,7 @@ type EventRow = RowOf<"events">;
 type OverlayRow = RowOf<"overlays">;
 type SeenRow = RowOf<"seen">;
 type UpdateStateRow = RowOf<"updateState">;
+type RuleRow = RowOf<"rules">;
 
 export const EXPIRY_DAYS = 14;
 const DAY_MS = 86_400_000;
@@ -53,7 +54,37 @@ export interface UpdatesInput {
     /** Why a principal's newest sync was held back. */
     heldBack: ReadonlyMap<string, string>;
   };
+  /** Rules users made (D4); only the user's own, switched on, count. */
+  ownRules?: readonly RuleRow[];
+  /** Cover in force for the user: they also get the absent user's needs-you updates for that principal. */
+  covering?: readonly Covering[];
 }
+
+export interface Covering {
+  absent: string;
+  principal: string;
+  /** settingsFor(absent, …). */
+  settings: ReadonlyMap<string, RuleSetting>;
+}
+
+/** A user-made rule's update matched under this id; its key starts "own:<record id>|" in the needs lane. */
+export const ownRuleId = (row: { id: string }): string => `own:${row.id}`;
+
+/** A user rule's params: { principal: id or "all", amount }. */
+export function ownParams(row: RuleRow): { principal: string; amount?: number } {
+  try {
+    const parsed: unknown = JSON.parse(row.params || "{}");
+    const p = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+    return { principal: typeof p.principal === "string" && p.principal ? p.principal : "all", ...(typeof p.amount === "number" ? { amount: p.amount } : {}) };
+  } catch {
+    return { principal: "all" };
+  }
+}
+
+const ownSurfaces = (row: RuleRow): Surface[] => {
+  const set = new Set((row.surfaces ?? "").split(",").map((x) => x.trim()));
+  return SURFACES.filter((x) => set.has(x));
+};
 
 export interface DealtWith {
   by: string;
@@ -68,6 +99,8 @@ export interface Update {
   scope: string;
   /** The rules it matched, in the order they were first matched. */
   rules: string[];
+  /** For a needs-you update, the built-in state rule whose cause stands. */
+  cause?: string;
   /** The newest change it holds, or when its cause began ("" when not known). */
   at: string;
   event?: string;
@@ -84,6 +117,10 @@ export interface Update {
   members: Update[];
   pinned: boolean;
   dealtWith?: DealtWith;
+  /** Where it shows, from the user's settings for each rule it matched. */
+  surfaces: Surface[];
+  /** It came through cover for this user. */
+  coveringFor?: string;
 }
 
 export interface UpdateGroup {
@@ -153,10 +190,33 @@ function dealtWith(ctx: Ctx, key: string, after: string, subject: { event?: stri
   return [...marks, ...acts].sort((a, b) => b.at.localeCompare(a.at))[0];
 }
 
-/** The rules on for the user, change rules only, sync-applied aside. */
-function changeRules(settings: ReadonlyMap<string, RuleSetting>): ChangeRule[] {
-  return RULES.filter((r): r is ChangeRule => r.kind === "change" && r.id !== "sync-applied" && settings.get(r.id)?.on === true);
+interface Matcher {
+  id: string;
+  scope: "principal" | "me";
+  lane: Lane;
+  test(row: LogRow): boolean;
 }
+
+/** The change rules on for the user, sync-applied aside, and their own change rules. */
+function matchers(ctx: Ctx, context: ChangeContext): Matcher[] {
+  const { settings } = ctx.input;
+  const builtIn = RULES.flatMap((r): Matcher[] =>
+    r.kind === "change" && r.id !== "sync-applied" && settings.get(r.id)?.on === true
+      ? [{ id: r.id, scope: r.scope, lane: "info", test: (row) => r.match(row, context, settings.get(r.id)?.amount ?? 0) }]
+      : []);
+  const own = ownRulesOf(ctx).flatMap((row): Matcher[] => {
+    const base = ruleById(row.condition ?? "");
+    if (base?.kind !== "change" || base.id === "sync-applied") return [];
+    const { principal, amount } = ownParams(row);
+    const lane: Lane = row.lane === "needs" ? "needs" : "info";
+    const test = (r: LogRow) => (principal === "all" || r.principal === principal) && base.match(r, context, amount ?? base.amount?.default ?? 0);
+    return [{ id: ownRuleId(row), scope: base.scope, lane, test }];
+  });
+  return [...builtIn, ...own];
+}
+
+const ownRulesOf = (ctx: Ctx): RuleRow[] =>
+  (ctx.input.ownRules ?? []).filter((r) => live(r) && r.owner === ctx.input.user && r.on === true);
 
 /** For-information updates, before the user's state hides any. */
 function infoUpdates(ctx: Ctx): Update[] {
@@ -168,7 +228,7 @@ function infoUpdates(ctx: Ctx): Update[] {
     user, task: (id) => taskById.get(id), event: (id) => eventById.get(id),
     timezone: input.timezone, dayStart: input.dayStart, dayEnd: input.dayEnd,
   };
-  const rules = changeRules(settings);
+  const rules = matchers(ctx, context);
   const live_ = log.filter(live).sort(byAt);
   // A Power Automate run is nobody's own change, even on the device that applied it.
   const applied = live_.filter((r) => r.area === "import" && r.kind === "applied");
@@ -177,21 +237,25 @@ function infoUpdates(ctx: Ctx): Update[] {
 
   // A subject posts when a rule matches one of its rows; its net reads all of them,
   // diary rows too, so a meeting added then gone is nothing even with the gone rule off.
-  const groups = new Map<string, { scope: string; rows: LogRow[]; rules: string[] }>();
+  // A user's own needs-lane change rule keeps its own update, keyed "own:<id>|<subject>".
+  const groups = new Map<string, { scope: string; subject: string; lane: Lane; rows: LogRow[]; rules: string[] }>();
   const allOf = new Map<string, LogRow[]>();
   const hits = new Set<string>();
   for (const row of others) {
-    const key = subjectOf(row);
-    allOf.set(key, [...(allOf.get(key) ?? []), row]);
-    const matched = rules.filter((r) => r.match(row, context, settings.get(r.id)?.amount ?? 0));
+    const subject = subjectOf(row);
+    allOf.set(subject, [...(allOf.get(subject) ?? []), row]);
+    const matched = rules.filter((r) => r.test(row));
     if (matched.length === 0) continue;
     hits.add(row.id);
-    const scope = matched[0].scope === "me" ? ME : (row.principal ?? "");
-    const group = groups.get(key) ?? { scope, rows: [], rules: [] };
-    for (const r of matched) if (!group.rules.includes(r.id)) group.rules.push(r.id);
-    groups.set(key, group);
+    for (const m of matched) {
+      const key = m.lane === "needs" ? `${m.id}|${subject}` : subject;
+      const scope = m.scope === "me" ? ME : (row.principal ?? "");
+      const group = groups.get(key) ?? { scope, subject, lane: m.lane, rows: [], rules: [] };
+      if (!group.rules.includes(m.id)) group.rules.push(m.id);
+      groups.set(key, group);
+    }
   }
-  for (const [key, group] of groups) group.rows = (allOf.get(key) ?? []).filter((r) => hits.has(r.id) || r.area === "calendar");
+  for (const group of groups.values()) group.rows = (allOf.get(group.subject) ?? []).filter((r) => hits.has(r.id) || r.area === "calendar");
 
   const single: Update[] = [];
   for (const [key, group] of groups) {
@@ -205,13 +269,13 @@ function infoUpdates(ctx: Ctx): Update[] {
     const last = rows[rows.length - 1];
     const subject = { ...(last.event ? { event: last.event } : {}), ...(last.task ? { task: last.task } : {}) };
     single.push({
-      key, lane: "info", scope: group.scope, rules: group.rules, at: last.at ?? "", ...subject, ...summary,
-      ...(last.note ? { note: last.note } : {}), rows, members: [], pinned,
+      key, lane: group.lane, scope: group.scope, rules: group.rules, at: last.at ?? "", ...subject, ...summary,
+      ...(last.note ? { note: last.note } : {}), rows, members: [], pinned, surfaces: [],
     });
   }
 
-  const bySeries = foldSeries(ctx, single, eventById);
-  return foldRuns(ctx, bySeries, applied);
+  const bySeries = foldSeries(ctx, single.filter((u) => u.lane === "info"), eventById);
+  return [...foldRuns(ctx, bySeries, applied), ...single.filter((u) => u.lane === "needs")];
 }
 
 /** Two or more engagements of one series become one update. */
@@ -263,7 +327,7 @@ function container(ctx: Ctx, key: string, members: Update[], rows: LogRow[]): Up
   const at = [...members.map((m) => m.at), ...rows.map((r) => r.at ?? "")].sort().pop() ?? "";
   const rules = [...new Set(members.flatMap((m) => m.rules))];
   const kinds = [...new Set(members.flatMap((m) => m.kinds))];
-  return { key, lane: "info", scope, rules, at, kinds, rows, members: [...members].sort(newestFirst), pinned: ctx.state.get(key)?.state === "pinned" };
+  return { key, lane: "info", scope, rules, at, kinds, rows, members: [...members].sort(newestFirst), pinned: ctx.state.get(key)?.state === "pinned", surfaces: [] };
 }
 
 /** The user saw an update up to here: the scope's "mark all seen", or the update's own seen or dismissed. */
@@ -274,10 +338,10 @@ function seenPoint(ctx: Ctx, key: string, scope: string): string {
   return marked > scopeAt ? marked : scopeAt;
 }
 
-/** Needs-you updates: one per standing cause. */
-function needsUpdates(ctx: Ctx): Update[] {
+/** Needs-you updates: one per standing cause, under the given user's settings. */
+function needsUpdates(ctx: Ctx, settings: ReadonlyMap<string, RuleSetting>, user = ctx.input.user): Update[] {
   const { input } = ctx;
-  const { user, now, settings, sync } = input;
+  const { now, sync } = input;
   const on = (id: string) => settings.get(id)?.on === true;
   const amount = (id: string) => settings.get(id)?.amount ?? 0;
   const principals = new Set(input.principals.map((p) => p.id));
@@ -288,7 +352,7 @@ function needsUpdates(ctx: Ctx): Update[] {
   const events = input.events.filter((e) => live(e) && principals.has(e.principal ?? ""));
   const out: Update[] = [];
   const add = (rule: string, scope: string, subject: string, at: string, extra: Partial<Update> = {}) =>
-    out.push({ key: `${rule}|${subject}`, lane: "needs", scope, rules: [rule], at, kinds: [], rows: [], members: [], pinned: false, ...extra });
+    out.push({ key: `${rule}|${subject}`, lane: "needs", scope, rules: [rule], cause: rule, at, kinds: [], rows: [], members: [], pinned: false, surfaces: [], ...extra });
 
   if (on("task-overdue")) {
     for (const t of openTasks) {
@@ -336,6 +400,42 @@ function needsUpdates(ctx: Ctx): Update[] {
   return out;
 }
 
+/** Built-in state rules, the user's own state rules, then what cover brings, one update per key. */
+function stateUpdates(ctx: Ctx): Update[] {
+  const byKey = new Map<string, Update>();
+  const take = (list: readonly Update[], extra: (u: Update) => Partial<Update> = () => ({})) => {
+    for (const u of list) {
+      const had = byKey.get(u.key);
+      if (had) { for (const r of u.rules) if (!had.rules.includes(r)) had.rules.push(r); continue; }
+      byKey.set(u.key, { ...u, rules: [...u.rules], ...extra(u) });
+    }
+  };
+  take(needsUpdates(ctx, ctx.input.settings));
+  for (const row of ownRulesOf(ctx)) {
+    const base = ruleById(row.condition ?? "");
+    if (base?.kind !== "state") continue;
+    const { principal, amount } = ownParams(row);
+    const only = new Map(RULES.map((r) => [r.id, { on: r.id === base.id, amount: amount ?? r.amount?.default ?? 0, surfaces: [] }]));
+    take(needsUpdates(ctx, only).filter((u) => principal === "all" || u.scope === principal).map((u) => ({ ...u, rules: [ownRuleId(row)] })));
+  }
+  for (const c of ctx.input.covering ?? []) {
+    take(needsUpdates(ctx, c.settings, c.absent).filter((u) => u.scope === c.principal), () => ({ coveringFor: c.absent }));
+  }
+  return [...byKey.values()];
+}
+
+function surfacesOf(ctx: Ctx, u: Update): Surface[] {
+  const own = new Map(ownRulesOf(ctx).map((r) => [ownRuleId(r), r]));
+  const cover = u.coveringFor !== undefined ? ctx.input.covering?.find((c) => c.absent === u.coveringFor)?.settings : undefined;
+  const set = new Set<Surface>();
+  for (const id of u.rules) {
+    const row = own.get(id);
+    const from = row ? ownSurfaces(row) : ((cover ?? ctx.input.settings).get(id)?.surfaces ?? []);
+    for (const x of from) set.add(x);
+  }
+  return SURFACES.filter((x) => set.has(x));
+}
+
 /** Every update for the user, one group per principal (in order) and "For you" last. */
 export function updatesFor(input: UpdatesInput): UpdateGroup[] {
   const { user, now } = input;
@@ -352,13 +452,30 @@ export function updatesFor(input: UpdatesInput): UpdateGroup[] {
     const d = dealtWith(ctx, u.key, u.at, u);
     return d ? { ...u, dealtWith: d } : u;
   };
-  const info = infoUpdates(ctx).filter((u) => !snoozed(u) && (u.pinned || u.at >= expiry)).map(withDealt);
-  const needs = needsUpdates(ctx).filter((u) => !snoozed(u)).map(withDealt);
+  const all = infoUpdates(ctx);
+  const info = all.filter((u) => u.lane === "info" && !snoozed(u) && (u.pinned || u.at >= expiry));
+  const needs = [...stateUpdates(ctx), ...all.filter((u) => u.lane === "needs")].filter((u) => !snoozed(u));
+  const surfaced = (u: Update): Update => ({ ...withDealt(u), surfaces: surfacesOf(ctx, u) });
   const scopes = [...input.principals.map((p) => p.id), ME];
   return scopes.map((scope) => ({
     scope,
     seenAt: scopeSeen.get(scope) ?? "",
-    needs: needs.filter((u) => u.scope === scope),
-    info: info.filter((u) => u.scope === scope).sort(newestFirst),
+    needs: needs.filter((u) => u.scope === scope).map(surfaced),
+    info: info.filter((u) => u.scope === scope).sort(newestFirst).map(surfaced),
   }));
+}
+
+/**
+ * What one rule would have posted over the last week (FIRST_LOOK_DAYS) of the
+ * stored log, for the Alerts preview (B31): as if the user had never looked
+ * and nothing else were on. State rules show what stands now.
+ */
+export function previewRule(input: UpdatesInput, rule: string): Update[] {
+  const own = (input.ownRules ?? []).find((r) => ownRuleId(r) === rule);
+  const settings = new Map([...input.settings].map(([id, s]) => [id, { ...s, on: !own && id === rule }]));
+  const groups = updatesFor({
+    ...input, settings, seen: [], updateState: [], covering: [],
+    ownRules: own ? [{ ...own, on: true }] : [],
+  });
+  return groups.flatMap((g) => [...g.needs, ...g.info]);
 }

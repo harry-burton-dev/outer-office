@@ -35,7 +35,7 @@ export function useSubjects(): { event(id: string): string; task(id: string): st
 export function updateText(u: Update, subjects: ReturnType<typeof useSubjects>, zone: string, today: string): { what: string; about: string; detail: string } {
   const about = u.event ? subjects.event(u.event) : u.task ? subjects.task(u.task) : "";
   const when = (v: string | undefined) => valueText(v, zone);
-  switch (u.rules[0]) {
+  switch (u.cause) {
     case "task-overdue": return { what: u.at < today ? "Overdue" : "Due today", about, detail: u.at ? `due ${when(u.at)}` : "" };
     case "task-offered": return { what: "Offered to you", about, detail: "" };
     case "prep-due": return { what: "Prep needed", about, detail: when(u.at) };
@@ -65,6 +65,9 @@ function Actions({ update }: { update: Update }) {
           {SNOOZES.map((s) => <DropdownMenuItem key={s.label} onClick={() => snooze(s.ms)}>{s.label}</DropdownMenuItem>)}
         </DropdownMenuContent>
       </DropdownMenu>
+      {update.key.startsWith("own:") && (
+        <Button variant="ghost" size="sm" onClick={() => set.run({ key: update.key, state: "seen", ...(at ? { at } : {}) })}>Done</Button>
+      )}
       {update.lane === "info" && (
         <>
           <Button variant="ghost" size="sm" onClick={() => set.run({ key: update.key, state: update.pinned ? "clear" : "pinned", ...(at ? { at } : {}) })}>
@@ -87,7 +90,7 @@ export function UpdateRow({ update, readOnly = false }: { update: Update; readOn
     ? () => openPanel({ kind: "task", id: update.task ?? "" })
     : update.event
       ? () => openPanel({ kind: "engagement", id: update.event ?? "" })
-      : update.rules.some((r) => SYNC_RULES.has(r))
+      : (SYNC_RULES.has(update.cause ?? "") || update.rules.includes("sync-applied"))
         ? () => { closePanel(); go("import"); }
         : undefined;
   const by = update.lane === "info" ? [...new Set(update.rows.map((r) => r.by ?? "").filter(Boolean))].map(nameOf).join(", ") : "";
@@ -102,6 +105,7 @@ export function UpdateRow({ update, readOnly = false }: { update: Update; readOn
         {about && <span className="truncate">{about}</span>}
         {detail && <span className="text-muted-foreground">{detail}</span>}
         {update.pinned && <span className="text-xs text-muted-foreground">Pinned</span>}
+        {update.coveringFor && <span className="text-xs text-muted-foreground">Covering for {nameOf(update.coveringFor)}</span>}
         <span className="ml-auto flex items-center gap-1">
           {open && <Button variant="outline" size="sm" onClick={open}>Open</Button>}
           {!readOnly && <Actions update={update} />}

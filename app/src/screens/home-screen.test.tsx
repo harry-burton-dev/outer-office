@@ -1,5 +1,5 @@
 // Home (OUT-86): a stream per principal and For you, each with needs you then
-// for information; Mark all seen, the rule switches, dismiss and the watching line.
+// for information; Mark all seen, dismiss and the watching line.
 import { afterEach, expect, test } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import type { CommandDef } from "@trellis/framework";
@@ -71,15 +71,6 @@ test("dismiss hides one update; a needs-you update has no Dismiss", async () => 
   fireEvent.click(within(moved).getByRole("button", { name: "Dismiss" }));
   expect(lines("PRINCIPAL-A · Minister")).toEqual([expect.stringMatching(/^Added/)]);
   expect(within(screen.getByRole("region", { name: "For you" })).queryByRole("button", { name: "Dismiss" })).toBeNull();
-});
-
-test("turning a rule off hides its changes", async () => {
-  await renderApp({ seed: (s) => void seedOffice(s), children: <HomeScreen /> });
-  fireEvent.click(screen.getByRole("button", { name: "Rules" }));
-  fireEvent.click(screen.getByRole("switch", { name: "A meeting moves" }));
-  fireEvent.click(screen.getByRole("switch", { name: /A meeting is added or moved at short notice/ }));
-  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
-  expect(lines("PRINCIPAL-A · Minister")).toEqual([expect.stringMatching(/^Added/)]);
 });
 
 test("says you are up to date when nothing changed", async () => {

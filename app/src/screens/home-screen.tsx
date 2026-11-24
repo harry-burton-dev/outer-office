@@ -15,7 +15,6 @@ import type { UpdateGroup } from "@/domain/updates";
 import { formatTime } from "@/domain/dates";
 import { ErrorLine } from "./tasks/list-parts";
 import { useRun } from "./tasks/use-run";
-import { RuleSwitches } from "./home/watch-rules";
 import { UpdateRow } from "./home/update-row";
 
 interface StreamProps {
@@ -37,10 +36,9 @@ function Lane({ title, children, count }: { title: string; count: number; childr
 
 function Stream({ group, title, watching }: StreamProps) {
   const { isViewer } = useApp();
-  const { settings } = useUpdates();
   const seen = useRun(commands.homeMarkSeen);
-  const needs = group.needs.filter((u) => onSurface(u, "home", settings));
-  const info = group.info.filter((u) => onSurface(u, "home", settings));
+  const needs = group.needs.filter((u) => onSurface(u, "home"));
+  const info = group.info.filter((u) => onSurface(u, "home"));
   const newest = info.map((u) => u.at).sort().pop();
   return (
     <section aria-label={title} className="flex flex-col gap-3 rounded-lg border p-4">
@@ -62,21 +60,21 @@ function Stream({ group, title, watching }: StreamProps) {
 }
 
 export function HomeScreen() {
-  const { timezone } = useApp();
+  const { timezone, go } = useApp();
   const office = useOffice();
   const principals = useActivePrincipals();
   const { groups, settings, lastSync } = useUpdates();
   const rulesOn = RULES.filter((r) => settings.get(r.id)?.on).length;
   const watchingOf = (scope: string, code: string, group: UpdateGroup) => {
     const last = lastSync.get(scope);
-    const late = group.needs.some((u) => u.rules[0] === "sync-late" || u.rules[0] === "sync-held-back");
+    const late = group.needs.some((u) => u.cause === "sync-late" || u.cause === "sync-held-back");
     const sync = office?.automate ? ` · last sync ${last ? formatTime(last, timezone) : "never"}${late ? " (late or held back)" : ""}` : "";
     return { line: `Watching ${code}'s diary${sync} · ${rulesOn} rules on`, warning: late };
   };
   const total = groups.reduce((n, g) => n + g.needs.length + g.info.length, 0);
   return (
     <div className="flex max-w-220 flex-col gap-6">
-      <PageHeader title="Home" description="What needs you, and what changed since you last looked." actions={<RuleSwitches settings={settings} />} />
+      <PageHeader title="Home" description="What needs you, and what changed since you last looked." actions={<Button variant="outline" onClick={() => go("alerts")}>Alerts</Button>} />
       {total === 0 && <EmptyState title="You're up to date" body="Colleagues' changes, syncs and anything that needs you show here." />}
       {groups.map((group) => {
         if (group.scope === ME) return <Stream key={ME} group={group} title="For you" />;

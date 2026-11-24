@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import type { RowOf } from "@trellis/framework";
 import { ME } from "./home";
 import { RULES, settingsFor } from "./rules";
-import { updatesFor, type UpdatesInput } from "./updates";
+import { previewRule, updatesFor, type UpdatesInput } from "./updates";
 
 type Log = RowOf<"log">;
 type Ev = RowOf<"events">;
@@ -370,3 +370,68 @@ describe("needs you, carried over from Needs action", () => {
   });
 });
 
+
+describe("own rules, cover and the preview", () => {
+  const own = (over: Partial<RowOf<"rules">>) =>
+    ({ ...meta(`r-${++n}`), owner: "user-a", name: "Mine", condition: "moved", params: "{}", surfaces: "home", lane: "info", on: true, ...over }) as RowOf<"rules">;
+  const allOff = settingsFor("user-a", RULES.map((r) => ({ ...meta(`off-${r.id}`), userId: "user-a", rule: r.id, on: false }) as RowOf<"ruleSettings">), undefined);
+
+  test("a change rule for one principal posts only that principal's rows, with its own surfaces", () => {
+    const rows = [log({ at: T(1), kind: "moved", event: "a", from: "A", to: "B" }), log({ at: T(1), principal: "p-b", kind: "moved", event: "b", from: "A", to: "B" })];
+    const rule = own({ params: JSON.stringify({ principal: "p-b" }), surfaces: "home,badge" });
+    const groups = updatesFor(input({ log: rows, settings: allOff, ownRules: [rule, own({ owner: "user-c" })], principals: [{ id: "p-a" }, { id: "p-b" }] }));
+    expect(groups.find((g) => g.scope === "p-a")!.info).toEqual([]);
+    expect(groups.find((g) => g.scope === "p-b")!.info[0]).toMatchObject({ key: "e:b", rules: [`own:${rule.id}`], surfaces: ["home", "badge"] });
+  });
+
+  test("a change rule in the needs-you lane keeps its own update until marked done", () => {
+    const rule = own({ lane: "needs" });
+    const rows = [log({ at: T(1), kind: "moved", event: "a", from: "A", to: "B" })];
+    const key = `own:${rule.id}|e:a`;
+    const i = input({ log: rows, ownRules: [rule] });
+    expect(group(i).needs.map((u) => u.key)).toEqual([key]);
+    expect(group(i).info.map((u) => u.key)).toEqual(["e:a"]);
+    expect(group({ ...i, updateState: [state(key, "seen", { at: T(1) })] }).needs).toEqual([]);
+  });
+
+  test("a state rule with an amount and a principal adds to the built-in one, one update per key", () => {
+    const events = [ev("soon", { start: "2026-11-25T09:00:00Z" }), ev("later", { start: "2026-11-26T09:00:00Z" })];
+    const overlays = ["soon", "later"].map((e) => ({ ...meta(`o-${e}`), event: e, prep: "needed" }) as RowOf<"overlays">);
+    const rule = own({ condition: "prep-due", lane: "needs", params: JSON.stringify({ principal: "p-a", amount: 72 }), surfaces: "badge" });
+    const { needs } = group(input({ events, overlays, ownRules: [rule] }));
+    expect(needs.map((u) => [u.key, u.rules, u.surfaces])).toEqual([
+      ["prep-due|soon", ["prep-due", `own:${rule.id}`], ["home", "needs", "badge"]],
+      ["prep-due|later", [`own:${rule.id}`], ["badge"]],
+    ]);
+  });
+
+  test("during cover, the covering user gets the absent user's needs-you updates for that principal, and no others (B29)", () => {
+    const tasks = [
+      { ...meta("a"), principal: "p-a", due: "2026-11-20", done: false },
+      { ...meta("b"), principal: "p-b", due: "2026-11-20", done: false },
+      { ...meta("offer"), assignee: "user-b", assignedBy: "user-c", assignment: "offered", done: false },
+    ] as RowOf<"tasks">[];
+    const absent = settingsFor("user-b", [], undefined);
+    const rows = [log({ at: T(1), by: "user-c", kind: "moved", event: "x", from: "A", to: "B" })];
+    const groups = updatesFor(input({
+      tasks, log: rows, settings: allOff, principals: [{ id: "p-a" }, { id: "p-b" }],
+      covering: [{ absent: "user-b", principal: "p-a", settings: absent }],
+    }));
+    expect(groups.flatMap((g) => g.needs.map((u) => [u.key, u.coveringFor]))).toEqual([["task-overdue|a", "user-b"]]);
+    expect(groups.flatMap((g) => g.info)).toEqual([]);
+  });
+
+  test("the preview lists exactly what one rule would have posted over the last week (B31)", () => {
+    const rows = [
+      log({ at: T(2), kind: "moved", event: "a", from: "A", to: "B" }),
+      log({ at: T(3), kind: "changed", event: "b" }),
+      log({ at: T(8 * 24), kind: "moved", event: "old", from: "A", to: "B" }),
+    ];
+    const seen = [{ ...meta("s"), userId: "user-a", scope: "p-a", at: NOW }] as RowOf<"seen">[];
+    const i = input({ log: rows, seen, updateState: [state("e:a", "dismissed", { at: T(1) })] });
+    expect(previewRule(i, "moved").map((u) => u.key)).toEqual(["e:a"]);
+    expect(previewRule(i, "changed").map((u) => u.key)).toEqual(["e:b"]);
+    const rule = own({ condition: "changed" });
+    expect(previewRule({ ...i, ownRules: [rule] }, `own:${rule.id}`).map((u) => u.key)).toEqual(["e:b"]);
+  });
+});

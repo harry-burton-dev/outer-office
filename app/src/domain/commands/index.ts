@@ -12,7 +12,7 @@ import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen } from "./home";
-import { ruleSettingSet, updateSet } from "./alerts";
+import { coverRemove, coverSave, ruleRemove, ruleSave, ruleSettingSet, updateSet } from "./alerts";
 
 export const commands = {
   officeSave, principalSave, importApply, overlaySet,
@@ -20,10 +20,10 @@ export const commands = {
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave,
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
   templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen,
-  ruleSettingSet, updateSet,
+  ruleSettingSet, updateSet, ruleSave, ruleRemove, coverSave, coverRemove,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, ruleSettingSet, updateSet };
+export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, ruleSettingSet, updateSet, ruleSave, ruleRemove, coverSave, coverRemove };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -35,6 +35,6 @@ export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } fr
 export type { TemplateSaveInput } from "./cards";
 export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput } from "./home";
-export type { RuleSettingSetInput, UpdateSetInput, UpdateAction } from "./alerts";
+export type { RuleSettingSetInput, UpdateSetInput, UpdateAction, RuleSaveInput, CoverSaveInput } from "./alerts";
 export { OFFICE_ID } from "./office";
 export { INBOX_NAME } from "./projects";
