@@ -39,14 +39,15 @@ export const DIARY_SYNC_FLOW: FlowDefinition = {
   lateAfterMinutes: 90,
   steps: [
     { label: "Trigger", detail: "Recurrence, every 30 minutes" },
-    { label: "Request", detail: `Office 365 Outlook: Send an HTTP request, one GET to Graph's calendarView, ${WINDOW_DAYS_BEFORE} days back to ${WINDOW_DAYS_AFTER} days ahead` },
+    { label: "Request", detail: `Office 365 Outlook: Send an HTTP request, one GET to Graph's calendarView, ${WINDOW_DAYS_BEFORE} days back to ${WINDOW_DAYS_AFTER} days ahead, body as plain text` },
     { label: "Save", detail: "Create file: the request's Body, unchanged" },
     { label: "File name", detail: "The run's time in UTC, as yyyyMMddTHHmmssZ.json" },
   ],
   appDoes: [
     "Takes the run's time from the file name, and reads the window from it.",
     "Reads Graph's own fields, works out each recurring meeting's series, and leaves cancelled meetings out.",
-    "Masks or drops private and confidential meetings, as the office chose. Their real subject never reaches the diary.",
+    "Reads each meeting's body as plain text, with its links and responses. If the flow's Prefer header is missing, the app turns an HTML body into text itself.",
+    "Masks or drops private and confidential meetings, as the office chose. Their real subject never reaches the diary, and they keep no body, links or people.",
     "Applies the changes to the diary and logs them. A run that changes nothing leaves no log entry, but still counts here.",
     "Refuses the whole file, and says why, when it holds an Outlook error, only the first page, a missing field, or would mark most of the diary gone.",
     "Deletes the file it applied and every older one.",

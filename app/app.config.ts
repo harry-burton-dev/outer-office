@@ -1,4 +1,5 @@
 import type { AppDefinition } from "@trellis/framework";
+import { attendeesFromLines } from "./src/import/attendees.ts";
 
 const str = { kind: "latest", type: "string" } as const;
 const num = { kind: "latest", type: "number" } as const;
@@ -32,13 +33,41 @@ const config = {
       fields: { userId: str, scope: str, at: str },
     },
     events: {
-      version: 2,
+      version: 3,
       fields: {
         principal: str, uid: str, recurrenceId: str, start: str, end: str, allDay: bool,
         subject: str, location: str, organizer: str, categories: str, showAs: str,
         masked: bool, gone: bool, sourceModified: str, moves: num, importId: str,
         // Version 2: the rest of what the diary sync carries (OUT-78).
         requiredAttendees: str, optionalAttendees: str, importance: str, sensitivity: str, created: str,
+        // Version 3: everything Outlook sends (OUT-83, v0.3-brief.md section 3).
+        // requiredAttendees and optionalAttendees are still written, from attendees.
+        seriesId: str, outlookId: str, kind: str, source: str, attendees: "text",
+        organizerAddress: str, locationType: str, online: bool, onlineProvider: str, joinUrl: str,
+        hasAttachments: bool, webLink: str, response: str,
+        isOrganizer: bool, responseRequested: bool, allowNewTimeProposals: bool,
+        body: "text", raw: "text",
+      },
+    },
+    // One row per field an import changed (OUT-83). For body, from and to stay
+    // "" so the text isn't copied (D7). Written by imports only.
+    eventHistory: {
+      version: 1,
+      fields: { event: str, at: str, importId: str, source: str, field: str, from: "text", to: "text" },
+    },
+    // Outlook categories, found by imports (OUT-83). Separate from tags: a
+    // category never applies a tag. Id tx.id("category", lower-case name).
+    categories: {
+      version: 1,
+      fields: { name: str, colour: str, order: num, firstSeen: str },
+    },
+    // One recurring meeting as a whole (OUT-83). Id tx.id("series", principal,
+    // seriesId). Worked out again by imports from the stored occurrences.
+    series: {
+      version: 1,
+      fields: {
+        principal: str, seriesId: str, subject: str, organizer: str, pattern: str,
+        firstStart: str, lastStart: str, count: num, exceptions: num,
       },
     },
     overlays: {
@@ -153,6 +182,20 @@ const config = {
         ...record,
         requiredAttendees: record.requiredAttendees ?? "", optionalAttendees: record.optionalAttendees ?? "",
         importance: record.importance ?? "", sensitivity: record.sensitivity ?? "", created: record.created ?? "",
+      }),
+      // source stays "" (not known) for a row from before v3, except a CSV row's derived uid.
+      2: (record) => ({
+        ...record,
+        seriesId: record.seriesId ?? (record.recurrenceId ? record.uid ?? "" : ""),
+        kind: record.kind ?? (record.recurrenceId ? "occurrence" : "single"),
+        source: record.source ?? (String(record.uid ?? "").startsWith("csv:") ? "csv" : ""),
+        outlookId: record.outlookId ?? "",
+        attendees: record.attendees ?? JSON.stringify(attendeesFromLines(String(record.requiredAttendees ?? ""), String(record.optionalAttendees ?? ""))),
+        organizerAddress: record.organizerAddress ?? "", locationType: record.locationType ?? "",
+        online: record.online ?? false, onlineProvider: record.onlineProvider ?? "", joinUrl: record.joinUrl ?? "",
+        hasAttachments: record.hasAttachments ?? false, webLink: record.webLink ?? "", response: record.response ?? "",
+        isOrganizer: record.isOrganizer ?? false, responseRequested: record.responseRequested ?? false,
+        allowNewTimeProposals: record.allowNewTimeProposals ?? false, body: record.body ?? "", raw: record.raw ?? "",
       }),
     },
   },
