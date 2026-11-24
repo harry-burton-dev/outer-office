@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useRecord, useRecords, type RowOf } from "@trellis/framework";
 import { OFFICE_ID } from "@/domain/commands";
 import { byOrder, needsAction, type NeedsAction } from "@/domain/selectors";
+import { readinessByEvent } from "@/domain/readiness";
 import { useDiaryEntry } from "@/automate/diary-inbox-state";
 import type { InboxEntry } from "@/automate/diary-inbox";
 import { useApp } from "./app-state";
@@ -37,9 +38,13 @@ export function useNeedsAction(): NeedsAction {
   const tasks = useRecords("tasks");
   const events = useRecords("events");
   const overlays = useRecords("overlays");
+  const tabs = useRecords("tabs");
+  const cards = useRecords("cards");
+  const templates = useRecords("templates");
+  const readiness = useMemo(() => readinessByEvent(tabs, cards, templates), [tabs, cards, templates]);
   return useMemo(
-    () => (principalId === null ? EMPTY : needsAction({ principal: principalId, tasks, events, overlays, now, timezone })),
-    [principalId, tasks, events, overlays, now, timezone],
+    () => (principalId === null ? EMPTY : needsAction({ principal: principalId, tasks, events, overlays, readiness, now, timezone })),
+    [principalId, tasks, events, overlays, readiness, now, timezone],
   );
 }
 
