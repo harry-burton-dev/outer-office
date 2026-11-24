@@ -1,7 +1,7 @@
 // The diary itself: the calendar with its lens, layers and right-click menu.
 // Live is the diary as Outlook has it; up is Proposed (moves and new meetings
 // not yet in Outlook), down is the graveyard (gone from Outlook, or archived).
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRecords } from "@trellis/framework";
 import { PlusIcon } from "lucide-react";
 import { DiaryCalendar, type DiaryEvent, type DiaryView } from "@/calendar/diary-calendar";
@@ -10,8 +10,10 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, Con
 import { Dialog } from "@/components/ui/dialog";
 import { useApp } from "@/app/app-state";
 import { useOffice } from "@/app/frame-data";
+import { formatDay, formatTime } from "@/domain/dates";
 import { commands } from "@/domain/commands";
 import { ARCHIVE_REASONS } from "@/domain/commands/overlay";
+import type { NewMeeting } from "@/domain/commands/proposals";
 import { lensById } from "@/domain/lenses";
 import { TagMenu } from "@/tags/tag-menu";
 import { useRun } from "../tasks/use-run";
@@ -53,6 +55,20 @@ function LiveAlpha({ value, onChange }: { value: number; onChange(value: number)
 
 type Dialogs = { kind: "move"; target: MoveTarget } | { kind: "propose"; day: string; editing?: Proposal } | null;
 
+/** The last drag or keyboard move, so Ctrl+Z can take it back: the entry, what it was called, where it went, and the proposal it replaced. */
+interface LastMove {
+  entry: string;
+  title: string;
+  start: string;
+  before?: { start: string; end: string };
+}
+
+const sameInstant = (a: string | undefined, b: string): boolean => a !== undefined && Date.parse(a) === Date.parse(b);
+
+/** True when the keyboard is in a text field, where Ctrl+Z undoes typing. */
+const typing = (target: EventTarget | null): boolean =>
+  target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+
 export function Diary({ principalId }: { principalId: string }) {
   const { timezone, today, now, isViewer, openPanel } = useApp();
   const office = useOffice();
@@ -78,6 +94,9 @@ export function Diary({ principalId }: { principalId: string }) {
   const withdraw = useRun(commands.proposalWithdraw);
   const drop = useRun(commands.proposalDrop);
   const archive = useRun(commands.overlaySet);
+  const move = useRun(commands.proposalMove);
+  const renew = useRun(commands.proposalNew);
+  const [lastMove, setLastMove] = useState<LastMove | null>(null);
 
   const data = useMemo(() => {
     const lens = lensById(lensId);
@@ -141,6 +160,71 @@ export function Diary({ principalId }: { principalId: string }) {
     openPanel({ kind: "engagement", id: eventIdOf(entryId) });
   };
 
+  const eventById = useMemo(() => new Map(events.filter((e) => !e._deleted).map((e) => [e.id, e])), [events]);
+
+  /** An engagement that isn't masked, gone, archived or all-day can be moved, and so can a proposal; a ghost can't. Viewers can't yet (D15). */
+  const canMove = useCallback((entryId: string): boolean => {
+    if (isViewer || layer === "graveyard") return false;
+    const face = data.faces.get(entryId);
+    if (!face || face.archived) return false;
+    const pid = proposalIdOf(entryId);
+    if (pid !== undefined) return proposals.some((p) => p.id === pid && !p._deleted && !p.allDay);
+    if (layer === "proposed" && face.ghost) return false;
+    const event = eventById.get(eventIdOf(entryId));
+    return event !== undefined && event.masked !== true && event.gone !== true && event.allDay !== true;
+  }, [isViewer, layer, data, proposals, eventById]);
+
+  /** Moves a proposed new meeting, or proposes (or re-proposes) a move; back to where Outlook has it withdraws the proposal. */
+  const moveTo = (entryId: string, start: string, end: string): boolean => {
+    const pid = proposalIdOf(entryId);
+    if (pid !== undefined) {
+      const p = proposalById(pid);
+      if (!p) return false;
+      return renew.run({
+        id: pid, principal: p.principal ?? "", subject: p.subject ?? "", start, end, allDay: p.allDay, location: p.location, online: p.online,
+        requiredAttendees: p.requiredAttendees, optionalAttendees: p.optionalAttendees, categories: p.categories,
+        showAs: (p.showAs || undefined) as NewMeeting["showAs"], importance: (p.importance || undefined) as NewMeeting["importance"],
+        sensitivity: (p.sensitivity || undefined) as NewMeeting["sensitivity"], notes: p.notes,
+      });
+    }
+    const id = eventIdOf(entryId);
+    const event = eventById.get(id);
+    const proposed = proposals.some((p) => !p._deleted && p.kind !== "new" && p.event === id);
+    if (event && sameInstant(event.start, start) && sameInstant(event.end, end)) return proposed ? withdraw.run({ event: id }) : true;
+    return move.run({ event: id, start, end });
+  };
+
+  const onMove = (entryId: string, start: string, end: string) => {
+    const pid = proposalIdOf(entryId);
+    const earlier = pid !== undefined ? proposalById(pid) : proposals.find((p) => !p._deleted && p.kind !== "new" && p.event === eventIdOf(entryId));
+    const before = earlier?.start && earlier.end ? { start: earlier.start, end: earlier.end } : undefined;
+    const title = data.faces.get(entryId)?.title ?? "The meeting";
+    if (moveTo(entryId, start, end)) setLastMove({ entry: pid !== undefined ? entryId : eventIdOf(entryId), title, start, before });
+  };
+
+  /** Ctrl+Z straight after a move: back to the proposal it replaced, or no proposal at all. */
+  const undo = () => {
+    if (!lastMove) return;
+    setLastMove(null);
+    const pid = proposalIdOf(lastMove.entry);
+    if (lastMove.before) {
+      if (pid !== undefined) moveTo(lastMove.entry, lastMove.before.start, lastMove.before.end);
+      else move.run({ event: lastMove.entry, ...lastMove.before });
+    } else if (pid === undefined) withdraw.run({ event: lastMove.entry });
+  };
+
+  useEffect(() => {
+    if (!lastMove) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === "z" && !typing(e.target)) {
+        e.preventDefault();
+        undo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const propose = () => {
     setLayer("proposed");
     setDialog({ kind: "propose", day: date });
@@ -159,6 +243,8 @@ export function Diary({ principalId }: { principalId: string }) {
         onNavigate={setDate}
         onViewChange={setView}
         renderEvent={renderEvent}
+        onMove={isViewer ? undefined : onMove}
+        canMove={canMove}
         toolbarExtra={
           <>
             {!isViewer && <Button variant="outline" onClick={propose}><PlusIcon />Propose</Button>}
@@ -174,7 +260,13 @@ export function Diary({ principalId }: { principalId: string }) {
           <ProposeDialog principal={principalId} timeZone={timezone} day={dialog.day} editing={dialog.editing} onDone={() => setDialog(null)} />
         )}
       </Dialog>
-      {[withdraw.error, drop.error, archive.error].filter(Boolean).map((e) => <p key={e} role="alert" className="text-xs text-destructive">{e}</p>)}
+      {lastMove && (
+        <p role="status" className="flex items-center gap-2 text-xs text-muted-foreground" data-last-move="">
+          {lastMove.title} proposed for {formatDay(lastMove.start, timezone)}, {formatTime(lastMove.start, timezone)}. Outlook is unchanged.
+          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={undo}>Undo (Ctrl+Z)</Button>
+        </p>
+      )}
+      {[withdraw.error, drop.error, archive.error, move.error, renew.error].filter(Boolean).map((e) => <p key={e} role="alert" className="text-xs text-destructive">{e}</p>)}
     </>
   );
 }
