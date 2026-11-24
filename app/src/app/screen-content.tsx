@@ -5,6 +5,7 @@ import { HomeScreen } from "@/screens/home-screen";
 import { ImportScreen } from "@/screens/import-screen";
 import { LogScreen } from "@/screens/log-screen";
 import { PrintScreen } from "@/screens/print-screen";
+import { SeriesScreen } from "@/screens/series-screen";
 import { TaskListScreen } from "@/screens/task-list-screen";
 import { TagsScreen } from "@/tags/tags-screen";
 import { TemplatesScreen } from "@/cards/templates-screen";
@@ -20,6 +21,7 @@ export const isTaskScreen = (screen: Screen): screen is TaskScreen => TASK_SCREE
 function PrincipalScreen({ screen, principalId }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates" | "stats" | "home">; principalId: string }) {
   if (screen === "import") return <ImportScreen />;
   if (screen === "log") return <LogScreen />;
+  if (screen === "series") return <SeriesScreen />;
   if (screen === "print") return <PrintScreen key={principalId} principalId={principalId} />;
   return <CalendarScreen />;
 }
