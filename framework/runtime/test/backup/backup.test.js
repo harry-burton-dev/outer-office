@@ -191,3 +191,20 @@ test("a damaged zip is refused with a message", async () => {
     (err) => err instanceof BackupError && err.code === "bad-file",
   );
 });
+
+test("a table with a camelCase name backs up and restores", async () => {
+  const clock = createManualClock();
+  const random = createSeededRandom(86);
+  const keys = await engineKeys(newKeyring({ random }));
+  const tables = { ruleSettings: "yjs", [USERS_TABLE]: "yjs" };
+  const source = createMemFolder({ clock });
+  const sam = await createEngine({ root: source.root, clock, random, store: createMemoryStore(), deviceId: "sam-aaaaaaaa", user: "sam", adapters: ADAPTERS, tables, options: EAGER, ...keys });
+  openTable({ doc: sam.table("ruleSettings"), schema: NOTES_SCHEMA, deviceId: "sam-aaaaaaaa", user: "sam", clock }).put("r1", { title: "added" });
+  await run(clock, [sam], 5000);
+  const backup = await writeBackup({ root: source.root, engine: sam, tables, adapters: ADAPTERS, key: keys.key, keyId: keys.keyId, clock, random });
+  const zip = await packBackup({ root: source.root, stamp: backup.stamp });
+  const target = createMemFolder({ clock });
+  const result = await restoreBackup({ root: target.root, file: zip, engineConfig: { clock, random, store: createMemoryStore(), deviceId: "harry-rrrrrrrr", user: "harry", adapters: ADAPTERS, tables, options: EAGER, ...keys } });
+  assert.deepEqual(result.tables, ["ruleSettings", "users"]);
+  await sam.close();
+});

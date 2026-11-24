@@ -13,6 +13,7 @@ import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./ca
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
 import { automateRecordRun } from "./automate";
+import { ruleSettingSet, updateSet } from "./alerts";
 
 export const commands = {
   officeSave, principalSave, importApply, overlaySet,
@@ -20,10 +21,10 @@ export const commands = {
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave,
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
   templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
-  automateRecordRun,
+  ruleSettingSet, updateSet, automateRecordRun,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, automateRecordRun };
+export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, ruleSettingSet, updateSet, automateRecordRun };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -36,5 +37,6 @@ export type { TemplateSaveInput } from "./cards";
 export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
 export type { FlowRunInput, FlowOutcome } from "./automate";
+export type { RuleSettingSetInput, UpdateSetInput, UpdateAction } from "./alerts";
 export { OFFICE_ID } from "./office";
 export { INBOX_NAME } from "./projects";

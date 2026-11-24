@@ -4,6 +4,11 @@ import { describe, expect, test } from "vitest";
 import type { ImportDiff, ImportedEvent, StoredEvent } from "../../import/types";
 import { diffImport } from "../../import/diff";
 import { importApply } from "./import";
+import { heldBack } from "../../automate/apply-diary";
+import { overlaySet } from "./overlay";
+import { cardAdd, templateSave } from "./cards";
+import { taskAdd } from "./tasks";
+import { proposalMove } from "./proposals";
 import { principalSave } from "./office";
 import { byId, idOf, NOW, ok, oneDevice, rows, type Device } from "./testing/world";
 
@@ -129,5 +134,56 @@ describe("series records", () => {
     sync(a, principal, weeks.map((w) => occurrence("s1", w)));
     sync(a, principal, [weeks[0], weeks[2]].map((w) => occurrence("s1", w!)), LATEST);
     expect(rows(a, "series")[0]).toMatchObject({ count: 2, exceptions: 1, firstStart: weeks[0], lastStart: weeks[2] });
+  });
+});
+
+describe("series re-key (D9)", () => {
+  const weeks = ["2026-11-02T10:00:00.000Z", "2026-11-09T10:00:00.000Z", "2026-11-16T10:00:00.000Z", "2026-11-23T10:00:00.000Z"];
+  const shifted = weeks.map((w) => new Date(Date.parse(w) + 2 * 86_400_000 + 3_600_000).toISOString()); // Wednesdays at 11:00
+
+  test("B6: a pattern change moves every overlay, card, task and proposal to the new occurrences", async () => {
+    const { a, principal } = await setUp();
+    sync(a, principal, weeks.map((w) => occurrence("s1", w)));
+    const [oldId, newId] = [idOf(a, "event", principal, "s1", weeks[1]!), idOf(a, "event", principal, "s1", shifted[1]!)];
+    ok(a, overlaySet, { now: NOW, event: oldId, notes: "Bring the minutes", flagged: true });
+    const template = ok(a, templateSave, { now: NOW, name: "Visit", shape: "users", fields: [{ id: "host", label: "Host", type: "text" }] });
+    const card = ok(a, cardAdd, { now: NOW, event: oldId, template });
+    const task = ok(a, taskAdd, { now: NOW, title: "Send the papers", event: oldId, principal });
+    ok(a, proposalMove, { now: NOW, event: oldId, start: "2026-11-10T15:00:00.000Z", end: "2026-11-10T16:00:00.000Z" });
+    const d = sync(a, principal, shifted.map((w) => occurrence("s1", w)), LATER);
+    expect(d.rekeys).toEqual([expect.objectContaining({ seriesId: "s1", ambiguous: false })]);
+    expect(byId(a, "overlays", idOf(a, "overlay", newId))).toMatchObject({ event: newId, notes: "Bring the minutes", flagged: true });
+    expect(byId(a, "overlays", idOf(a, "overlay", oldId))?._deleted).toBe(true);
+    expect(byId(a, "cards", card)?.event).toBe(newId);
+    expect(byId(a, "tasks", task)?.event).toBe(newId);
+    expect(byId(a, "proposals", idOf(a, "proposal", newId))).toMatchObject({ event: newId, start: "2026-11-10T15:00:00.000Z" });
+    const live = new Set(rows(a, "events").filter((e) => !e.gone).map((e) => e.id));
+    const onGone = [...rows(a, "overlays"), ...rows(a, "cards"), ...rows(a, "tasks"), ...rows(a, "proposals")].filter((r) => !r._deleted && r.event && !live.has(r.event));
+    expect(onGone).toEqual([]);
+    const calendar = rows(a, "log").filter((r) => r.area === "calendar" && r.at === LATER).map((r) => r.kind);
+    expect(calendar).toEqual(["series-rekeyed"]);
+    expect(rows(a, "series")[0]).toMatchObject({ count: 4, exceptions: 0 });
+  });
+
+  test("B7: unequal counts are ambiguous: held back on a sync, listed on a manual import, and office data stays", async () => {
+    const { a, principal } = await setUp();
+    sync(a, principal, weeks.map((w) => occurrence("s1", w)));
+    const oldId = idOf(a, "event", principal, "s1", weeks[0]!);
+    ok(a, overlaySet, { now: NOW, event: oldId, notes: "Keep me" });
+    const fortnightly = [shifted[0]!, shifted[2]!].map((w) => occurrence("s1", w));
+    const d = diffImport(storedOf(a, principal), { events: fortnightly, ...RANGE, droppedPrivate: 0, maskedPrivate: 0, warnings: [] });
+    expect(d.rekeys).toEqual([expect.objectContaining({ seriesId: "s1", ambiguous: true })]);
+    expect(heldBack(d)).toContain("series changed shape");
+    ok(a, importApply, { now: LATER, principal, file: "diary.ics", diff: d });
+    expect(byId(a, "overlays", idOf(a, "overlay", oldId))).toMatchObject({ event: oldId, notes: "Keep me" });
+    expect(rows(a, "log").some((r) => r.kind === "series-rekeyed")).toBe(false);
+  });
+
+  test("an ordinary deletion while a new occurrence joins the end of the window is not a re-key", async () => {
+    const { a, principal } = await setUp();
+    sync(a, principal, weeks.map((w) => occurrence("s1", w)));
+    const d = sync(a, principal, [weeks[0]!, weeks[2]!, weeks[3]!, "2026-12-28T10:00:00.000Z"].map((w) => occurrence("s1", w)), LATER);
+    expect(d.rekeys).toBeUndefined();
+    expect(byId(a, "overlays", idOf(a, "overlay", idOf(a, "event", principal, "s1", weeks[1]!)))).toMatchObject({ archiveReason: "cancelled" });
   });
 });

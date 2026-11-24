@@ -8,8 +8,10 @@
 import type { RowOf } from "@trellis/framework";
 import { parseAutomate } from "@/import/parse-automate";
 import { diffImport, marksMostGone, storedInRange } from "@/import/diff";
+import { SHAPE_REASON } from "@/import/rekey";
 import { changesAnything, toStored, type PrivatePolicy } from "@/screens/import/import-model";
 import type { ImportApplyInput } from "@/domain/commands/import";
+import type { ImportDiff } from "@/import/types";
 import type { DiaryUpdate } from "./diary-inbox";
 
 /** The log's name for a sync run. */
@@ -30,6 +32,17 @@ export type ApplyOutcome =
   | { kind: "unchanged" }
   | { kind: "refused"; reason: string };
 
+/** Why a sync must not apply this diff without a person, or null. An .ics import, where a person reviews it, settles both cases. */
+export function heldBack(diff: ImportDiff): string | null {
+  // A series re-key the app can't pair safely (D9).
+  const unclear = (diff.rekeys ?? []).filter((r) => r.ambiguous).map((r) => `"${r.subject}"`);
+  if (unclear.length > 0) return `${SHAPE_REASON}: ${unclear.join(", ")}. Import an .ics file to review it`;
+  if (marksMostGone(diff)) {
+    return `it would mark ${diff.gone.length} of ${storedInRange(diff)} events gone, so it was held back. If they really are gone, import an .ics file and confirm`;
+  }
+  return null;
+}
+
 export function applyDiaryUpdate(update: DiaryUpdate, ctx: ApplyContext): ApplyOutcome {
   const principal = ctx.principals.find((p) => !p._deleted && p.code === update.principal);
   if (!principal) return { kind: "refused", reason: `no principal has the code ${update.principal}` };
@@ -37,10 +50,8 @@ export function applyDiaryUpdate(update: DiaryUpdate, ctx: ApplyContext): ApplyO
   if (parsed.events.length === 0 && parsed.warnings.length > 0) return { kind: "refused", reason: parsed.warnings.join(" ") };
   const diff = diffImport(toStored(ctx.events, principal.id), parsed);
   if (!changesAnything(diff)) return { kind: "unchanged" };
-  if (marksMostGone(diff)) {
-    const reason = `it would mark ${diff.gone.length} of ${storedInRange(diff)} events gone, so it was held back. If they really are gone, import an .ics file and confirm`;
-    return { kind: "refused", reason };
-  }
+  const reason = heldBack(diff);
+  if (reason) return { kind: "refused", reason };
   const result = ctx.run({ now: ctx.now, principal: principal.id, file: SYNC_FILE, diff });
   if (!result.ok) return { kind: "refused", reason: result.error };
   return { kind: "applied", added: diff.added.length, changed: diff.changed.length + diff.returned.length, gone: diff.gone.length };
