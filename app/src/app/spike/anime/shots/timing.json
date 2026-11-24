@@ -1,0 +1,122 @@
+{
+  "drag": {
+    "cpu1x": {
+      "frames": 110,
+      "dropped": 0,
+      "p95": 16.7,
+      "worst": 16.8
+    },
+    "cpu4x": {
+      "frames": 109,
+      "dropped": 2,
+      "p95": 16.8,
+      "worst": 33.3
+    },
+    "start": 2.357
+  },
+  "arrive": {
+    "cpu1x": {
+      "frames": 158,
+      "dropped": 0,
+      "p95": 16.7,
+      "worst": 16.8
+    },
+    "cpu4x": {
+      "frames": 156,
+      "dropped": 1,
+      "p95": 16.7,
+      "worst": 83.2
+    },
+    "start": 2.426
+  },
+  "layer": {
+    "cpu1x": {
+      "frames": 43,
+      "dropped": 1,
+      "p95": 16.7,
+      "worst": 33.4
+    },
+    "cpu4x": {
+      "frames": 34,
+      "dropped": 2,
+      "p95": 33.3,
+      "worst": 166.7
+    },
+    "start": 2.358
+  },
+  "count": {
+    "cpu1x": {
+      "frames": 55,
+      "dropped": 0,
+      "p95": 16.8,
+      "worst": 16.8
+    },
+    "cpu4x": {
+      "frames": 55,
+      "dropped": 0,
+      "p95": 16.7,
+      "worst": 16.7
+    },
+    "start": 2.368
+  },
+  "drag-reduced": {
+    "cpu1x": {
+      "frames": 110,
+      "dropped": 0,
+      "p95": 16.8,
+      "worst": 16.8
+    },
+    "cpu4x": {
+      "frames": 108,
+      "dropped": 1,
+      "p95": 16.8,
+      "worst": 50.1
+    },
+    "start": 2.323
+  },
+  "arrive-reduced": {
+    "cpu1x": {
+      "frames": 158,
+      "dropped": 0,
+      "p95": 16.7,
+      "worst": 16.8
+    },
+    "cpu4x": {
+      "frames": 156,
+      "dropped": 1,
+      "p95": 16.8,
+      "worst": 33.3
+    },
+    "start": 2.393
+  },
+  "layer-reduced": {
+    "cpu1x": {
+      "frames": 44,
+      "dropped": 0,
+      "p95": 16.7,
+      "worst": 16.8
+    },
+    "cpu4x": {
+      "frames": 37,
+      "dropped": 1,
+      "p95": 16.8,
+      "worst": 133.3
+    },
+    "start": 2.35
+  },
+  "count-reduced": {
+    "cpu1x": {
+      "frames": 56,
+      "dropped": 0,
+      "p95": 16.8,
+      "worst": 16.8
+    },
+    "cpu4x": {
+      "frames": 51,
+      "dropped": 1,
+      "p95": 16.8,
+      "worst": 83.4
+    },
+    "start": 2.37
+  }
+}
