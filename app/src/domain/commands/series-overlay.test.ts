@@ -83,6 +83,16 @@ describe("seriesOverlay.set (D8)", () => {
     expect(overlayOf(a, ids[3])).toBeUndefined();
   });
 
+  test("a re-keyed occurrence keeps the overlay it moved with, series values included", async () => {
+    const { a, principal, ids, board } = await withSeries();
+    ok(a, seriesOverlaySet, { now: NOW, principal, seriesId: "weekly", tags: [board], quiet: true });
+    ok(a, overlaySet, { now: NOW, event: ids[3], notes: "Bring the minutes", prep: "needed", flagged: true, priority: 1 });
+    const moved = { ...occurrence("2026-12-07"), recurrenceId: "2026-12-07T10:00:00Z" };
+    const from = byId(a, "events", ids[3]) as never;
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: { ...diff([moved]), gone: [from], rekeys: [{ seriesId: "weekly", subject: "Weekly", pairs: [{ from, to: moved }], ambiguous: false }] } });
+    expect(overlayOf(a, idOf(a, "event", principal, "weekly", "2026-12-07T10:00:00Z"))).toMatchObject({ notes: "Bring the minutes", prep: "needed", flagged: true, priority: 1, tags: board, quiet: true });
+  });
+
   test("writes one log row for the series, and none when nothing changed", async () => {
     const { a, principal, board } = await withSeries();
     ok(a, seriesOverlaySet, { now: NOW, principal, seriesId: "weekly", tags: [board], quiet: true, priority: 1 });

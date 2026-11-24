@@ -29,5 +29,6 @@
  {"id": "OUT84-B28", "what": "seriesOverlay: an unchanged priority overwrites the occurrence's", "file": "app/src/domain/commands/series-overlay.ts", "find": "after.priority !== before.priority ? after.priority : (live?.priority ?? 4)", "replace": "after.priority"},
  {"id": "OUT84-B29", "what": "seriesOverlay: gone occurrences get the values", "file": "app/src/domain/commands/series-overlay.ts", "find": " && e.gone !== true", "replace": ""},
  {"id": "OUT84-B30", "what": "import: added occurrences skip the series values", "file": "app/src/domain/commands/import.ts", "find": "  applySeriesOverlays(tx, now, principal, incoming.filter((_, i) => kinds[i] === \"added\"), written);\n", "replace": ""},
- {"id": "OUT84-B31", "what": "import: a past added occurrence takes the series values", "file": "app/src/domain/commands/import.ts", "find": " || event.start < now", "replace": ""}
+ {"id": "OUT84-B31", "what": "import: a past added occurrence takes the series values", "file": "app/src/domain/commands/import.ts", "find": " || event.start < now", "replace": ""},
+ {"id": "OUT84-B32", "what": "import: a re-keyed occurrence takes series values over its moved overlay", "file": "app/src/domain/commands/import.ts", "find": " || rekeyed.has(id)) continue;", "replace": ") continue;"}
 ]
