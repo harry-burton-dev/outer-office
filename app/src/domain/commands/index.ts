@@ -11,7 +11,7 @@ import { ackPrivacy, setMode } from "./people";
 import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
-import { homeMarkSeen, homeSetWatch } from "./home";
+import { homeMarkSeen } from "./home";
 import { ruleSettingSet, updateSet } from "./alerts";
 
 export const commands = {
@@ -19,11 +19,11 @@ export const commands = {
   taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove,
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave,
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
-  templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
+  templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen,
   ruleSettingSet, updateSet,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, ruleSettingSet, updateSet };
+export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, ruleSettingSet, updateSet };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -34,7 +34,7 @@ export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } from "./tags";
 export type { TemplateSaveInput } from "./cards";
 export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
-export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
+export type { HomeMarkSeenInput } from "./home";
 export type { RuleSettingSetInput, UpdateSetInput, UpdateAction } from "./alerts";
 export { OFFICE_ID } from "./office";
 export { INBOX_NAME } from "./projects";

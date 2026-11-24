@@ -1,12 +1,9 @@
-// Reads the frame shares with the screens: the office, the shared project, and
-// the Needs action lists for the chosen principal.
+// Reads the frame shares with the screens: the office and the shared project.
+// Needs action reads updates-data.
 import { useMemo } from "react";
 import { useRecord, useRecords, type RowOf } from "@trellis/framework";
 import { OFFICE_ID } from "@/domain/commands";
-import { byOrder, needsAction, type NeedsAction } from "@/domain/selectors";
-import { useDiaryEntry } from "@/automate/diary-inbox-state";
-import type { InboxEntry } from "@/automate/diary-inbox";
-import { useApp } from "./app-state";
+import { byOrder } from "@/domain/selectors";
 
 export type Office = RowOf<"office">;
 export type Project = RowOf<"projects">;
@@ -27,28 +24,4 @@ export function sharedProject(projects: readonly Project[]): Project | undefined
 export function useSharedProject(): Project | undefined {
   const projects = useRecords("projects");
   return useMemo(() => sharedProject(projects), [projects]);
-}
-
-const EMPTY: NeedsAction = { overdue: [], dueToday: [], prepNeeded: [], goneWithData: [] };
-
-/** The Needs action lists for the chosen principal; all empty when there is none. */
-export function useNeedsAction(): NeedsAction {
-  const { principalId, now, timezone } = useApp();
-  const tasks = useRecords("tasks");
-  const events = useRecords("events");
-  const overlays = useRecords("overlays");
-  return useMemo(
-    () => (principalId === null ? EMPTY : needsAction({ principal: principalId, tasks, events, overlays, now, timezone })),
-    [principalId, tasks, events, overlays, now, timezone],
-  );
-}
-
-export const needsActionCount = (lists: NeedsAction): number =>
-  lists.overdue.length + lists.dueToday.length + lists.prepNeeded.length + lists.goneWithData.length;
-
-/** The chosen principal's diary update from Power Automate that could not be applied, for people who can import; null otherwise. */
-export function useDiaryForNeedsAction(): InboxEntry | null {
-  const { principalId, isViewer } = useApp();
-  const entry = useDiaryEntry(principalId);
-  return isViewer || !entry || entry.ok ? null : entry;
 }

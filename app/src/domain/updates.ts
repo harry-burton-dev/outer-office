@@ -10,7 +10,7 @@
 import type { RowOf } from "@trellis/framework";
 import { todayIn } from "./dates";
 import { FIRST_LOOK_DAYS, ME } from "./home";
-import { isOverdue } from "./selectors";
+import { isDueToday, isOverdue } from "./selectors";
 import { RULES, type ChangeContext, type ChangeRule, type Lane, type RuleSetting } from "./rules";
 
 type LogRow = RowOf<"log">;
@@ -198,7 +198,7 @@ function infoUpdates(ctx: Ctx): Update[] {
     const seenAt = seenPoint(ctx, key, group.scope);
     const fresh = group.rows.filter((r) => (r.at ?? "") > seenAt);
     const pinned = ctx.state.get(key)?.state === "pinned";
-    const rows = fresh.length > 0 ? fresh : pinned ? group.rows : [];
+    const rows = fresh.some((r) => hits.has(r.id)) ? fresh : pinned ? group.rows : [];
     if (rows.length === 0) continue;
     const summary = net(rows);
     if (!summary) continue;
@@ -292,7 +292,8 @@ function needsUpdates(ctx: Ctx): Update[] {
 
   if (on("task-overdue")) {
     for (const t of openTasks) {
-      if (!principals.has(t.principal ?? "") || !isOverdue(t, today)) continue;
+      // Due today counts too, as Needs action showed it before (OUT-58).
+      if (!principals.has(t.principal ?? "") || !(isOverdue(t, today) || isDueToday(t, today))) continue;
       add("task-overdue", t.principal ?? "", t.id, [t.due, t.deadline].filter(Boolean).sort()[0] ?? "", { task: t.id });
     }
   }
@@ -320,9 +321,10 @@ function needsUpdates(ctx: Ctx): Update[] {
   }
   if (sync.on && on("sync-late")) {
     for (const p of input.principals) {
-      const last = sync.last.get(p.id) ?? "";
-      if (last && Date.parse(now) - Date.parse(last) < amount("sync-late") * HOUR_MS) continue;
-      add("sync-late", p.id, p.id, last, last ? { note: last } : {});
+      // A principal that has never synced isn't late: its sync isn't set up yet.
+      const last = sync.last.get(p.id);
+      if (!last || Date.parse(now) - Date.parse(last) < amount("sync-late") * HOUR_MS) continue;
+      add("sync-late", p.id, p.id, last);
     }
   }
   if (on("sync-held-back")) {

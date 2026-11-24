@@ -1,5 +1,5 @@
-// Needs action: four sections, each only when it has content; rows open the
-// right panel; nothing else to press.
+// Needs action: the needs-you lane for the chosen principal (OUT-86). Each
+// update opens its panel and can be snoozed, never dismissed.
 import { afterEach, expect, test } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { Sheet } from "@/components/ui/sheet";
@@ -20,7 +20,9 @@ test("with nothing to do it says so, under the principal's code", async () => {
   expect(screen.getByText("Nothing needs action")).toBeTruthy();
 });
 
-test("only the sections with content appear, and task rows open the task panel", async () => {
+const rows = () => screen.queryAllByTestId("update").map((li) => li.textContent ?? "");
+
+test("lists the chosen principal's overdue tasks, and Open shows the task", async () => {
   let overdue = "";
   await renderApp({
     seed: (s) => {
@@ -31,19 +33,13 @@ test("only the sections with content appear, and task rows open the task panel",
     },
     children: ui,
   });
-  const list = await screen.findByRole("region", { name: "Overdue" });
-  expect(within(list).getByText("Fri 20 Nov")).toBeTruthy();
-  expect(screen.queryByRole("region", { name: "Due today" })).toBeNull();
-  expect(screen.queryByRole("region", { name: "Prep needed" })).toBeNull();
-  expect(screen.queryByRole("region", { name: "Gone from Outlook" })).toBeNull();
-  expect(screen.queryByText("Other principal's task")).toBeNull();
-
-  fireEvent.click(within(list).getByRole("button", { name: /Overdue report/ }));
-
+  await screen.findByRole("heading", { name: "Needs action" });
+  expect(rows()).toEqual([expect.stringMatching(/^Overdue.*Overdue report.*due Fri 20 Nov/)]);
+  fireEvent.click(screen.getByRole("button", { name: "Open" }));
   expect(probe().panel).toBe(JSON.stringify({ kind: "task", id: overdue }));
 });
 
-test("prep needed and gone engagements show and open the engagement panel", async () => {
+test("prep needed soon and a gone meeting with office data show and open the engagement panel", async () => {
   let soon = "";
   await renderApp({
     seed: (s) => {
@@ -54,23 +50,24 @@ test("prep needed and gone engagements show and open the engagement panel", asyn
       s.run(overlaySet, { now: NOW, event: soon, prep: "needed" });
       s.run(overlaySet, { now: NOW, event: eventIdOf(s.device, a, "g1"), notes: "Rebook" });
       markGone(s, NOW, a, goneEvent);
-      s.task({ title: "Due today task", principal: a, due: "2026-11-22" });
     },
     children: ui,
   });
-  const prep = await screen.findByRole("region", { name: "Prep needed" });
-  expect(within(prep).getByText("14:00")).toBeTruthy();
-  expect(within(section("Gone from Outlook")).getByText("Cancelled visit")).toBeTruthy();
-  expect(within(section("Due today")).getByText("Due today task")).toBeTruthy();
-  expect(screen.queryByRole("region", { name: "Overdue" })).toBeNull();
-
-  fireEvent.click(within(prep).getByRole("button", { name: /Board briefing/ }));
-
+  await screen.findByRole("heading", { name: "Needs action" });
+  expect(rows().sort()).toEqual([
+    expect.stringMatching(/^Gone from Outlook with office data.*Cancelled visit/),
+    expect.stringMatching(/^Prep needed.*Board briefing.*14:00/),
+  ]);
+  const prep = screen.getAllByTestId("update").find((li) => li.textContent?.includes("Board briefing"))!;
+  fireEvent.click(within(prep).getByRole("button", { name: "Open" }));
   expect(probe().panel).toBe(JSON.stringify({ kind: "engagement", id: soon }));
 });
 
-test("the only buttons are the rows and the close button", async () => {
+test("a needs-you update offers Open and Snooze only; snoozing hides it", async () => {
   await renderApp({ seed: (s) => { const a = s.principal("PRINCIPAL-A"); s.task({ title: "Overdue report", principal: a, due: "2026-11-20" }); }, children: ui });
   const panel = await screen.findByRole("dialog");
-  expect(within(panel).getAllByRole("button").map((b) => b.textContent)).toEqual([expect.stringContaining("Overdue report"), "Close"]);
+  expect(within(panel).getAllByRole("button").map((b) => b.textContent)).toEqual(["Open", "Snooze", "Close"]);
+  fireEvent.click(within(panel).getByRole("button", { name: "Snooze" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Until tomorrow" }));
+  expect(await screen.findByText("Nothing needs action")).toBeTruthy();
 });

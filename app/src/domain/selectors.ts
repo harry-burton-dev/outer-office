@@ -31,48 +31,6 @@ export const isDueToday = (task: Task, today: string): boolean => !isOverdue(tas
 const earliest = (task: Task) => dates(task).sort()[0] ?? "";
 const byEarliest = (a: Task, b: Task) => earliest(a).localeCompare(earliest(b)) || byOrder(a, b);
 
-export interface NeedsActionInput {
-  /** The principal id. */
-  principal: string;
-  tasks: readonly Task[];
-  events: readonly Event[];
-  overlays: readonly Overlay[];
-  /** ISO UTC instant. */
-  now: string;
-  /** The office's IANA zone, which decides what "today" is. */
-  timezone: string;
-}
-
-export interface NeedsAction {
-  overdue: Task[];
-  dueToday: Task[];
-  prepNeeded: Event[];
-  goneWithData: Event[];
-}
-
-const hasOfficeData = (overlay: Overlay | undefined): boolean =>
-  overlay !== undefined && live(overlay) &&
-  (Boolean(overlay.notes?.trim()) || Boolean(overlay.outcome?.trim()) || overlay.flagged === true || (overlay.prep ?? "none") !== "none");
-
-export function needsAction(input: NeedsActionInput): NeedsAction {
-  const today = todayIn(input.timezone, input.now);
-  const tagged = input.tasks.filter((t) => open(t) && t.principal === input.principal);
-  const overlayOf = new Map(input.overlays.filter(live).map((o) => [o.event ?? "", o]));
-  const linked = new Set(input.tasks.filter(live).map((t) => t.event).filter((e): e is string => Boolean(e)));
-  const mine = input.events.filter((e) => live(e) && e.principal === input.principal);
-  const from = Date.parse(input.now);
-  const startsSoon = (e: Event) => {
-    const start = Date.parse(e.start ?? "");
-    return start >= from && start < from + DAY_MS;
-  };
-  return {
-    overdue: tagged.filter((t) => isOverdue(t, today)).sort(byEarliest),
-    dueToday: tagged.filter((t) => isDueToday(t, today)).sort(byOrder),
-    prepNeeded: mine.filter((e) => !e.gone && startsSoon(e) && overlayOf.get(e.id)?.prep === "needed").sort(byStart),
-    goneWithData: mine.filter((e) => e.gone === true && (hasOfficeData(overlayOf.get(e.id)) || linked.has(e.id))).sort(byStart),
-  };
-}
-
 /** Whether the task is the user's: assigned to them (and not declined), or unassigned and created by them. */
 export function isUsersTask(task: Task, user: string): boolean {
   if (!task.assignee) return task.createdBy === user;

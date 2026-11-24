@@ -219,8 +219,9 @@ describe("needs you", () => {
   });
 
   test("snoozed until a time; dismissing state is ignored; sync-late needs the sync on", () => {
-    const sync = { on: true, last: new Map<string, string>(), heldBack: new Map<string, string>() };
+    const sync = { on: true, last: new Map<string, string>([["p-a", T(25)]]), heldBack: new Map<string, string>() };
     expect(group(input({ sync })).needs.map((u) => u.key)).toEqual(["sync-late|p-a"]);
+    expect(group(input({ sync: { ...sync, last: new Map() } })).needs).toEqual([]);
     expect(group(input({ sync, updateState: [state("sync-late|p-a", "snoozed", { until: T(-1) })] })).needs).toEqual([]);
     expect(group(input({ sync, updateState: [state("sync-late|p-a", "dismissed")] })).needs).toHaveLength(1);
     expect(group(input({ sync: { ...sync, on: false } })).needs).toEqual([]);
@@ -308,8 +309,10 @@ describe("each built-in state rule", () => {
       { ...meta("b"), principal: "p-b", due: "2026-11-20", done: false },
       { ...meta("none"), due: "2026-11-20", done: false },
       { ...meta("done"), principal: "p-a", due: "2026-11-20", done: true },
+      { ...meta("today"), principal: "p-a", deadline: "2026-11-24", done: false },
+      { ...meta("later"), principal: "p-a", due: "2026-11-25", done: false },
     ] as RowOf<"tasks">[];
-    expect(group(input({ tasks })).needs.map((u) => u.key)).toEqual(["task-overdue|a"]);
+    expect(group(input({ tasks })).needs.map((u) => u.key)).toEqual(["task-overdue|a", "task-overdue|today"]);
   });
 
   test("prep-due and sync-late follow their amounts", () => {
@@ -324,6 +327,46 @@ describe("each built-in state rule", () => {
       sync: { on: true, last: new Map([["p-a", T(3)]]), heldBack: new Map() },
     });
     expect(group(i).needs.map((u) => u.key).sort()).toEqual(["prep-due|in", "sync-late|p-a"]);
+  });
+});
+
+describe("needs you, carried over from Needs action", () => {
+  const ov = (event: string, over: Partial<RowOf<"overlays">> = {}) => ({ ...meta(`o-${event}`), event, prep: "none", flagged: false, ...over }) as RowOf<"overlays">;
+  const at = "2026-11-22T09:00:00.000Z";
+
+  test("prep-due lists meetings in the next 24 hours whose prep is needed", () => {
+    const events = [
+      ev("soon", { start: "2026-11-22T15:00:00Z" }), ev("tomorrow-late", { start: "2026-11-23T10:00:00Z" }),
+      ev("started", { start: "2026-11-22T08:00:00Z" }), ev("ready", { start: "2026-11-22T15:00:00Z" }),
+      ev("no-overlay", { start: "2026-11-22T15:00:00Z" }), ev("other", { start: "2026-11-22T15:00:00Z", principal: "p-b" }),
+    ];
+    const overlays = [ov("soon", { prep: "needed" }), ov("tomorrow-late", { prep: "needed" }), ov("started", { prep: "needed" }), ov("ready", { prep: "ready" }), ov("other", { prep: "needed" })];
+    expect(group(input({ now: at, events, overlays })).needs.map((u) => u.key)).toEqual(["prep-due|soon"]);
+  });
+
+  test("gone-no-reason lists gone meetings that carry office data or a linked task", () => {
+    const events = ["notes", "outcome", "flag", "prep", "task", "bare", "live"].map((id) => ev(id, { gone: id !== "live" }));
+    const overlays = [
+      ov("notes", { notes: "Some notes" }), ov("outcome", { outcome: "Agreed" }), ov("flag", { flagged: true }),
+      ov("prep", { prep: "in-hand" }), ov("bare"), ov("live", { notes: "Kept" }),
+    ];
+    const tasks = [{ ...meta("linked"), event: "task", done: false } as RowOf<"tasks">];
+    expect(group(input({ events, overlays, tasks })).needs.map((u) => u.key).sort()).toEqual(
+      ["flag", "notes", "outcome", "prep", "task"].map((id) => `gone-no-reason|${id}`),
+    );
+  });
+
+  test("does not throw on overlays and tasks whose meeting has not arrived", () => {
+    const tasks = [{ ...meta("t"), event: "missing", principal: "p-a", done: false } as RowOf<"tasks">];
+    const overlays = [ov("missing", { prep: "needed" })];
+    const events = [ev("e", { gone: true, start: undefined })];
+    expect(group(input({ tasks, overlays, events })).needs).toEqual([]);
+  });
+
+  test("a change at exactly the seen time does not show again", () => {
+    const rows = [log({ at: T(2), kind: "moved", event: "e1", from: "A", to: "B" })];
+    const seen = [{ ...meta("s"), userId: "user-a", scope: "p-a", at: T(2) }] as RowOf<"seen">[];
+    expect(group(input({ log: rows, seen })).info).toEqual([]);
   });
 });
 

@@ -117,7 +117,7 @@ export const RULES: readonly Rule[] = [
     id: "task-completed", group: "Tasks", label: "A task for the principal is done", lane: "info", scope: "principal",
     match: (row) => is("task", "completed")(row) && (row.principal ?? "") !== "",
   }),
-  state({ id: "task-overdue", group: "Tasks", label: "A task for the principal is overdue", lane: "needs", scope: "principal" }),
+  state({ id: "task-overdue", group: "Tasks", label: "A task for the principal is due today or overdue", lane: "needs", scope: "principal" }),
   state({
     id: "prep-due", group: "Diary", label: "A meeting needs prep soon", lane: "needs", scope: "principal",
     amount: { label: "Within", unit: "hours", default: 24, min: 1, max: 336 },

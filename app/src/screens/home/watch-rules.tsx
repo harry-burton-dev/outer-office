@@ -1,41 +1,37 @@
-// The user's watch rules: one switch per rule, grouped, saved as they change.
-import { useMemo } from "react";
+// The user's rules: one switch per built-in rule, grouped, saved as they
+// change. The Alerts screen (OUT-86) adds amounts, surfaces and own rules.
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { commands } from "@/domain/commands";
-import { rulesOn, WATCH_RULES, type RuleGroup } from "@/domain/home";
+import { RULES, type RuleGroup, type RuleSetting } from "@/domain/rules";
 import { ErrorLine } from "@/screens/tasks/list-parts";
 import { useRun } from "@/screens/tasks/use-run";
 
-const GROUPS: readonly RuleGroup[] = [...new Set(WATCH_RULES.map((r) => r.group))];
+const GROUPS: readonly RuleGroup[] = [...new Set(RULES.map((r) => r.group))];
 
-export function WatchRules({ watchOff }: { watchOff: string | undefined }) {
-  const save = useRun(commands.homeSetWatch);
-  const on = useMemo(() => rulesOn(watchOff), [watchOff]);
-  const toggle = (id: string, checked: boolean) => {
-    const next = new Set(on);
-    if (checked) next.add(id);
-    else next.delete(id);
-    save.run({ on: [...next] });
-  };
+export function RuleSwitches({ settings }: { settings: ReadonlyMap<string, RuleSetting> }) {
+  const save = useRun(commands.ruleSettingSet);
   return (
     <Dialog>
-      <DialogTrigger render={<Button variant="outline" />}>Watch rules</DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" />}>Rules</DialogTrigger>
       <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Watch rules</DialogTitle>
-          <DialogDescription>What Home shows you. Your own changes never show.</DialogDescription>
+          <DialogTitle>Rules</DialogTitle>
+          <DialogDescription>What Home and Needs action show you. Your own changes never show.</DialogDescription>
         </DialogHeader>
         <ErrorLine error={save.error} />
         {GROUPS.map((group) => (
           <fieldset key={group} className="flex flex-col gap-2">
             <legend className="pb-1 text-sm font-medium">{group}</legend>
-            {WATCH_RULES.filter((r) => r.group === group).map((rule) => (
+            {RULES.filter((r) => r.group === group).map((rule) => (
               <div key={rule.id} className="flex items-center justify-between gap-4">
-                <Label htmlFor={`watch-${rule.id}`} className="font-normal">{rule.label}</Label>
-                <Switch id={`watch-${rule.id}`} checked={on.has(rule.id)} onCheckedChange={(checked) => toggle(rule.id, checked)} />
+                <Label htmlFor={`rule-${rule.id}`} className="font-normal">
+                  {rule.label}
+                  {rule.lane === "needs" && <span className="text-xs text-muted-foreground"> · needs you</span>}
+                </Label>
+                <Switch id={`rule-${rule.id}`} checked={settings.get(rule.id)?.on === true} onCheckedChange={(on) => save.run({ rule: rule.id, on })} />
               </div>
             ))}
           </fieldset>
