@@ -18,6 +18,7 @@ import { FIELD_TYPES, SHAPES, cardTemplatesOf, fieldsOf, sortedTabTemplates, sor
 import { usePeople } from "@/app/people";
 import { PersonSelect } from "@/app/person-select";
 import { tabUsage, USAGE_DAYS, type TabUsage } from "@/domain/tab-usage";
+import { sortedTags } from "@/domain/tags";
 import { NativeSelect } from "@/panels/task/native-select";
 import { ShapeIcon } from "./shape-icon";
 
@@ -134,7 +135,7 @@ function useTabTemplates() {
   return {
     error,
     add: (name: string) => check(save({ now, name })),
-    save: (id: string, change: { name?: string; shape?: string; cards?: string[]; tasks?: TemplateTask[] }) => check(save({ now, id, ...change })),
+    save: (id: string, change: { name?: string; shape?: string; cards?: string[]; tasks?: TemplateTask[]; triggerKind?: "none" | "tag" | "category"; trigger?: string }) => check(save({ now, id, ...change })),
     remove: (id: string) => check(remove({ now, id })),
   };
 }
@@ -186,6 +187,28 @@ function TabTasks({ template, run, readOnly }: { template: TabTemplate; run: Tab
   );
 }
 
+/** The tag or Outlook category that adds the tab by itself, as one select: "tag:<id>", "category:<id>" or "". */
+function TriggerPicker({ template, run, readOnly }: { template: TabTemplate; run: TabRun; readOnly: boolean }) {
+  const tags = sortedTags(useRecords("tags"));
+  const categories = useRecords("categories").filter((c) => !c._deleted).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.name ?? "").localeCompare(b.name ?? ""));
+  const value = template.triggerKind === "tag" || template.triggerKind === "category" ? `${template.triggerKind}:${template.trigger}` : "";
+  const options = [
+    { value: "", label: "Only when added by hand" },
+    ...tags.map((t) => ({ value: `tag:${t.id}`, label: `Tag: ${t.name}` })),
+    ...categories.map((c) => ({ value: `category:${c.id}`, label: `Outlook category: ${c.name}` })),
+  ];
+  const pick = (next: string) => {
+    const [kind, ...rest] = next.split(":");
+    run.save(template.id, next === "" ? { triggerKind: "none" } : { triggerKind: kind as "tag" | "category", trigger: rest.join(":") });
+  };
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <span className="shrink-0">Added</span>
+      <NativeSelect aria-label="Trigger" disabled={readOnly} options={options} value={value} onChange={(e) => pick(e.target.value)} />
+    </label>
+  );
+}
+
 function Usage({ usage }: { usage: TabUsage | undefined }) {
   if (!usage) return <p className="text-sm text-muted-foreground">Not used in the last {USAGE_DAYS} days.</p>;
   const share = usage.started === 0 ? "none started yet" : `${Math.round((usage.readyBeforeStart / usage.started) * 100)}% ready before the start`;
@@ -224,6 +247,7 @@ function TabTemplateEditor({ template, cardTemplates, run, readOnly, usage }: { 
         {!readOnly && <Button variant="ghost" size="icon" aria-label={`Remove ${template.name}`} onClick={() => run.remove(template.id)}><Trash2 /></Button>}
       </div>
       <Usage usage={usage} />
+      <TriggerPicker template={template} run={run} readOnly={readOnly} />
       {cards.length === 0 && <p className="text-sm text-muted-foreground">No cards yet.</p>}
       <ul className="flex flex-col gap-1" aria-label={`${template.name} cards`}>
         {cards.map((id, i) => (

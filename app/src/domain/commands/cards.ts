@@ -126,6 +126,18 @@ export interface TabTemplateSaveInput {
   cards?: readonly string[];
   /** The tasks applying it creates. */
   tasks?: readonly TemplateTask[];
+  /** none, or tag or category with trigger that tag's or category's id. */
+  triggerKind?: "none" | "tag" | "category";
+  trigger?: string;
+}
+
+function checkTrigger(tx: Tx, kind: unknown, trigger: unknown): { triggerKind: string; trigger: string } {
+  if (kind === "none") return { triggerKind: "none", trigger: "" };
+  if (kind !== "tag" && kind !== "category") tx.fail("A tab's trigger is a tag, a category or nothing.");
+  const id = requireText(tx, trigger, kind === "tag" ? "The tag" : "The category");
+  const found = tx.get(kind === "tag" ? "tags" : "categories", id);
+  if (!found || found._deleted) tx.fail(kind === "tag" ? "That tag has been removed." : "That category isn't known yet.");
+  return { triggerKind: kind, trigger: id };
 }
 
 function checkTasks(tx: Tx, tasks: unknown): TemplateTask[] {
@@ -160,10 +172,9 @@ export const tabTemplateSave = defineCommand("tabTemplate.save", (tx: Tx, input:
   const tasks = input.tasks === undefined ? templateTasksOf(current?.tasks) : checkTasks(tx, input.tasks);
   const id = current?.id ?? tx.newId();
   const order = current?.order ?? live.reduce((max, t) => Math.max(max, (t.order ?? 0) + 1), 0);
-  tx.put("tabTemplates", id, {
-    name, shape, cards: cards.join(","), order, version: (current?.version ?? 0) + 1, tasks: JSON.stringify(tasks),
-    ...(!current && { triggerKind: "none", trigger: "" }),
-  });
+  const trigger = input.triggerKind !== undefined ? checkTrigger(tx, input.triggerKind, input.trigger)
+    : { triggerKind: current?.triggerKind || "none", trigger: current?.trigger ?? "" };
+  tx.put("tabTemplates", id, { name, shape, cards: cards.join(","), order, version: (current?.version ?? 0) + 1, tasks: JSON.stringify(tasks), ...trigger });
   return id;
 });
 

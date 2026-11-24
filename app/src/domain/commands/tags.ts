@@ -3,6 +3,7 @@ import { defineCommand, type Tx } from "@trellis/framework";
 import { TAG_COLOURS, tagIdsOf } from "../tags";
 import { overlayId } from "./overlay";
 import { requireNow, requireText } from "./shared";
+import { applyTriggeredTabs, releaseTriggeredTabs } from "./tab-triggers";
 
 export interface TagSaveInput {
   now: string;
@@ -87,4 +88,9 @@ export const tagsSet = defineCommand("tags.set", (tx: Tx, input: TagsSetInput) =
   const current = tx.get("overlays", oid);
   if (current?._deleted) tx.restore("overlays", oid);
   tx.put("overlays", oid, current ? { tags } : { event: id, prep: "none", flagged: false, tags });
+  // Tags trigger tab templates (OUT-88).
+  const before = current && !current._deleted ? tagIdsOf(current.tags) : [];
+  const after = tags === "" ? [] : tags.split(",");
+  applyTriggeredTabs(tx, input.now, event, "tag", after.filter((t) => !before.includes(t)), "tag");
+  releaseTriggeredTabs(tx, input.now, event, "tag", before.filter((t) => !after.includes(t)));
 });

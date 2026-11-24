@@ -13,6 +13,7 @@ import { cardAdd, cardRemove, cardSet, cardUpdate, tabApply, tabCopyFrom, tabRem
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
 import { taskRetime } from "./tab-tasks";
+import { tabKeep } from "./tab-triggers";
 
 export const commands = {
   officeSave, principalSave, importApply, overlaySet,
@@ -20,10 +21,10 @@ export const commands = {
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet,
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
   templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
-  cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate, taskRetime, tabCopyFrom,
+  cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate, taskRetime, tabCopyFrom, tabKeep,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate, taskRetime, tabCopyFrom };
+export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate, taskRetime, tabCopyFrom, tabKeep };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";

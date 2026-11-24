@@ -8,6 +8,7 @@ import { isIsoInstant, requireNow, requireText, writeLog } from "./shared";
 import { settleProposals } from "./proposals";
 import { HISTORY_SKIPS, V3_FIELDS, fieldChanges, valueOf, type ComparedField } from "../../import/compare";
 import { TAG_COLOURS } from "../tags";
+import { applyTriggeredTabs, releaseTriggeredTabs } from "./tab-triggers";
 
 export interface ImportApplyInput {
   now: string;
@@ -185,6 +186,21 @@ function applyGone(tx: Tx, now: string, principal: string, importId: string, eve
   return true;
 }
 
+const categoryIdsOf = (tx: Tx, categories: string | undefined, masked: boolean | undefined): string[] =>
+  masked ? [] : (categories ?? "").split(",").map((c) => c.trim()).filter(Boolean).map((name) => tx.id("category", name.toLowerCase()));
+
+/** A category newly on an engagement applies the tab templates it triggers; one it lost releases them (OUT-88). */
+function triggerCategoryTabs(tx: Tx, now: string, principal: string, incoming: readonly ImportedEvent[], before: ReadonlyMap<string, string[]>): void {
+  for (const event of incoming) {
+    const id = eventId(tx, principal, event);
+    const was = before.get(id) ?? [];
+    const carried = categoryIdsOf(tx, event.categories, event.masked);
+    const ref = { id, start: event.start, principal };
+    applyTriggeredTabs(tx, now, ref, "category", carried.filter((c) => !was.includes(c)), "category");
+    releaseTriggeredTabs(tx, now, ref, "category", was.filter((c) => !carried.includes(c)));
+  }
+}
+
 /** Incoming events once each, by id; a later copy of one event wins. */
 function incomingOf(tx: Tx, principal: string, diff: ImportDiff): readonly ImportedEvent[] {
   const all = [...diff.added, ...diff.changed.map((c) => c.after), ...(diff.filled ?? []).map((c) => c.after), ...diff.returned.map((c) => c.after)];
@@ -200,11 +216,16 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
   checkDiff(tx, input.diff);
   const importId = tx.newId();
   const incoming = incomingOf(tx, principal, input.diff);
+  const categoriesBefore = new Map(incoming.map((e) => {
+    const stored = tx.get("events", eventId(tx, principal, e));
+    return [eventId(tx, principal, e), stored && !stored._deleted && stored.gone !== true ? categoryIdsOf(tx, stored.categories, stored.masked) : []] as const;
+  }));
   const written = new Map<string, Written>();
   const kinds = incoming.map((event) => applyIncoming(tx, now, principal, importId, event, written));
   const gone = input.diff.gone.filter((event) => applyGone(tx, now, principal, importId, event, written)).length;
   recordCategories(tx, now, incoming);
   recordSeries(tx, principal, written);
+  triggerCategoryTabs(tx, now, principal, incoming, categoriesBefore);
   const count = (kind: Kind) => kinds.filter((k) => k === kind).length;
   const result = { importId, added: count("added"), changed: count("changed") + count("moved"), gone, returned: count("returned") };
   const { rangeStart, rangeEnd } = input.diff;
