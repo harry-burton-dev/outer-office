@@ -10,6 +10,8 @@ export interface OfficeForm {
   readonly dayStart: string;
   readonly dayEnd: string;
   readonly privatePolicy: string;
+  /** "on" or "off", from the Power Automate select. */
+  readonly automate: string;
 }
 
 export interface PrincipalRow {
@@ -52,7 +54,7 @@ export function officeInput(form: OfficeForm, now: string): Built<OfficeSaveInpu
   const dayEnd = form.dayEnd.trim();
   return {
     ok: true,
-    input: { now, name: form.name.trim(), timezone, privatePolicy: policy, ...(dayStart ? { dayStart } : {}), ...(dayEnd ? { dayEnd } : {}) },
+    input: { now, name: form.name.trim(), timezone, privatePolicy: policy, automate: form.automate === "on", ...(dayStart ? { dayStart } : {}), ...(dayEnd ? { dayEnd } : {}) },
   };
 }
 
