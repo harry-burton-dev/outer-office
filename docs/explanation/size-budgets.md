@@ -7,7 +7,7 @@ The build fails if the app's files are too big. This page explains the two limit
 | File | Budget | Why |
 |---|---|---|
 | The page people open, `<id>.html` | Under 50,000 bytes | It is the one file that cannot update itself. A small file has less to get wrong. |
-| The app file, `<id>-<version>.js` | Under 1,400,000 bytes | Every version is copied through the shared folder to every computer, and is kept there. |
+| The app file, `<id>-<version>.js` | Under 3,000,000 bytes | Every version is copied through the shared folder to every computer, and is kept there. |
 
 Sizes are of the files as written, before any compression. A file at exactly its limit fails.
 
@@ -16,12 +16,12 @@ Sizes are of the files as written, before any compression. A file at exactly its
 ```text
 Size budgets (uncompressed, must be under the limit):
   bootstrap 9,539 bytes of 50,000, 40,461 bytes headroom
-  bundle    1,178,591 bytes of 1,400,000, 221,409 bytes headroom
+  bundle    1,178,591 bytes of 3,000,000, 1,821,409 bytes headroom
 ```
 
 The second line is the whole of version 0.1: the framework, React, the sync library, the diary calendar, the iCalendar parser and every screen. New screens share what is left.
 
-The app budget was 500,000 bytes until the diary calendar was added. FullCalendar 7 and the Temporal polyfill it needs cost about 287,000 bytes, and the iCalendar parser about 76,000. With every screen of version 0.1 the app is 1,178,591 bytes (about 344,000 compressed), so the budget is 1,400,000. The calendar loads only FullCalendar's time-grid views, not its interaction, list or multi-month plugins.
+The app budget was 500,000 bytes until the diary calendar was added. FullCalendar 7 and the Temporal polyfill it needs cost about 287,000 bytes, and the iCalendar parser about 76,000. With every screen of version 0.1 the app is 1,178,591 bytes (about 344,000 compressed), so the budget was 1,400,000. v0.3 reached about 1,388,000 bytes, and as the project owner has said size is not a concern, the budget is now 3,000,000: a guard against an accidental blow-up, not a target. The calendar loads only FullCalendar's time-grid views, not its interaction, list or multi-month plugins.
 
 ## Why the app is one file
 
