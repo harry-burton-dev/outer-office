@@ -164,7 +164,7 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
     const proposed = isNew || proposalOf.has(id);
     const ghost = e.id !== id || (layer === "live" && proposed);
     const archived = isArchived(overlay);
-    const lead: Mark[] = layer === "graveyard" ? [archived ? archivedMark(overlay?.archiveReason) : "Gone from Outlook"] : isNew ? ["New"] : !proposed ? [] : ghost ? ["Move proposed"] : ["Proposed"];
+    const lead: Mark[] = layer === "graveyard" ? [archived || overlay?.archiveReason === "cancelled" ? archivedMark(overlay?.archiveReason) : "Gone from Outlook"] : isNew ? ["New"] : !proposed ? [] : ghost ? ["Move proposed"] : ["Proposed"];
     const quiet = overlay?.quiet === true;
     // A quiet event shows only its own Quiet mark (D17).
     const layerMarks: Mark[] = e.masked === true ? [] : quiet ? ["Quiet"] : [...(outside(e) ? ["Outside its parent" as const] : []), ...marksFor(e, overlay)];
