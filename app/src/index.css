@@ -119,3 +119,12 @@
     *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
     }
 }
+/* Print (OUT-62): only the sheet goes on paper, black on white in either theme. */
+@media print {
+  [data-slot="sidebar-gap"], [data-slot="sidebar-container"] { display: none !important; }
+  [data-slot="sidebar-wrapper"] { display: block !important; min-height: 0 !important; }
+  html, body { background: #fff !important; color: #000 !important; }
+  [data-print-sheet], [data-print-sheet] * { color: #000 !important; border-color: #bbb !important; }
+  [data-print-sheet] .text-muted-foreground { color: #555 !important; }
+  @page { margin: 15mm; }
+}

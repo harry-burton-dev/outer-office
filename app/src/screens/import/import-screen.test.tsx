@@ -6,6 +6,7 @@ import { calendar, MAIN_EVENTS, MAIN_FIXTURE, UID, vevent } from "@/import/fixtu
 import { cleanupApp, NOW, renderApp, type Seeder } from "@/app/testing/render-app";
 import { idOf, rows } from "@/domain/commands/testing/world";
 import { ImportScreen } from "../import-screen";
+import { outlookCsv, UK_ROWS, US_ROWS } from "@/import/fixtures/outlook-csv";
 
 afterEach(cleanupApp);
 
@@ -23,8 +24,8 @@ const SECOND_FIXTURE = calendar([
 
 const primaryButtons = () => screen.queryAllByRole("button").filter((b) => b.className.includes("bg-primary text-primary-foreground"));
 
-async function choose(text: string, name = "calendar.ics") {
-  const input = screen.getByLabelText("Calendar file");
+async function choose(text: string, name = "calendar.ics", label = "Calendar file") {
+  const input = screen.getByLabelText(label);
   await act(async () => {
     fireEvent.change(input, { target: { files: [new File([text], name)] } });
   });
@@ -170,5 +171,62 @@ describe("import screen", () => {
     const body = within(screen.getByRole("table", { name: "Import history" })).getAllByRole("row").slice(1);
     expect(body.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["Sat 21 Nov 15:30", "Fri 20 Nov 09:00"]);
     expect(within(body[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Sat 21 Nov 15:30", "Alex Example", "Sun 1 Nov to Mon 30 Nov", "2", "0", "0"]);
+  });
+});
+
+describe("CSV fallback import", () => {
+  const chooseCsv = (text: string, name = "diary.csv") => choose(text, name, "CSV file");
+
+  test("a UK CSV goes straight to review, with the plain warning about moved meetings", async () => {
+    await renderScreen();
+    await chooseCsv(outlookCsv(UK_ROWS));
+    const review = await screen.findByRole("region", { name: "Review" });
+    expect(within(review).getByText(/6 added, 0 moved/)).toBeTruthy();
+    expect(within(review).getByRole("note").textContent).toContain("A meeting that moved shows as gone plus added");
+    expect(primaryButtons().map((b) => b.textContent)).toEqual(["Apply import"]);
+  });
+
+  test("an .ics review has no CSV warning", async () => {
+    await renderScreen();
+    await choose(MAIN_FIXTURE);
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  test("a CSV of the diary the .ics built joins it by ID: a changed location is a change, not added plus gone", async () => {
+    const app = await renderScreen();
+    await applyMain();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    const events = rows(app.device, "events");
+    const [d, m, y] = ["06", "11", "2026"];
+    const workshop = events.find((e) => e.uid === UID.workshop)!;
+    expect(workshop.start).toBe(`${y}-${m}-${d}T13:00:00.000Z`);
+    await chooseCsv(outlookCsv([{ subject: workshop.subject ?? "", startDate: `${d}/${m}/${y}`, startTime: "13:00:00", endTime: "16:00:00", location: "Elsewhere" }]));
+    fireEvent.click(screen.getByRole("button", { name: "03/04 (day first)" }));
+    const review = await screen.findByRole("region", { name: "Review" });
+    expect(within(review).getByText(/^0 added, 0 moved, 1 changed, 0 gone/)).toBeTruthy();
+  });
+
+  test("when every date reads both ways the screen asks for the order, then reviews", async () => {
+    await renderScreen();
+    await chooseCsv(outlookCsv([{ subject: "Early call", startDate: "05/11/2026", startTime: "09:00:00", endTime: "10:00:00" }]));
+    expect(screen.getByRole("region", { name: "Date order" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "03/04 (day first)" }));
+    const review = await screen.findByRole("region", { name: "Review" });
+    expect(within(review).getByText("Early call")).toBeTruthy();
+    expect(within(review).getByText("Thu 5 Nov 09:00")).toBeTruthy();
+  });
+
+  test("a US CSV is read month first without asking", async () => {
+    await renderScreen();
+    await chooseCsv(outlookCsv(US_ROWS));
+    expect(await screen.findByRole("region", { name: "Review" })).toBeTruthy();
+    expect(screen.getByText("Mon 23 Nov 09:00")).toBeTruthy();
+  });
+
+  test("a CSV that isn't a calendar shows the reason and no Apply button", async () => {
+    await renderScreen();
+    await chooseCsv("Name,Email\r\nA,b@example.com\r\n");
+    expect(screen.getByRole("alert").textContent).toContain("not an Outlook calendar CSV");
+    expect(screen.queryByRole("button", { name: "Apply import" })).toBeNull();
   });
 });
