@@ -12,6 +12,7 @@ import { CardForm } from "@/cards/card-form";
 import { ShapeIcon } from "@/cards/shape-icon";
 import { cardsOn, sortedTabTemplates, sortedTemplates, tabIsBehind, tabsOn, type Card, type Tab, type TabTemplate, type Template } from "@/domain/cards";
 import { commands } from "@/domain/commands";
+import { tasksOutOfStep } from "@/domain/tab-tasks";
 import { SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp } from "@/app/app-state";
@@ -92,6 +93,20 @@ function TabBody({ tab, template, cards, templates }: { tab: Tab; template: TabT
   );
 }
 
+/** After the engagement moved, offers to move its tab tasks with it (OUT-88). */
+function MoveTasks({ event }: { event: Event }) {
+  const { now, timezone, isViewer } = useApp();
+  const retime = useCommand(commands.taskRetime);
+  const count = tasksOutOfStep(event, useRecords("tasks"), timezone).length;
+  if (isViewer || count === 0 || event.gone === true) return null;
+  return (
+    <div className="flex items-center gap-2 rounded-lg border p-2 text-sm">
+      <span className="flex-1">{count === 1 ? "A task from its tabs isn't timed to this engagement any more." : `${count} tasks from its tabs aren't timed to this engagement any more.`}</span>
+      <Button variant="outline" size="sm" onClick={() => retime({ now, event: event.id })}>{count === 1 ? "Move 1 task with it" : `Move ${count} tasks with it`}</Button>
+    </div>
+  );
+}
+
 function EngagementBody({ event }: EngagementBodyProps) {
   const { timezone, isViewer } = useApp();
   const overlay = useOverlay(event.id);
@@ -110,6 +125,7 @@ function EngagementBody({ event }: EngagementBodyProps) {
       </SheetHeader>
       <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-4">
         {event.gone === true && <p className="font-medium">No longer in Outlook.</p>}
+        <MoveTasks event={event} />
         <Tabs value={tab} onValueChange={(next: string) => setTab(next)}>
           <div className="flex flex-wrap items-center gap-2">
             <TabsList className="h-auto flex-wrap">

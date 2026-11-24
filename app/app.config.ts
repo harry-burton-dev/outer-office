@@ -113,7 +113,7 @@ const config = {
       fields: { project: str, name: str, order: num },
     },
     tasks: {
-      version: 2,
+      version: 3,
       fields: {
         title: str, notes: "text", project: str, section: str, order: num, priority: num,
         due: str, deadline: askStr, done: bool, doneAt: str, doneBy: str,
@@ -121,6 +121,9 @@ const config = {
         createdAt: str, createdBy: str,
         // Version 2: tags, comma-separated tag ids (OUT-76).
         tags: str,
+        // Version 3 (OUT-88): tab, the tab that created it ("" otherwise), and
+        // offsetDays, how many days before its engagement it falls due.
+        tab: str, offsetDays: num,
       },
     },
     log: {
@@ -156,7 +159,10 @@ const config = {
         categories: record.categories ?? "", showAs: record.showAs ?? "", importance: record.importance ?? "", sensitivity: record.sensitivity ?? "", notes: record.notes ?? "",
       }),
     },
-    tasks: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
+    tasks: {
+      1: (record) => ({ ...record, tags: record.tags ?? "" }),
+      2: (record) => ({ ...record, tab: record.tab ?? "", offsetDays: record.offsetDays ?? 0 }),
+    },
     cards: { 1: (record) => ({ ...record, tab: record.tab ?? "", fields: record.fields ?? "" }) },
     people: { 1: (record) => ({ ...record, watchOff: record.watchOff ?? "" }) },
     events: {

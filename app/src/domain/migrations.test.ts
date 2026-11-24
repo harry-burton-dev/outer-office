@@ -29,3 +29,7 @@ test("an office stored before the day summary reads with a 4-hour run and 30-min
 test("a card stored before tabs reads as on no tab, using its template's fields", () => {
   expect(config.migrations.cards[1]({ event: "e1", template: "t1" })).toEqual({ event: "e1", template: "t1", tab: "", fields: "" });
 });
+
+test("a task stored before tabs reads as made by no tab", () => {
+  expect(config.migrations.tasks[2]({ title: "T" })).toEqual({ title: "T", tab: "", offsetDays: 0 });
+});

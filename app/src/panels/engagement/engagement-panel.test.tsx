@@ -4,7 +4,7 @@ import { useState } from "react";
 import { afterEach, expect, test } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Sheet } from "@/components/ui/sheet";
-import { overlaySet, tabTemplateSave, templateSave } from "@/domain/commands";
+import { overlaySet, tabApply, tabTemplateSave, templateSave } from "@/domain/commands";
 import { AppProbe, cleanupApp, probe, renderApp, type Seeder } from "@/app/testing/render-app";
 import { eventIdOf, importEvents, markGone, MONDAY_NOW, moveEvent, syntheticEvent } from "@/screens/calendar/testing/events";
 import { EngagementPanel } from "../engagement-panel";
@@ -105,6 +105,17 @@ test("a tab from a tab template goes on the meeting with its cards, and can be u
   fireEvent.click(screen.getByRole("button", { name: "Remove tab" }));
   expect(rows(app.device, "cards")).toHaveLength(0);
   expect(rows(app.device, "tabs")).toHaveLength(0);
+});
+
+test("after the engagement moves, the panel offers to move its tab tasks with it", async () => {
+  const { app } = await openPanel((s, seeded) => {
+    const tabTemplate = s.run(tabTemplateSave, { now: MONDAY_NOW, name: "Board meeting", tasks: [{ title: "Send the papers", daysBefore: 1, owner: "" }] });
+    s.run(tabApply, { now: MONDAY_NOW, event: seeded.event, tabTemplate });
+    moveEvent(s, MONDAY_NOW, seeded.principal, syntheticEvent("a1", { subject: "Budget review" }), "2026-11-26T15:00:00Z", "2026-11-26T16:00:00Z");
+  });
+  fireEvent.click(await screen.findByRole("button", { name: "Move 1 task with it" }));
+  expect(rows(app.device, "tasks")[0]).toMatchObject({ due: "2026-11-25" });
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Move 1 task with it" })).toBeNull());
 });
 
 test("notes save on blur, not while typing", async () => {

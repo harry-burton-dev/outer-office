@@ -14,7 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useApp } from "@/app/app-state";
 import { EmptyState, PageHeader } from "@/app/ui";
 import { commands } from "@/domain/commands";
-import { FIELD_TYPES, SHAPES, cardTemplatesOf, fieldsOf, sortedTabTemplates, sortedTemplates, type FieldType, type TabTemplate, type Template, type TemplateField } from "@/domain/cards";
+import { FIELD_TYPES, SHAPES, cardTemplatesOf, fieldsOf, sortedTabTemplates, sortedTemplates, templateTasksOf, type FieldType, type TabTemplate, type Template, type TemplateField, type TemplateTask } from "@/domain/cards";
+import { usePeople } from "@/app/people";
+import { PersonSelect } from "@/app/person-select";
 import { NativeSelect } from "@/panels/task/native-select";
 import { ShapeIcon } from "./shape-icon";
 
@@ -131,11 +133,57 @@ function useTabTemplates() {
   return {
     error,
     add: (name: string) => check(save({ now, name })),
-    save: (id: string, change: { name?: string; shape?: string; cards?: string[] }) => check(save({ now, id, ...change })),
+    save: (id: string, change: { name?: string; shape?: string; cards?: string[]; tasks?: TemplateTask[] }) => check(save({ now, id, ...change })),
     remove: (id: string) => check(remove({ now, id })),
   };
 }
 type TabRun = ReturnType<typeof useTabTemplates>;
+
+function TaskRow({ task, onChange, onRemove }: { task: TemplateTask; onChange(task: TemplateTask): void; onRemove(): void }) {
+  return (
+    <li className="flex flex-wrap items-center gap-2">
+      <Input aria-label="Task" placeholder="Task, e.g. Send the papers" value={task.title} onChange={(e) => onChange({ ...task, title: e.target.value })} className="min-w-40 flex-1" />
+      <label className="flex items-center gap-1.5 text-sm">
+        <Input aria-label="Days before" type="number" min={0} max={365} className="w-20" value={String(task.daysBefore)}
+          onChange={(e) => onChange({ ...task, daysBefore: Math.max(0, Math.round(Number(e.target.value) || 0)) })} />
+        days before
+      </label>
+      <PersonSelect aria-label="Owner" emptyLabel="Nobody" className="w-40" value={task.owner} onChange={(owner) => onChange({ ...task, owner })} />
+      <Button variant="ghost" size="icon-sm" aria-label={`Remove ${task.title || "task"}`} onClick={onRemove}><Trash2 /></Button>
+    </li>
+  );
+}
+
+function TabTasks({ template, run, readOnly }: { template: TabTemplate; run: TabRun; readOnly: boolean }) {
+  const { nameOf } = usePeople();
+  const saved = templateTasksOf(template.tasks);
+  const [draft, setDraft] = useState<TemplateTask[] | null>(null);
+  const tasks = draft ?? saved;
+  const when = (t: TemplateTask) => (t.daysBefore === 0 ? "on the day" : `${t.daysBefore} ${t.daysBefore === 1 ? "day" : "days"} before`);
+  if (readOnly) {
+    return saved.length === 0 ? null : (
+      <ul className="flex flex-col gap-1 text-sm" aria-label={`${template.name} tasks`}>
+        {saved.map((t, i) => <li key={i}>{t.title}, {when(t)}{t.owner ? `, ${nameOf(t.owner)}` : ""}</li>)}
+      </ul>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <h4 className="text-sm font-medium">Tasks</h4>
+      {tasks.length === 0 && <p className="text-sm text-muted-foreground">No tasks. Tasks added here are created when the tab is added, timed before the meeting.</p>}
+      <ul className="flex flex-col gap-2" aria-label={`${template.name} tasks`}>
+        {tasks.map((t, i) => (
+          <TaskRow key={i} task={t} onChange={(next) => setDraft(tasks.map((x, j) => (j === i ? next : x)))} onRemove={() => setDraft(tasks.filter((_, j) => j !== i))} />
+        ))}
+      </ul>
+      <div className="flex gap-2">
+        <Button variant="outline" onClick={() => setDraft([...tasks, { title: "", daysBefore: 1, owner: "" }])}><Plus />Add a task</Button>
+        {draft !== null && <Button onClick={() => run.save(template.id, { tasks }) && setDraft(null)}>Save the tasks</Button>}
+        {draft !== null && <Button variant="ghost" onClick={() => setDraft(null)}>Undo changes</Button>}
+      </div>
+    </div>
+  );
+}
 
 function TabTemplateEditor({ template, cardTemplates, run, readOnly }: { template: TabTemplate; cardTemplates: readonly Template[]; run: TabRun; readOnly: boolean }) {
   const [name, setName] = useState<string | null>(null);
@@ -189,6 +237,7 @@ function TabTemplateEditor({ template, cardTemplates, run, readOnly }: { templat
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+      <TabTasks template={template} run={run} readOnly={readOnly} />
     </section>
   );
 }

@@ -1,6 +1,7 @@
 // Card templates and the cards on meetings (OUT-62).
 import { defineCommand, type Tx } from "@trellis/framework";
-import { FIELD_TYPES, SHAPES, cardFieldsOf, cardTemplatesOf, fieldsOf, isComplete, progressOf, valuesOf, type TemplateField } from "../cards";
+import { FIELD_TYPES, SHAPES, cardFieldsOf, cardTemplatesOf, fieldsOf, isComplete, progressOf, templateTasksOf, valuesOf, type TemplateField, type TemplateTask } from "../cards";
+import { createTabTasks } from "./tab-tasks";
 import { requireNow, requireText, writeLog } from "./shared";
 
 export interface TemplateSaveInput {
@@ -118,6 +119,19 @@ export interface TabTemplateSaveInput {
   shape?: string;
   /** Card template ids, in order. */
   cards?: readonly string[];
+  /** The tasks applying it creates. */
+  tasks?: readonly TemplateTask[];
+}
+
+function checkTasks(tx: Tx, tasks: unknown): TemplateTask[] {
+  if (!Array.isArray(tasks)) tx.fail("The tasks must be a list.");
+  return tasks.map((t: TemplateTask) => {
+    const title = typeof t?.title === "string" ? t.title.trim() : "";
+    if (title === "") tx.fail("Every task needs a title.");
+    if (!Number.isInteger(t.daysBefore) || t.daysBefore < 0 || t.daysBefore > 365) tx.fail(`${title} needs a whole number of days before, from 0 to 365.`);
+    const owner = typeof t.owner === "string" ? t.owner : "";
+    return { title, daysBefore: t.daysBefore, owner };
+  });
 }
 
 /** Adds a tab template, or renames it, changes its shape or its cards, bumping its version. Returns its id (OUT-88). */
@@ -138,11 +152,12 @@ export const tabTemplateSave = defineCommand("tabTemplate.save", (tx: Tx, input:
     if (input.cards.some((c) => !templates.has(c))) tx.fail("One of those cards' templates has been removed.");
     cards = [...new Set(input.cards)];
   }
+  const tasks = input.tasks === undefined ? templateTasksOf(current?.tasks) : checkTasks(tx, input.tasks);
   const id = current?.id ?? tx.newId();
   const order = current?.order ?? live.reduce((max, t) => Math.max(max, (t.order ?? 0) + 1), 0);
   tx.put("tabTemplates", id, {
-    name, shape, cards: cards.join(","), order, version: (current?.version ?? 0) + 1,
-    ...(!current && { triggerKind: "none", trigger: "", tasks: "[]" }),
+    name, shape, cards: cards.join(","), order, version: (current?.version ?? 0) + 1, tasks: JSON.stringify(tasks),
+    ...(!current && { triggerKind: "none", trigger: "" }),
   });
   return id;
 });
@@ -159,8 +174,14 @@ export const tabId = (tx: Tx, event: string, tabTemplate: string): string => tx.
 
 export type TabVia = "hand" | "tag" | "category" | "series";
 
-/** Puts a tab template on an engagement: the tab and a card per card template, with copied fields. An engagement has at most one tab per template, so applying it again returns the tab it has. Shared by tab.apply and the triggers. */
-export function applyTab(tx: Tx, now: string, event: string, tabTemplate: { id: string; cards?: string; version?: number }, via: TabVia): string {
+/** Puts a tab template on an engagement: the tab, a card per card template with copied fields, and its tasks. An engagement has at most one tab per template, so applying it again returns the tab it has. Shared by tab.apply and the triggers. */
+export function applyTab(tx: Tx, now: string, event: { id: string; start?: string; principal?: string }, tabTemplate: { id: string; cards?: string; tasks?: string; version?: number }, via: TabVia): string {
+  const id = putTab(tx, now, event.id, tabTemplate, via);
+  createTabTasks(tx, now, id, event, tabTemplate.tasks);
+  return id;
+}
+
+function putTab(tx: Tx, now: string, event: string, tabTemplate: { id: string; cards?: string; version?: number }, via: TabVia): string {
   const id = tabId(tx, event, tabTemplate.id);
   const current = tx.get("tabs", id);
   if (current && !current._deleted) return id;
@@ -182,7 +203,7 @@ export const tabApply = defineCommand("tab.apply", (tx: Tx, input: { now: string
   if (!found || found._deleted) tx.fail("That engagement hasn't arrived on this computer yet.");
   const template = tx.get("tabTemplates", requireText(tx, input.tabTemplate, "The tab template"));
   if (!template || template._deleted) tx.fail("That tab template has been removed.");
-  return applyTab(tx, input.now, event, template, "hand");
+  return applyTab(tx, input.now, found, template, "hand");
 });
 
 /** Takes a tab, and the cards that came with it, off its engagement. */
