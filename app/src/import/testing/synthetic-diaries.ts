@@ -57,6 +57,8 @@ const PRINCIPALS: readonly Principal[] = [
     code: "PRINCIPAL-A", name: "Chief Executive", seed: 11, density: 4,
     weekly: [
       { subject: "Executive team", day: 0, at: "0900", minutes: 60, category: "Internal", location: "Board room" },
+      // Overlaps Executive team every week: a standing clash (OUT-87, B9).
+      { subject: "Operations review", day: 0, at: "0930", minutes: 60, category: "Internal", location: "Room 2.01" },
       { subject: "Diary meeting", day: 4, at: "1600", minutes: 30, category: "Internal", location: "Office" },
     ],
   },
