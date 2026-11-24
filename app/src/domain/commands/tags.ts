@@ -1,8 +1,9 @@
 // tag.save, tag.remove, tags.set: the office's tags, and which tags a task or event carries.
+// category.save: an Outlook category's colour and order (imports create categories, OUT-83).
 import { defineCommand, type Tx } from "@trellis/framework";
 import { TAG_COLOURS, tagIdsOf } from "../tags";
 import { overlayId } from "./overlay";
-import { requireNow, requireText } from "./shared";
+import { requireNow, requireText, writeLog } from "./shared";
 import { applyTriggeredTabs, releaseTriggeredTabs } from "./tab-triggers";
 
 export interface TagSaveInput {
@@ -26,6 +27,13 @@ export interface TagsSetInput {
   id: string;
   /** Tag ids; replaces what was set before. */
   tags: readonly string[];
+}
+
+export interface CategorySaveInput {
+  now: string;
+  id: string;
+  colour?: string;
+  order?: number;
 }
 
 const COLOURS = new Set(TAG_COLOURS.map((c) => c.value));
@@ -69,9 +77,17 @@ export const tagRemove = defineCommand("tag.remove", (tx: Tx, input: TagRemoveIn
   tx.remove("tags", input.id);
 });
 
+/** One tag-added or tag-removed log row per tag that changed (OUT-83), naming the tag. */
+function logTags(tx: Tx, now: string, before: string | undefined, after: string, at: { area: "overlay" | "task"; principal: string; event?: string; task?: string }): void {
+  const [was, is] = [new Set(tagIdsOf(before)), new Set(tagIdsOf(after))];
+  const name = (id: string) => tx.get("tags", id)?.name ?? "";
+  for (const id of is) if (!was.has(id)) writeLog(tx, now, { ...at, kind: "tag-added", to: id, note: name(id) });
+  for (const id of was) if (!is.has(id)) writeLog(tx, now, { ...at, kind: "tag-removed", from: id, note: name(id) });
+}
+
 /** Sets the tags on one task, or on one event's overlay (so they survive imports). */
 export const tagsSet = defineCommand("tags.set", (tx: Tx, input: TagsSetInput) => {
-  requireNow(tx, input);
+  const now = requireNow(tx, input);
   const id = requireText(tx, input.id, input.target === "task" ? "The task" : "The engagement");
   if (!Array.isArray(input.tags)) tx.fail("The tags must be a list.");
   const live = new Set(tx.list("tags").map((t) => t.id));
@@ -80,6 +96,7 @@ export const tagsSet = defineCommand("tags.set", (tx: Tx, input: TagsSetInput) =
     const task = tx.get("tasks", id);
     if (!task || task._deleted) tx.fail("That task has been removed.");
     tx.put("tasks", id, { tags });
+    logTags(tx, now, task.tags, tags, { area: "task", principal: task.principal ?? "", task: id });
     return;
   }
   const event = tx.get("events", id);
@@ -88,9 +105,21 @@ export const tagsSet = defineCommand("tags.set", (tx: Tx, input: TagsSetInput) =
   const current = tx.get("overlays", oid);
   if (current?._deleted) tx.restore("overlays", oid);
   tx.put("overlays", oid, current ? { tags } : { event: id, prep: "none", flagged: false, tags });
+  logTags(tx, now, current?._deleted ? "" : current?.tags, tags, { area: "overlay", principal: event.principal ?? "", event: id });
   // Tags trigger tab templates (OUT-88).
   const before = current && !current._deleted ? tagIdsOf(current.tags) : [];
   const after = tags === "" ? [] : tags.split(",");
-  applyTriggeredTabs(tx, input.now, event, "tag", after.filter((t) => !before.includes(t)), "tag");
-  releaseTriggeredTabs(tx, input.now, event, "tag", before.filter((t) => !after.includes(t)));
+  applyTriggeredTabs(tx, now, event, "tag", after.filter((t) => !before.includes(t)), "tag");
+  releaseTriggeredTabs(tx, now, event, "tag", before.filter((t) => !after.includes(t)));
+});
+
+/** Sets an Outlook category's colour or order. Its name comes from Outlook, so it can't be changed here. */
+export const categorySave = defineCommand("category.save", (tx: Tx, input: CategorySaveInput) => {
+  requireNow(tx, input);
+  const id = requireText(tx, input.id, "The category");
+  const current = tx.get("categories", id);
+  if (!current || current._deleted) tx.fail("That category hasn't arrived on this computer yet.");
+  const colour = checkColour(tx, input.colour);
+  if (input.order !== undefined && (typeof input.order !== "number" || !Number.isFinite(input.order))) tx.fail("The order must be a number.");
+  tx.put("categories", id, { ...(colour !== undefined && { colour }), ...(input.order !== undefined && { order: input.order }) });
 });

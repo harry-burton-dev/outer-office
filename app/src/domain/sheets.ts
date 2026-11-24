@@ -117,7 +117,7 @@ function entryOf(event: Event, input: SheetInput, overlay: Overlay | undefined):
     masked: false,
     location: event.location?.trim() ?? "",
     flagged: overlay?.flagged === true,
-    tags: eventTags(event.categories, overlay?.tags, input.tags).map((t) => t.name ?? ""),
+    tags: eventTags(overlay?.tags, input.tags).map((t) => t.name ?? ""),
     attendees: namesOf(event.requiredAttendees),
     notes: overlay?.notes?.trim() ?? "",
     cards: cardsOn(input.cards, event.id).map((c) => sheetCard(c, input.templates, input.nameOf)),

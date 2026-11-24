@@ -2,7 +2,7 @@
 // engagement carries, what is left off, and the print button.
 import { afterEach, expect, test, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
-import { cardAdd, cardSet, overlaySet, tagSave, templateSave } from "@/domain/commands";
+import { cardAdd, cardSet, overlaySet, tagSave, tagsSet, templateSave } from "@/domain/commands";
 import { useApp } from "@/app/app-state";
 import { cleanupApp, renderApp, type Seeder } from "@/app/testing/render-app";
 import { eventIdOf, importEvents, MONDAY_NOW, syntheticEvent } from "../calendar/testing/events";
@@ -15,7 +15,7 @@ const TUESDAY = "2026-11-24";
 function seedDay(s: Seeder): string {
   const a = s.principal("PRINCIPAL-A");
   s.user("user-b", "Sam Jones");
-  s.run(tagSave, { now: MONDAY_NOW, name: "Board", colour: "#818cf8" });
+  const board = s.run(tagSave, { now: MONDAY_NOW, name: "Board", colour: "#818cf8" });
   importEvents(s, MONDAY_NOW, a, [
     syntheticEvent("a1", { subject: "Budget review", location: "Room 4", categories: "Board", requiredAttendees: "Ann Lee <ann@example.com> · Accepted\nBo Chan <bo@example.com> · Tentative" }),
     syntheticEvent("a2", { subject: "Doctor", masked: true, start: "2026-11-24T09:00:00Z", end: "2026-11-24T10:00:00Z" }),
@@ -24,6 +24,7 @@ function seedDay(s: Seeder): string {
     syntheticEvent("a5", { subject: "Travel day", allDay: true, start: "2026-11-24T00:00:00Z", end: "2026-11-25T00:00:00Z" }),
   ]);
   const budget = eventIdOf(s.device, a, "a1");
+  s.run(tagsSet, { now: MONDAY_NOW, target: "event", id: budget, tags: [board] });
   s.run(overlaySet, { now: MONDAY_NOW, event: budget, notes: "Bring the Q3 figures", flagged: true });
   s.run(overlaySet, { now: MONDAY_NOW, event: eventIdOf(s.device, a, "a4"), archived: true });
   const template = s.run(templateSave, {
