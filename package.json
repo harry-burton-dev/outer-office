@@ -11,7 +11,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "test": "node --test \"framework/engine/test/**/*.test.js\" && node --test \"framework/runtime/test/**/*.test.js\" && node --test \"framework/data/test/**/*.test.js\" && node --test \"framework/plainfiles/test/**/*.test.js\" && node --test \"framework/test/*.test.js\" && npm run test:shell && npm run test:app",
+    "test": "node --test \"framework/engine/test/**/*.test.js\" && node --test \"framework/runtime/test/**/*.test.js\" && node --test \"framework/data/test/**/*.test.js\" && node --test \"framework/plainfiles/test/**/*.test.js\" && node --test \"framework/automate/test/**/*.test.js\" && node --test \"framework/test/*.test.js\" && npm run test:shell && npm run test:app",
     "typecheck": "tsc --noEmit -p framework && tsc --noEmit -p app",
     "build": "npm run build:bootstrap && npm run build:app && npm run build:admin && npm run size",
     "build:app": "vite build --config framework/build/vite.config.js --mode app",
