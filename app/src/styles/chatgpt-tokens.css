@@ -1,0 +1,49 @@
+/* ChatGPT theme, from tinte.dev (its "chatgpt" preset, in the legacy theme editor).
+   Colours are tinte's raw palette for the theme, light and dark, as published:
+   bg/bg_2 pages, ui/ui_2/ui_3 lines and fills, tx/tx_2/tx_3 text, ac_1 the one colour.
+   The rest is ChatGPT's own look: the system sans, pill buttons, soft 12px fields,
+   a flat grey sidebar, quick plain easing. Destructive is not in tinte's palette;
+   it is ChatGPT's red. */
+:root {
+  /* Colour · tinte chatgpt (light) */
+  --cg-bg: #ffffff;
+  --cg-bg-2: #f5f5f5;
+  --cg-ui: #e5e5e5;
+  --cg-ui-2: #d4d4d4;
+  --cg-ui-3: #b5b5b5;
+  --cg-tx: #000000;
+  --cg-tx-2: #666666;
+  --cg-tx-3: #999999;
+  --cg-ac: #ddf2ff;
+  --cg-danger: #e02e2a;
+
+  /* Type · the system sans, as ChatGPT falls back to */
+  --cg-font-sans: ui-sans-serif, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+  --cg-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Shape · radii */
+  --cg-r-sm: 6px;   /* event blocks, small chips */
+  --cg-r-md: 12px;  /* fields, menus, cards */
+  --cg-r-lg: 16px;  /* dialogs, panels */
+
+  /* Depth */
+  --cg-shadow-pop: 0 4px 16px rgb(0 0 0 / .08), 0 0 0 1px rgb(0 0 0 / .04);
+
+  /* Motion */
+  --cg-ease: cubic-bezier(.4, 0, .2, 1);
+  --cg-dur: .15s;
+}
+
+.dark {
+  /* Colour · tinte chatgpt (dark) */
+  --cg-bg: #000000;
+  --cg-bg-2: #262626;
+  --cg-ui: #404040;
+  --cg-ui-2: #525252;
+  --cg-ui-3: #666666;
+  --cg-tx: #ffffff;
+  --cg-tx-2: #a3a3a3;
+  --cg-tx-3: #737373;
+  --cg-danger: #f2615c;
+  --cg-shadow-pop: 0 4px 16px rgb(0 0 0 / .5), 0 0 0 1px var(--cg-ui);
+}
