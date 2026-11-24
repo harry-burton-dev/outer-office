@@ -216,3 +216,10 @@ test("the Today button's accessible name contains its visible text", () => {
   const today = screen.getByRole("button", { name: /^today/i });
   expect(today.getAttribute("aria-label")?.toLowerCase()).toContain(today.textContent?.toLowerCase());
 });
+
+test.each(["Europe/London", "America/Los_Angeles", "Pacific/Auckland"])("each day header gets its own date in %s", (timeZone) => {
+  const seen: string[] = [];
+  renderDiary({ view: "week", date: "2026-11-25", timeZone, events: [], renderDayHeader: (date) => { seen.push(date); return <span>{`summary ${date}`}</span>; } });
+  expect([...new Set(seen)]).toEqual(["2026-11-23", "2026-11-24", "2026-11-25", "2026-11-26", "2026-11-27"]);
+  expect(screen.getByText("summary 2026-11-25")).toBeTruthy();
+});

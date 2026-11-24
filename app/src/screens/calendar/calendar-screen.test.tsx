@@ -143,3 +143,28 @@ test("a viewer sees the empty state without its action", async () => {
   expect(screen.getByText("No calendar imported yet")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Import a calendar" })).toBeNull();
 });
+
+test("clashing engagements carry a clash edge, a linked child is drawn inside its parent, and the day header sums the day", async () => {
+  await renderApp({
+    now: MONDAY_NOW,
+    seed: (s) => {
+      const a = s.principal("PRINCIPAL-A");
+      importEvents(s, MONDAY_NOW, a, [
+        syntheticEvent("a1", { subject: "Budget review", start: "2026-11-24T09:00:00Z", end: "2026-11-24T10:00:00Z" }),
+        syntheticEvent("a2", { subject: "Investor call", start: "2026-11-24T09:30:00Z", end: "2026-11-24T10:30:00Z", location: "Microsoft Teams Meeting" }),
+        syntheticEvent("v", { subject: "Site visit", start: "2026-11-24T13:00:00Z", end: "2026-11-24T16:00:00Z" }),
+        syntheticEvent("s", { subject: "Speech", start: "2026-11-24T14:00:00Z", end: "2026-11-24T14:30:00Z" }),
+      ]);
+      s.run(overlaySet, { now: MONDAY_NOW, event: eventIdOf(s.device, a, "s"), parent: eventIdOf(s.device, a, "v"), priority: 1 });
+      s.run(overlaySet, { now: MONDAY_NOW, event: eventIdOf(s.device, a, "a1"), priority: 1 });
+    },
+    children: ui,
+  });
+  expect(eventEl("Budget review")?.textContent).toContain("Clash with Investor call");
+  expect(eventEl("Budget review")?.querySelector("[data-priority='1']")).toBeTruthy();
+  expect(eventEl("Site visit")?.querySelector("[data-linked-children]")?.textContent).toBe("14:00 Speech");
+  expect(eventEl("Site visit")?.textContent).not.toContain("Clash");
+  const summary = document.querySelector("[data-day-summary]");
+  expect(summary?.textContent).toContain("1 clash");
+  expect(document.querySelectorAll("[data-day-summary]")).toHaveLength(1);
+});

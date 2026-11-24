@@ -51,6 +51,8 @@ export interface DiaryCalendarProps {
   onMove?: (id: string, start: string, end: string) => void;
   /** Whether an entry can be moved; with onMove and no canMove, every timed entry can. All-day entries never can. */
   canMove?: (id: string) => boolean;
+  /** Extra content on each day's header, given its date (YYYY-MM-DD in the zone). */
+  renderDayHeader?: (date: string) => ReactNode;
 }
 
 const VIEW_TYPES: Record<DiaryView, string> = { day: "timeGridDay", week: "timeGridWeek" };
@@ -199,7 +201,7 @@ function shows(info: { currentStart: Date; currentEnd: Date }, date: string, tim
   return date >= first && date < end;
 }
 
-export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra, onMove, canMove }: DiaryCalendarProps) {
+export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra, onMove, canMove, renderDayHeader }: DiaryCalendarProps) {
   const controller = useCalendarController();
   const byId = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
   const moves = onMove !== undefined;
@@ -314,6 +316,7 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
           eventContent={eventContent}
           datesSet={datesSet}
           popoverCloseContent={() => <EventCalendarCloseIcon />}
+          dayHeaderExtra={renderDayHeader ? (day) => renderDayHeader(dayIn(day, timeZone)) : undefined}
         />
       </div>
       <p role="status" aria-live="polite" className={keyLanding ? "border-t px-3 py-2 text-xs" : "sr-only"} data-key-move="">

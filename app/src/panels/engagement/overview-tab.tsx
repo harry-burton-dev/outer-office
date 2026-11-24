@@ -1,10 +1,11 @@
-// Overview: Outlook's fields, read-only, and the office's flag.
+// Overview: Outlook's fields, read-only, and the office's flag, priority, Quiet and links.
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useApp } from "@/app/app-state";
 import type { Event } from "@/domain/selectors";
 import type { OverlayState } from "./use-overlay";
 import { instantText } from "./when";
+import { OfficeFields } from "./office-fields";
 
 export interface OverviewTabProps {
   event: Event;
@@ -112,6 +113,7 @@ export function OverviewTab({ event, overlay }: OverviewTabProps) {
     <div className="flex flex-col gap-4">
       <OutlookFields event={event} />
       <Flag overlay={overlay} />
+      <OfficeFields event={event} overlay={overlay} />
     </div>
   );
 }

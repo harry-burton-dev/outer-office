@@ -6,8 +6,9 @@ import { eventsForPrincipal, type Event, type Overlay } from "@/domain/selectors
 import { eventTags, type Tag } from "@/domain/tags";
 import { ARCHIVE_REASONS } from "@/domain/commands/overlay";
 import { LENS_COLOUR, lensFill, type Lens } from "@/domain/lenses";
+import { clashes, clashesByEvent, isInside, type ClashSeverity } from "@/domain/clashes";
 
-export type Mark = "Move proposed" | "Proposed" | "New" | "Gone from Outlook" | "Archived" | `Archived: ${string}` | "Flagged" | "Moved";
+export type Mark = "Move proposed" | "Proposed" | "New" | "Gone from Outlook" | "Archived" | `Archived: ${string}` | "Flagged" | "Moved" | "Quiet" | "Outside its parent";
 export type Proposal = RowOf<"proposals">;
 
 /** The diary's layers, top to bottom: proposed changes, the live diary, and the graveyard of events gone from Outlook. */
@@ -53,6 +54,20 @@ export interface EventFace {
   archived?: boolean;
   /** On the Proposed layer: how much the live diary behind is veiled, 0 to 1. */
   veil?: number;
+  /** Its worst clash and the titles it clashes with (OUT-84). Never on a quiet event. */
+  clash?: { severity: ClashSeverity; with: readonly string[] };
+  /** The office's priority, 1 to 3; left out for 4 (none set) and masked events. */
+  priority?: 1 | 2 | 3;
+  /** The engagements linked under it, drawn inside its block, by start. */
+  children?: readonly LinkedChild[];
+}
+
+/** An engagement drawn inside its parent's block. */
+export interface LinkedChild {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
 }
 
 /** Up to two marks, in the order flagged, moved. A masked event has none. Prep is no longer marked: cards replace it (OUT-62). */
@@ -113,7 +128,7 @@ const asEvent = (p: Proposal): Event => ({
  * that have a proposal ghosted where they are. Proposed: those events at their proposed
  * times, each with a ghost where it is now. Graveyard: the events gone from Outlook.
  */
-export function diaryData(events: readonly Event[], overlays: readonly Overlay[], principal: string, tags: readonly Tag[] = [], lensOn?: LensOn, layerOn: LayerOn = { layer: "live", proposals: [] }): DiaryData {
+export function diaryData(events: readonly Event[], overlays: readonly Overlay[], principal: string, tags: readonly Tag[] = [], lensOn?: LensOn, layerOn: LayerOn = { layer: "live", proposals: [] }, zone = "UTC"): DiaryData {
   const overlayOf = new Map(overlays.filter((o) => !o._deleted).map((o) => [o.event ?? "", o]));
   const live = layerOn.proposals.filter((p) => !p._deleted && p.start && p.end);
   const proposalOf = new Map(live.filter((p) => p.kind !== "new" && p.event).map((p) => [p.event ?? "", p]));
@@ -129,7 +144,19 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
   });
   // On the Proposed layer, a ghost stays where each proposed event is now.
   const ghosts = layer === "proposed" ? base.filter(hasTimes).filter((e) => proposalOf.has(e.id)).map((e) => ({ ...e, id: ghostId(e.id) })) : [];
-  const shown = [...real, ...ghosts];
+  // Clashes on the layer shown: on Proposed, proposals clash at their proposed times. The graveyard has none.
+  const clashOf = layer === "graveyard" ? new Map() : clashesByEvent(clashes(real, overlays, zone));
+  // A child sitting inside its parent is drawn inside the parent's block; one a sync moved outside stays a block of its own.
+  const realById = new Map(real.map((e) => [e.id, e]));
+  const childrenOf = new Map<string, LinkedChild[]>();
+  for (const e of real) {
+    const parent = realById.get(overlayOf.get(e.id)?.parent ?? "");
+    if (!parent || !isInside(e, parent)) continue;
+    childrenOf.set(parent.id, [...(childrenOf.get(parent.id) ?? []), { id: e.id, title: titleOf(e), start: e.start, end: e.end }]);
+  }
+  const drawnInside = new Set([...childrenOf.values()].flat().map((c) => c.id));
+  const outside = (e: Event) => Boolean(overlayOf.get(e.id)?.parent) && realById.has(overlayOf.get(e.id)?.parent ?? "") && !drawnInside.has(e.id);
+  const shown = [...real.filter((e) => !drawnInside.has(e.id)), ...ghosts];
   const faces = new Map(shown.map((e) => {
     const id = eventIdOf(e.id);
     const overlay = overlayOf.get(id);
@@ -139,8 +166,17 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
     const ghost = e.id !== id || (layer === "live" && proposed);
     const archived = isArchived(overlay);
     const lead: Mark[] = layer === "graveyard" ? [archived ? archivedMark(overlay?.archiveReason) : "Gone from Outlook"] : isNew ? ["New"] : !proposed ? [] : ghost ? ["Move proposed"] : ["Proposed"];
-    const marks = [...lead, ...marksFor(e, overlay)].slice(0, MAX_MARKS);
+    const quiet = overlay?.quiet === true;
+    // A quiet event shows only its own Quiet mark (D17).
+    const layerMarks: Mark[] = e.masked === true ? [] : quiet ? ["Quiet"] : [...(outside(e) ? ["Outside its parent" as const] : []), ...marksFor(e, overlay)];
+    const marks = [...lead, ...layerMarks].slice(0, MAX_MARKS);
     const face: EventFace = { title: titleOf(e), marks, tags: own, ownTags: overlay?.tags ?? "", categories: e.categories ?? "", ghost, proposed, archived };
+    const clash = ghost ? undefined : clashOf.get(e.id);
+    if (clash) face.clash = { severity: clash.severity, with: clash.with.map((other: string) => titleOf(realById.get(other) ?? e)) };
+    const priority = overlay?.priority;
+    if (e.masked !== true && !quiet && (priority === 1 || priority === 2 || priority === 3)) face.priority = priority;
+    const children = ghost ? undefined : childrenOf.get(e.id);
+    if (children) face.children = children;
     // The slider veils the live diary behind the proposals, not the proposals themselves.
     if (veil > 0 && !proposed) face.veil = veil;
     return [e.id, face];
