@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, test } from "vitest";
 import { parseIcs, type ParseOptions } from "./parse-ics";
-import { MAIN_FIXTURE, MAIN_WINDOW, UID, WORKSHOP_SUBJECT } from "./fixtures/outlook-ics";
+import { calendar, MAIN_FIXTURE, MAIN_WINDOW, UID, WORKSHOP_SUBJECT } from "./fixtures/outlook-ics";
 
 const MASK: ParseOptions = { ...MAIN_WINDOW, privatePolicy: "mask" };
 const DROP: ParseOptions = { ...MAIN_WINDOW, privatePolicy: "drop" };
@@ -88,11 +88,29 @@ describe("parseIcs on the main Outlook fixture", () => {
     expect(masked).toMatchObject({ subject: "Private, busy", location: "", organizer: "", categories: "", masked: true, showAs: "busy" });
   });
 
-  test("range runs from the earliest kept start to the latest kept end", () => {
+  test("range is the file's declared X-CALSTART to X-CALEND, not its first and last events", () => {
     const result = parseIcs(MAIN_FIXTURE, MASK);
+    expect(result.rangeStart).toBe(S("10-12T00:00"));
+    expect(result.rangeEnd).toBe(S("11-09T00:00"));
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("with no declared range, the range runs from the earliest kept start to the latest kept end", () => {
+    const result = parseIcs(MAIN_FIXTURE.replace(/X-CAL(START|END):[^\r\n]*\r\n/g, ""), MASK);
     expect(result.rangeStart).toBe(S("10-12T07:30"));
     expect(result.rangeEnd).toBe(S("11-06T16:00"));
-    expect(result.warnings).toEqual([]);
+  });
+
+  test("the declared range is widened to take in an occurrence outside it", () => {
+    const result = parseIcs(MAIN_FIXTURE.replace("X-CALEND:20261109T000000Z", "X-CALEND:20261101T000000Z"), MASK);
+    expect(result.rangeEnd).toBe(S("11-06T16:00"));
+  });
+
+  test("a file with no events keeps its declared range", () => {
+    const result = parseIcs(calendar([]), MASK);
+    expect(result.events).toEqual([]);
+    expect(result.rangeStart).toBe(S("10-12T00:00"));
+    expect(result.rangeEnd).toBe(S("11-09T00:00"));
   });
 
   test("weekly 09:00 London meeting stays at 09:00 local across the 25 October clock change", () => {

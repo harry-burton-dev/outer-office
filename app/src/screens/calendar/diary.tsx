@@ -6,11 +6,12 @@ import { useRecords } from "@trellis/framework";
 import { PlusIcon } from "lucide-react";
 import { DiaryCalendar, type DiaryEvent, type DiaryView } from "@/calendar/diary-calendar";
 import { Button } from "@/components/ui/button";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Dialog } from "@/components/ui/dialog";
 import { useApp } from "@/app/app-state";
 import { useOffice } from "@/app/frame-data";
 import { commands } from "@/domain/commands";
+import { ARCHIVE_REASONS } from "@/domain/commands/overlay";
 import { lensById } from "@/domain/lenses";
 import { TagMenu } from "@/tags/tag-menu";
 import { useRun } from "../tasks/use-run";
@@ -120,7 +121,11 @@ export function Diary({ principalId }: { principalId: string }) {
       <>
         <ContextMenuItem onClick={() => setDialog({ kind: "move", target: { id, title: face.title, ...from } })}>Move…</ContextMenuItem>
         {face.proposed && <ContextMenuItem onClick={() => withdraw.run({ event: id })}>Withdraw the proposal</ContextMenuItem>}
-        <ContextMenuItem onClick={() => archive.run({ event: id, archived: true })}>Archive</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuLabel>Archive as</ContextMenuLabel>
+        {ARCHIVE_REASONS.map((r) => (
+          <ContextMenuItem key={r.value} onClick={() => archive.run({ event: id, archived: true, archiveReason: r.value })}>{r.label}</ContextMenuItem>
+        ))}
       </>
     );
     return (

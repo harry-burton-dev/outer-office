@@ -33,10 +33,11 @@ const config = {
       },
     },
     overlays: {
-      version: 3,
+      version: 4,
       // Version 2: tags, comma-separated tag ids (OUT-76).
       // Version 3: archived, when the office archived the event ("" when it is not).
-      fields: { event: str, prep: str, flagged: bool, prepOwner: askStr, notes: "text", outcome: "text", tags: str, archived: str },
+      // Version 4: archiveReason, why it was archived (OUT-66; "" when it is not).
+      fields: { event: str, prep: str, flagged: bool, prepOwner: askStr, notes: "text", outcome: "text", tags: str, archived: str, archiveReason: str },
     },
     // The office's tags, shared by tasks and events (OUT-76). An event also
     // carries a tag when one of its Outlook categories has the tag's name.
@@ -107,6 +108,7 @@ const config = {
     overlays: {
       1: (record) => ({ ...record, tags: record.tags ?? "" }),
       2: (record) => ({ ...record, archived: record.archived ?? "" }),
+      3: (record) => ({ ...record, archiveReason: record.archiveReason ?? (record.archived ? "unknown" : "") }),
     },
     proposals: {
       1: (record) => ({
