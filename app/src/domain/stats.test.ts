@@ -43,6 +43,14 @@ describe("stats", () => {
     expect(officeStats(input({ events, cards, log })).get("p1")).toMatchObject({ engagements: 5, withCards: 3, prepOnTime: 1, prepLate: 1 });
   });
 
+  test("the month ends just before the next one starts, and prep done at the start is on time", () => {
+    // November in London ends at 2026-12-01T00:00:00Z.
+    const events = [ev("edge", "2026-12-01T00:00:00Z"), ev("start", "2026-11-20T10:00:00Z")] as never[];
+    const cards = [card("start", true)] as never[];
+    const log = [row({ id: "l", kind: "card-ready", event: "start", at: "2026-11-20T10:00:00Z" })] as never[];
+    expect(officeStats(input({ events, cards, log })).get("p1")).toMatchObject({ engagements: 1, prepOnTime: 1, prepLate: 0 });
+  });
+
   test("moves come from the month's log", () => {
     const log = [
       row({ id: "m1", area: "calendar", kind: "moved", principal: "p1", at: "2026-11-03T09:00:00Z" }),

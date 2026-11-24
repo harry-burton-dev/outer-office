@@ -156,6 +156,22 @@ describe("joining to the stored diary by ID", () => {
     expect(diff.added.map((e) => e.subject)).toEqual(["Hold for calls"]);
   });
 
+  test("an event an earlier CSV stored keeps its ID, and a twin row is not given it too", () => {
+    const parsed = parseCsv(outlookCsv([
+      { subject: "Call", startDate: "24/11/2026", startTime: "10:00:00", endTime: "10:30:00", organizer: "A" },
+      { subject: "Call", startDate: "24/11/2026", startTime: "10:00:00", endTime: "10:30:00", organizer: "B" },
+    ]), UK);
+    const joined = joinCsvToStored(parsed, [stored(parsed.events[0] as ImportedEvent)]);
+    expect(new Set(joined.events.map((e) => e.uid)).size).toBe(2);
+  });
+
+  test("the subject match ignores case and spaces at the ends", () => {
+    const parsed = parseCsv(ukText, UK);
+    const lunch = parsed.events.find((e) => e.subject === "Lunch") as ImportedEvent;
+    const joined = joinCsvToStored(parsed, [stored(icsLike({ ...lunch, subject: " LUNCH" }, "OUTLOOK-L"))]);
+    expect(joined.events.find((e) => e.subject === "Lunch")?.uid).toBe("OUTLOOK-L");
+  });
+
   test("each stored event is taken at most once", () => {
     const parsed = parseCsv(outlookCsv([
       { subject: "Call", startDate: "24/11/2026", startTime: "10:00:00", endTime: "10:30:00", organizer: "A" },

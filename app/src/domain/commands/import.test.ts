@@ -87,6 +87,24 @@ describe("import.apply: changes", () => {
     expect(rows(a, "log").find((r) => r.kind === "changed")?.note).toBe("Changed: requiredAttendees");
   });
 
+  test("a change to the location alone is applied", async () => {
+    const { a, principal } = await withPrincipal();
+    ok(a, importApply, { now: NOW, principal, file: "f.ics", diff: diff({ added: [event("e1")] }) });
+    const after = event("e1", { location: "Room 2", sourceModified: "2026-11-21T09:00:00Z" });
+    const result = ok(a, importApply, { now: LATER, principal, file: "f.ics", diff: diff({ changed: [{ before: stored(a, principal, "e1"), after, fields: ["location"], moved: false }] }) });
+    expect(result.changed).toBe(1);
+    expect(byId(a, "events", idOf(a, "event", principal, "e1"))?.location).toBe("Room 2");
+  });
+
+  test("a source without attendees or importance keeps the stored ones", async () => {
+    const { a, principal } = await withPrincipal();
+    const full = { requiredAttendees: "Blake <b@example.org>", optionalAttendees: "Casey <c@example.org>", importance: "high", sensitivity: "normal" };
+    ok(a, importApply, { now: NOW, principal, file: "f.ics", diff: diff({ added: [event("e1", full)] }) });
+    const after = event("e1", { subject: "Renamed", sourceModified: "2026-11-21T09:00:00Z" });
+    ok(a, importApply, { now: LATER, principal, file: "Power Automate sync", diff: diff({ changed: [{ before: stored(a, principal, "e1"), after, fields: ["subject"], moved: false }] }) });
+    expect(byId(a, "events", idOf(a, "event", principal, "e1"))).toMatchObject({ subject: "Renamed", ...full });
+  });
+
   test("an update older than the stored LAST-MODIFIED is skipped", async () => {
     const { a, principal } = await withPrincipal();
     ok(a, importApply, { now: NOW, principal, file: "f.ics", diff: diff({ added: [event("e1")] }) });
@@ -110,6 +128,16 @@ describe("import.apply: gone and returned", () => {
     expect(byId(a, "events", id)?.gone).toBe(true);
     expect(JSON.stringify(rows(a, "overlays"))).toBe(overlaysBefore);
     expect(JSON.stringify(rows(a, "tasks"))).toBe(tasksBefore);
+    expect(calendarLog(a)).toEqual(["added", "gone"]);
+  });
+
+  test("an event already gone is not marked gone or logged again", async () => {
+    const { a, principal } = await withPrincipal();
+    ok(a, importApply, { now: NOW, principal, file: "f.ics", diff: diff({ added: [event("e1")] }) });
+    const before = stored(a, principal, "e1");
+    ok(a, importApply, { now: NOW, principal, file: "f.ics", diff: diff({ gone: [before] }) });
+    const again = ok(a, importApply, { now: LATER, principal, file: "f.ics", diff: diff({ gone: [before] }) });
+    expect(again.gone).toBe(0);
     expect(calendarLog(a)).toEqual(["added", "gone"]);
   });
 

@@ -91,6 +91,45 @@ describe("proposed new meetings and archiving", () => {
     expect(rows(a, "proposals")).toEqual([]);
   });
 
+  test("a new meeting does not settle on an event at its start with another subject", async () => {
+    const { a, principal } = await setUp();
+    ok(a, proposalNew, { now: NOW, principal, subject: "Regulator catch-up", start: "2026-11-26T13:00:00Z", end: "2026-11-26T14:00:00Z" });
+    const other = { ...DIFF.added[0]!, uid: "e2", subject: "Dentist", start: "2026-11-26T13:00:00Z", end: "2026-11-26T14:00:00Z" };
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: { ...DIFF, added: [other] } });
+    expect(rows(a, "proposals")).toHaveLength(1);
+  });
+
+  test("a move does not settle while Outlook has only the new start, not the new end", async () => {
+    const { a, principal, event } = await setUp();
+    ok(a, proposalMove, { now: NOW, event, ...LATER });
+    const half = { ...DIFF.added[0]!, start: LATER.start, end: "2026-11-25T10:30:00Z", sourceModified: "2026-11-23T10:00:00Z" };
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: { ...DIFF, added: [], changed: [{ before: DIFF.added[0], after: half }] } as unknown as ImportDiff });
+    expect(rows(a, "proposals")).toHaveLength(1);
+  });
+
+  test("a proposal does not settle on an event this import marks gone", async () => {
+    const { a, principal, event } = await setUp();
+    ok(a, proposalNew, { now: NOW, principal, subject: "Meeting", start: START, end: END });
+    const gone = { ...DIFF.added[0]!, id: event, principal, gone: false, moves: 0 };
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: { ...DIFF, added: [], gone: [gone] } as unknown as ImportDiff });
+    expect(byId(a, "events", event)?.gone).toBe(true);
+    expect(rows(a, "proposals")).toHaveLength(1);
+  });
+
+  test("an import for one principal leaves another principal's proposals alone", async () => {
+    const { a, principal } = await setUp();
+    const other = ok(a, principalSave, { now: NOW, code: "PRINCIPAL-B", title: "Principal B" });
+    ok(a, proposalNew, { now: NOW, principal: other, subject: "Meeting", start: START, end: END });
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: { ...DIFF, added: [{ ...DIFF.added[0]!, sourceModified: "2026-11-23T10:00:00Z", location: "Room 9" }] } });
+    expect(rows(a, "proposals")).toHaveLength(1);
+  });
+
+  test("archiving with no reason given stores unknown", async () => {
+    const { a, event } = await setUp();
+    ok(a, overlaySet, { now: NOW, event, archived: true });
+    expect(rows(a, "overlays")[0]?.archiveReason).toBe("unknown");
+  });
+
   test("archiving moves a meeting to the graveyard, and it can come back", async () => {
     const { a, principal, event } = await setUp();
     ok(a, overlaySet, { now: NOW, event, archived: true, archiveReason: "cancelled" });
