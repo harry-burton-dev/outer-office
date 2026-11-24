@@ -8,6 +8,8 @@ import { isIsoInstant, requireNow, requireText, writeLog } from "./shared";
 import { settleProposals } from "./proposals";
 import { HISTORY_SKIPS, V3_FIELDS, fieldChanges, valueOf, type ComparedField } from "../../import/compare";
 import { TAG_COLOURS } from "../tags";
+import { applyRekeys, pairedIds } from "./rekey";
+import { overlayId } from "./overlay";
 
 export interface ImportApplyInput {
   now: string;
@@ -54,6 +56,7 @@ function checkDiff(tx: Tx, diff: ImportDiff): void {
   if (lists.some((list) => !Array.isArray(list))) tx.fail("The import is incomplete. Read the file again.");
   if (!isIsoInstant(diff.rangeStart) || !isIsoInstant(diff.rangeEnd) || diff.rangeStart > diff.rangeEnd) tx.fail("The import's date range is not valid. Read the file again.");
   if (diff.filled !== undefined && !Array.isArray(diff.filled)) tx.fail("The import is incomplete. Read the file again.");
+  checkRekeys(tx, diff);
   const incoming = [...diff.added, ...diff.changed.map((c) => c.after), ...(diff.filled ?? []).map((c) => c.after), ...diff.returned.map((c) => c.after)];
   for (const event of incoming) {
     const problem = badEvent(event);
@@ -61,6 +64,22 @@ function checkDiff(tx: Tx, diff: ImportDiff): void {
   }
   const badGone = diff.gone.some((e) => e === null || typeof e !== "object" || typeof e.uid !== "string" || e.uid === "" || typeof e.recurrenceId !== "string");
   if (badGone) tx.fail("The file could not be applied: an event to mark gone has no UID.");
+}
+
+/** A re-key pairs an old occurrence the diff marks gone with a new one it adds, in one series. */
+function checkRekeys(tx: Tx, diff: ImportDiff): void {
+  if (diff.rekeys === undefined) return;
+  if (!Array.isArray(diff.rekeys)) tx.fail("The import is incomplete. Read the file again.");
+  const key = (e: { uid?: unknown; recurrenceId?: unknown }) => `${String(e?.uid)}\n${String(e?.recurrenceId)}`;
+  const [gone, added] = [new Set(diff.gone.map(key)), new Set(diff.added.map(key))];
+  for (const rekey of diff.rekeys) {
+    const pairs = Array.isArray(rekey?.pairs) ? rekey.pairs : null;
+    if (!pairs || typeof rekey.ambiguous !== "boolean") tx.fail("The import is incomplete. Read the file again.");
+    if (rekey.ambiguous) continue;
+    for (const p of pairs) {
+      if (!gone.has(key(p?.from)) || !added.has(key(p?.to))) tx.fail("The file could not be applied: a series change pairs a meeting that isn't in the import.");
+    }
+  }
 }
 
 const isOlder = (incoming: string, stored: string | undefined) =>
@@ -112,7 +131,7 @@ function writeHistory(tx: Tx, now: string, id: string, importId: string, stored:
 /** What this run wrote for one event, since tx reads don't see the run's own writes. */
 interface Written { seriesId: string; start: string; gone: boolean; kind: string; subject: string; organizer: string }
 
-function applyIncoming(tx: Tx, now: string, principal: string, importId: string, event: ImportedEvent, written: Map<string, Written>): Kind | undefined {
+function applyIncoming(tx: Tx, now: string, principal: string, importId: string, event: ImportedEvent, written: Map<string, Written>, quiet: ReadonlySet<string>): Kind | undefined {
   const id = eventId(tx, principal, event);
   const stored = tx.get("events", id);
   const plan = planEvent(stored, event);
@@ -123,7 +142,7 @@ function applyIncoming(tx: Tx, now: string, principal: string, importId: string,
   tx.put("events", id, fields);
   written.set(id, { seriesId: fields.seriesId ?? "", start: event.start, gone: false, kind: fields.kind ?? "", subject: event.subject, organizer: event.organizer });
   if (stored && !stored._deleted) writeHistory(tx, now, id, importId, stored, event, plan.fields);
-  if (plan.kind === "filled") return plan.kind;
+  if (plan.kind === "filled" || quiet.has(id)) return plan.kind;
   const others = plan.fields.filter((field) => field !== "start");
   const note = others.length > 0 ? `Changed: ${others.join(", ")}` : "";
   const fromTo = moved ? { from: stored?.start ?? "", to: event.start } : {};
@@ -148,12 +167,25 @@ function recordCategories(tx: Tx, now: string, events: readonly ImportedEvent[])
 }
 
 /**
+ * An occurrence gone from Outlook while its series goes on was cancelled
+ * there: its overlay's archive reason says so (v0.3-brief.md section 4). A
+ * reason the office already gave is kept.
+ */
+function markCancelled(tx: Tx, eventId: string): void {
+  const oid = overlayId(tx, eventId);
+  const overlay = tx.get("overlays", oid);
+  if (overlay && !overlay._deleted && overlay.archiveReason) return;
+  if (overlay?._deleted) tx.restore("overlays", oid);
+  tx.put("overlays", oid, overlay && !overlay._deleted ? { archiveReason: "cancelled" } : { event: eventId, prep: "none", flagged: false, archiveReason: "cancelled" });
+}
+
+/**
  * Works out the series record of every series this run touched, from its
  * stored occurrences as they stand after the run. An exception is an
  * occurrence Outlook marks as one, or a gone occurrence with a later one still
  * in the diary (v0.3-brief.md section 4).
  */
-function recordSeries(tx: Tx, principal: string, written: ReadonlyMap<string, Written>): void {
+function recordSeries(tx: Tx, principal: string, written: ReadonlyMap<string, Written>, quiet: ReadonlySet<string>): void {
   const touched = new Set([...written.values()].map((w) => w.seriesId).filter(Boolean));
   if (touched.size === 0) return;
   const rows = new Map<string, Written>();
@@ -162,12 +194,15 @@ function recordSeries(tx: Tx, principal: string, written: ReadonlyMap<string, Wr
     rows.set(e.id, { seriesId: e.seriesId ?? "", start: e.start ?? "", gone: e.gone === true, kind: e.kind ?? "", subject: e.subject ?? "", organizer: e.organizer ?? "" });
   }
   for (const [id, w] of written) if (touched.has(w.seriesId)) rows.set(id, { ...rows.get(id), ...w });
+  // An occurrence a re-key replaced is no longer part of its series.
+  for (const id of quiet) if (rows.get(id)?.gone) rows.delete(id);
   for (const seriesId of touched) {
     const all = [...rows.values()].filter((r) => r.seriesId === seriesId).sort((a, b) => a.start.localeCompare(b.start));
     const live = all.filter((r) => !r.gone);
     const lastLive = live.at(-1)?.start ?? "";
     const exceptions = live.filter((r) => r.kind === "exception").length + all.filter((r) => r.gone && r.start < lastLive).length;
     const latest = live.at(-1) ?? all.at(-1);
+    for (const [id, w] of written) if (w.seriesId === seriesId && w.gone && w.start < lastLive && !quiet.has(id)) markCancelled(tx, id);
     tx.put("series", tx.id("series", principal, seriesId), {
       principal, seriesId, subject: latest?.subject ?? "", organizer: latest?.organizer ?? "", pattern: "",
       firstStart: live[0]?.start ?? "", lastStart: lastLive, count: live.length, exceptions,
@@ -175,13 +210,13 @@ function recordSeries(tx: Tx, principal: string, written: ReadonlyMap<string, Wr
   }
 }
 
-function applyGone(tx: Tx, now: string, principal: string, importId: string, event: StoredEvent, written: Map<string, Written>): boolean {
+function applyGone(tx: Tx, now: string, principal: string, importId: string, event: StoredEvent, written: Map<string, Written>, quiet: ReadonlySet<string>): boolean {
   const id = eventId(tx, principal, event);
   const stored = tx.get("events", id);
   if (!stored || stored._deleted || stored.gone) return false;
   tx.put("events", id, { gone: true, importId });
   written.set(id, { seriesId: stored.seriesId ?? "", start: stored.start ?? "", gone: true, kind: stored.kind ?? "", subject: stored.subject ?? "", organizer: stored.organizer ?? "" });
-  writeLog(tx, now, { area: "calendar", kind: "gone", principal, event: id, from: stored.start ?? "" });
+  if (!quiet.has(id)) writeLog(tx, now, { area: "calendar", kind: "gone", principal, event: id, from: stored.start ?? "" });
   return true;
 }
 
@@ -201,10 +236,13 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
   const importId = tx.newId();
   const incoming = incomingOf(tx, principal, input.diff);
   const written = new Map<string, Written>();
-  const kinds = incoming.map((event) => applyIncoming(tx, now, principal, importId, event, written));
-  const gone = input.diff.gone.filter((event) => applyGone(tx, now, principal, importId, event, written)).length;
+  const idOf = (e: { uid: string; recurrenceId: string }) => eventId(tx, principal, e);
+  const quiet = pairedIds(input.diff.rekeys, idOf);
+  const kinds = incoming.map((event) => applyIncoming(tx, now, principal, importId, event, written, quiet));
+  const gone = input.diff.gone.filter((event) => applyGone(tx, now, principal, importId, event, written, quiet)).length;
+  applyRekeys(tx, now, principal, input.diff.rekeys ?? [], idOf);
   recordCategories(tx, now, incoming);
-  recordSeries(tx, principal, written);
+  recordSeries(tx, principal, written, quiet);
   const count = (kind: Kind) => kinds.filter((k) => k === kind).length;
   const result = { importId, added: count("added"), changed: count("changed") + count("moved"), gone, returned: count("returned") };
   const { rangeStart, rangeEnd } = input.diff;
