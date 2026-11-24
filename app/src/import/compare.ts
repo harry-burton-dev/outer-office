@@ -71,3 +71,7 @@ export function fieldChanges(stored: Partial<ImportedEvent>, incoming: ImportedE
 
 /** History doesn't repeat the attendee text lines, which are written from `attendees`. */
 export const HISTORY_SKIPS: ReadonlySet<string> = new Set(["requiredAttendees", "optionalAttendees"]);
+
+/** True when an import from `source` carries `field`: every pre-v3 field, and the v3 fields in CARRIED. */
+export const carries = (source: string, field: string): boolean =>
+  !V3.has(field) || (CARRIED[source as EventSource]?.has(field as V3Field) ?? false);
