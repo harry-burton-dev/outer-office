@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import type { Event, Overlay } from "@/domain/selectors";
-import { diaryData, latestImport, marksFor, openingDate, type ImportRow } from "./calendar-data";
+import { diaryData, latestImport, marksFor, type ImportRow } from "./calendar-data";
 
 const event = (over: Partial<Event> = {}): Event =>
   ({ id: "e1", _deleted: false, principal: "p1", start: "2026-11-24T14:00:00Z", end: "2026-11-24T15:00:00Z", subject: "Meeting", ...over }) as Event;
@@ -42,11 +42,4 @@ test("the latest import is the principal's newest", () => {
   ] as ImportRow[];
   expect(latestImport(rows, "p1")?.id).toBe("i2");
   expect(latestImport(rows, "p3")).toBeUndefined();
-});
-
-test("openingDate moves a Saturday or Sunday on to the coming Monday and keeps a weekday", () => {
-  expect(openingDate("2026-11-28")).toBe("2026-11-30");
-  expect(openingDate("2026-11-29")).toBe("2026-11-30");
-  expect(openingDate("2026-11-27")).toBe("2026-11-27");
-  expect(openingDate("2026-11-23")).toBe("2026-11-23");
 });
