@@ -10,7 +10,7 @@ const hourLater = (start: string) => new Date(Date.parse(start) + 3_600_000).toI
 /** An occurrence of series `uid` whose original slot is `slot`, by default held there for an hour. */
 function occ(uid: string, slot: string, more: Record<string, unknown> = {}): Event {
   const start = (more.start as string | undefined) ?? slot;
-  return row({ id: `${uid}@${slot}`, principal: "p1", uid, recurrenceId: slot, start, end: hourLater(start), subject: uid, moves: 0, gone: false, ...more });
+  return row({ id: `${uid}@${slot}`, principal: "p1", uid, seriesId: uid, recurrenceId: slot, start, end: hourLater(start), subject: uid, moves: 0, gone: false, ...more });
 }
 
 /** Weekly slots on Mondays from 2 Nov 2026. */
@@ -21,7 +21,7 @@ describe("series", () => {
   test("only events with a recurrence id, of the chosen principal, make a series", () => {
     const events = [
       ...weekly(3).map((s) => occ("s1", s)),
-      row({ id: "single", principal: "p1", uid: "single", recurrenceId: "", start: iso("2026-11-25") }),
+      row({ id: "single", principal: "p1", uid: "single", seriesId: "", recurrenceId: "", start: iso("2026-11-25") }),
       occ("other", iso("2026-11-25"), { principal: "p2" }),
       occ("deleted", iso("2026-11-25"), { _deleted: true }),
     ];
@@ -63,6 +63,12 @@ describe("series", () => {
     const [series] = seriesFor(events, "p1", NOW);
     expect(series?.health).toEqual({ recent: 8, moved: 3, cancelled: 1, cutShort: false });
     expect(healthText(series!.health)).toBe("moved 3 of the last 8, cancelled 1 of the last 8");
+  });
+
+  test("the pattern comes from the principal's series record, and is blank without one", () => {
+    const records = [row({ id: "r1", principal: "p1", seriesId: "s1", pattern: "Weekly on Monday" }), row({ id: "r2", principal: "p2", seriesId: "s2", pattern: "Daily" })] as never[];
+    const events = [occ("s1", iso("2026-11-30")), occ("s2", iso("2026-11-30"))];
+    expect(seriesFor(events, "p1", NOW, records).map((s) => [s.key, s.pattern])).toEqual([["s1", "Weekly on Monday"], ["s2", ""]]);
   });
 
   test("a weekly hour takes about four and a third hours a month", () => {
