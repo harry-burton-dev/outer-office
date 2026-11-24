@@ -1,0 +1,143 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('principal.a%40office.example')/calendar/calendarView(iCalUId,type,seriesMasterId,originalStart,start,end,isAllDay,isCancelled,subject,location,organizer,categories,showAs,sensitivity,lastModifiedDateTime,attendees)",
+  "value": [
+    {
+      "iCalUId": "040000008200E00074C5B7101A82E00800000000D0E1C4B2F25ADB01000000000000000010000000A1B2C3D4E5F60718293A4B5C6D7E8F90",
+      "type": "singleInstance",
+      "seriesMasterId": null,
+      "originalStart": null,
+      "start": {
+        "dateTime": "2026-11-24T09:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-11-24T10:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "subject": "Board briefing",
+      "location": {
+        "displayName": "Room 4"
+      },
+      "organizer": {
+        "emailAddress": {
+          "name": "Sam Example",
+          "address": "sam@office.example"
+        }
+      },
+      "categories": [
+        "Office work"
+      ],
+      "showAs": "busy",
+      "sensitivity": "normal",
+      "lastModifiedDateTime": "2026-11-20T10:00:00Z",
+      "attendees": [
+        {
+          "type": "required",
+          "status": {
+            "response": "accepted",
+            "time": "2026-11-20T10:05:00Z"
+          },
+          "emailAddress": {
+            "name": "Ana Example",
+            "address": "ana@office.example"
+          }
+        }
+      ]
+    },
+    {
+      "iCalUId": "040000008200E00074C5B7101A82E00807EA0B19D0E1C4B2F25ADB010000000000000000100000005C3B0F8A9E2D4C71A6B8E0F2D4C6A8B0",
+      "type": "occurrence",
+      "seriesMasterId": "AAMkAGI2SERIES1AAA=",
+      "originalStart": "2026-11-25T08:30:00Z",
+      "start": {
+        "dateTime": "2026-11-25T08:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-11-25T09:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "subject": "Weekly team",
+      "location": {
+        "displayName": ""
+      },
+      "organizer": {
+        "emailAddress": {
+          "name": "Principal A",
+          "address": "principal.a@office.example"
+        }
+      },
+      "categories": [],
+      "showAs": "busy",
+      "sensitivity": "normal",
+      "lastModifiedDateTime": "2026-11-01T09:00:00Z",
+      "attendees": []
+    },
+    {
+      "iCalUId": "040000008200E00074C5B7101A82E00807EA0C02D0E1C4B2F25ADB010000000000000000100000005C3B0F8A9E2D4C71A6B8E0F2D4C6A8B0",
+      "type": "exception",
+      "seriesMasterId": "AAMkAGI2SERIES1AAA=",
+      "originalStart": "2026-12-02T08:30:00Z",
+      "start": {
+        "dateTime": "2026-12-02T14:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-12-02T14:30:00.0000000",
+        "timeZone": "UTC"
+      },
+      "isAllDay": false,
+      "isCancelled": false,
+      "subject": "Weekly team (moved)",
+      "location": {
+        "displayName": ""
+      },
+      "organizer": {
+        "emailAddress": {
+          "name": "Principal A",
+          "address": "principal.a@office.example"
+        }
+      },
+      "categories": [],
+      "showAs": "busy",
+      "sensitivity": "normal",
+      "lastModifiedDateTime": "2026-11-22T16:00:00Z",
+      "attendees": []
+    },
+    {
+      "iCalUId": "040000008200E00074C5B7101A82E00800000000D0E1C4B2F25ADB01000000000000000010000000F0E1D2C3B4A5968778695A4B3C2D1E0F",
+      "type": "singleInstance",
+      "seriesMasterId": null,
+      "originalStart": null,
+      "start": {
+        "dateTime": "2026-11-26T00:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "end": {
+        "dateTime": "2026-11-27T00:00:00.0000000",
+        "timeZone": "UTC"
+      },
+      "isAllDay": true,
+      "isCancelled": false,
+      "subject": "Hospital appointment",
+      "location": {
+        "displayName": ""
+      },
+      "organizer": {
+        "emailAddress": {
+          "name": "Principal A",
+          "address": "principal.a@office.example"
+        }
+      },
+      "categories": [],
+      "showAs": "oof",
+      "sensitivity": "private",
+      "lastModifiedDateTime": "2026-11-10T12:00:00Z",
+      "attendees": []
+    }
+  ]
+}

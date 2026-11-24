@@ -109,7 +109,7 @@ Releases are signed. Whoever holds the signing key can ship code to every user, 
 - **Viewer mode is not a security control.** It hides the editing controls.
 - **The exported `.ics` file is not encrypted.** The import screen reminds you to delete it.
 - Private Outlook items are masked as "Private, busy", or dropped, before anything is stored. The office chooses which.
-- **Power Automate files are not encrypted.** With the Power Automate setting on, diary updates arrive as plain files in `automate/`. Anyone with access to the shared folder can read them, even without the workspace key, and can write files there for the app to read. Private items are masked by the flow before they are written, meeting bodies are never included, and the flow deletes files older than 48 hours. The setting is off until an admin turns it on.
+- **Power Automate files are not encrypted.** With the Power Automate setting on, diary updates arrive as plain files in `automate/`. Anyone with access to the shared folder can read them, even without the workspace key, and can write files there for the app to read. Each file is Outlook's own answer for one principal's diary, so private items are in it as Outlook has them: the app masks or drops them when it reads the file, and deletes the file once it is applied. Meeting bodies are never asked for. See `docs/automate/README.md`. The setting is off until an admin turns it on.
 - Removed content stays in older files in the folder, and in the sync tool's version history.
 
 ## What is not in 0.1

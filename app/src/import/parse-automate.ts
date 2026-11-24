@@ -2,10 +2,9 @@
 // result) into the same ParseResult the .ics parser returns, so both sources
 // share one diff and one review. Pure: no I/O, no clock.
 //
-// The payload's events are Microsoft Graph calendarView items, as raw as the
-// flow gives them (docs: OO1 spec v3, section 6). The caller validates the
-// file against diary-payload.schema.json first; this module checks the rules
-// a schema can't: count, series masters, UTC times, and the window.
+// The payload's events are Microsoft Graph calendarView items, read out of the
+// flow's raw response by automate/graph-calendar.ts, which checks their shape;
+// this module checks count, series masters, UTC times, and the window.
 import type { ImportedEvent } from "./types";
 import { eventKey } from "./types";
 import type { ParseResult } from "./parse-ics";

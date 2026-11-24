@@ -11,16 +11,16 @@ import { MAIN_PAYLOAD, MAIN_PAYLOAD_EVENTS } from "@/import/fixtures/diary-paylo
 import { UID } from "@/import/fixtures/outlook-ics";
 import type { DiaryEvent } from "@/import/parse-automate";
 import { DIARY_INBOX } from "./diary-inbox";
-import { diaryEvent } from "./testing/diary-event";
+import { graphFile, graphResponse } from "./testing/graph-file";
 import { memoryPlainFiles } from "./testing/memory-plain-files";
 
 afterEach(cleanupApp);
 
 const A = `${DIARY_INBOX}/PRINCIPAL-A`;
-const NEWEST = `${A}/20261123T210000Z.json`;
-const OLDER = `${A}/20261123T203000Z.json`;
+const NEWEST = `${A}/20261019T210000Z.json`;
+const OLDER = `${A}/20261019T203000Z.json`;
 
-const inbox = () => memoryPlainFiles("automate", { [OLDER]: diaryEvent("2026-11-23T20:30:00Z"), [NEWEST]: diaryEvent("2026-11-23T21:00:00Z") });
+const inbox = () => memoryPlainFiles("automate", { [OLDER]: graphFile(), [NEWEST]: graphFile() });
 const payloadOf = (events: readonly DiaryEvent[]) => ({ ...MAIN_PAYLOAD, count: events.length, events });
 const syncNotes = (app: Awaited<ReturnType<typeof renderApp>>) =>
   rows(app.device, "log").filter((r) => r.area === "import").map((r) => r.note);
@@ -55,7 +55,7 @@ describe("diary sync", () => {
       .map((e) => (e.iCalUId === UID.lunch ? { ...e, start: "2026-10-13T12:00:00.0000000", end: "2026-10-13T13:00:00.0000000", lastModifiedDateTime: later } : e));
     const added: DiaryEvent = { ...(MAIN_PAYLOAD_EVENTS.find((e) => e.iCalUId === UID.lunch) as DiaryEvent), iCalUId: "new-meeting", subject: "New meeting", lastModifiedDateTime: later,
       attendees: [{ type: "required", status: { response: "accepted" }, emailAddress: { name: "Alex Example", address: "alex@example.invalid" } }] };
-    await files.write(`${A}/20261123T213000Z.json`, diaryEvent("2026-11-23T21:30:00Z", payloadOf([...events, added])));
+    await files.write(`${A}/20261019T213000Z.json`, graphFile(payloadOf([...events, added])));
     await app.tick();
 
     expect(syncNotes(app).sort()).toEqual(["Power Automate sync: 1 added, 1 changed, 1 gone, 0 returned", "Power Automate sync: 23 added, 0 changed, 0 gone, 0 returned"]);
@@ -71,7 +71,7 @@ describe("diary sync", () => {
     const files = inbox();
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
     await app.tick();
-    await files.write(`${A}/20261123T213000Z.json`, diaryEvent("2026-11-23T21:30:00Z"));
+    await files.write(`${A}/20261019T213000Z.json`, graphFile());
     await app.tick();
     await app.tick();
     expect(rows(app.device, "imports")).toHaveLength(1);
@@ -85,7 +85,7 @@ describe("diary sync", () => {
     await app.tick();
     const touched = MAIN_PAYLOAD_EVENTS.map((e) => (e.iCalUId === UID.lunch ? { ...e, lastModifiedDateTime: "2026-11-23T21:20:00.0000000Z" } : e));
     for (const at of ["213000", "214500"]) {
-      await files.write(`${A}/20261123T${at}Z.json`, diaryEvent(`2026-11-23T${at.slice(0, 2)}:${at.slice(2, 4)}:00Z`, payloadOf(touched)));
+      await files.write(`${A}/20261019T${at}Z.json`, graphFile(payloadOf(touched)));
       await app.tick();
       await app.tick();
     }
@@ -94,7 +94,8 @@ describe("diary sync", () => {
   });
 
   test("a payload the adapter refuses shows why, and nothing is applied", async () => {
-    const files = memoryPlainFiles("automate", { [NEWEST]: diaryEvent("2026-11-23T21:00:00Z", { ...MAIN_PAYLOAD, count: 99 }) });
+    const firstPage = { ...graphResponse(), "@odata.nextLink": "https://graph.microsoft.com/v1.0/next" };
+    const files = memoryPlainFiles("automate", { [NEWEST]: JSON.stringify(firstPage) });
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
     await app.tick();
     fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
@@ -108,8 +109,8 @@ describe("diary sync", () => {
     const files = inbox();
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
     await app.tick();
-    const HELD = `${A}/20261123T213000Z.json`;
-    await files.write(HELD, diaryEvent("2026-11-23T21:30:00Z", payloadOf(MAIN_PAYLOAD_EVENTS.slice(0, 3))));
+    const HELD = `${A}/20261019T213000Z.json`;
+    await files.write(HELD, graphFile(payloadOf(MAIN_PAYLOAD_EVENTS.slice(0, 3))));
     await app.tick();
     expect(rows(app.device, "events").filter((e) => e.gone === true)).toHaveLength(0);
     expect(syncNotes(app)).toHaveLength(1);
@@ -120,12 +121,12 @@ describe("diary sync", () => {
   });
 
   test("an unusable file shows in Needs action and on Import with the reason", async () => {
-    const files = memoryPlainFiles("automate", { [NEWEST]: diaryEvent("2026-11-23T21:00:00Z", { ...MAIN_PAYLOAD, principal: "PRINCIPAL-B" }) });
+    const files = memoryPlainFiles("automate", { [NEWEST]: JSON.stringify({ error: { code: "ErrorAccessDenied", message: "Access is denied." } }) });
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
     await app.tick();
     fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Diary update can't be used" }));
-    expect(screen.getByRole("alert").textContent).toBe("The latest diary update can't be used: it is for PRINCIPAL-B, but is in PRINCIPAL-A's folder.");
+    expect(screen.getByRole("alert").textContent).toBe("The latest diary update can't be used: it holds an error from Outlook: Access is denied.");
   });
 
   test("with Power Automate off, the inbox is never read", async () => {
