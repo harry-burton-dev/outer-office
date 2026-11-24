@@ -2,7 +2,7 @@
 // shape shown on the meetings that carry it, and a form. A card is complete
 // when its required fields are filled (or all of them, when none is required).
 // Tab templates group card templates into one tab on a meeting (OUT-88).
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useCommand, useRecords } from "@trellis/framework";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { cn } from "cn";
@@ -17,6 +17,7 @@ import { commands } from "@/domain/commands";
 import { FIELD_TYPES, SHAPES, cardTemplatesOf, fieldsOf, sortedTabTemplates, sortedTemplates, templateTasksOf, type FieldType, type TabTemplate, type Template, type TemplateField, type TemplateTask } from "@/domain/cards";
 import { usePeople } from "@/app/people";
 import { PersonSelect } from "@/app/person-select";
+import { tabUsage, USAGE_DAYS, type TabUsage } from "@/domain/tab-usage";
 import { NativeSelect } from "@/panels/task/native-select";
 import { ShapeIcon } from "./shape-icon";
 
@@ -185,7 +186,18 @@ function TabTasks({ template, run, readOnly }: { template: TabTemplate; run: Tab
   );
 }
 
-function TabTemplateEditor({ template, cardTemplates, run, readOnly }: { template: TabTemplate; cardTemplates: readonly Template[]; run: TabRun; readOnly: boolean }) {
+function Usage({ usage }: { usage: TabUsage | undefined }) {
+  if (!usage) return <p className="text-sm text-muted-foreground">Not used in the last {USAGE_DAYS} days.</p>;
+  const share = usage.started === 0 ? "none started yet" : `${Math.round((usage.readyBeforeStart / usage.started) * 100)}% ready before the start`;
+  const empty = usage.leftEmpty.slice(0, 3).map((e) => `${e.name} (${e.count})`).join(", ");
+  return (
+    <p className="text-sm text-muted-foreground" data-usage="">
+      Last {USAGE_DAYS} days: applied {usage.applied} {usage.applied === 1 ? "time" : "times"}, {share}.{empty && ` Most often left empty: ${empty}.`}
+    </p>
+  );
+}
+
+function TabTemplateEditor({ template, cardTemplates, run, readOnly, usage }: { template: TabTemplate; cardTemplates: readonly Template[]; run: TabRun; readOnly: boolean; usage: TabUsage | undefined }) {
   const [name, setName] = useState<string | null>(null);
   const cards = cardTemplatesOf(template.cards);
   const nameOf = (id: string) => cardTemplates.find((t) => t.id === id)?.name ?? "Removed template";
@@ -211,6 +223,7 @@ function TabTemplateEditor({ template, cardTemplates, run, readOnly }: { templat
         )}
         {!readOnly && <Button variant="ghost" size="icon" aria-label={`Remove ${template.name}`} onClick={() => run.remove(template.id)}><Trash2 /></Button>}
       </div>
+      <Usage usage={usage} />
       {cards.length === 0 && <p className="text-sm text-muted-foreground">No cards yet.</p>}
       <ul className="flex flex-col gap-1" aria-label={`${template.name} cards`}>
         {cards.map((id, i) => (
@@ -258,8 +271,19 @@ function AddByName({ label, placeholder, button, onAdd }: { label: string; place
 
 const TABS_DESCRIPTION = "A tab groups cards for a kind of meeting, such as a board meeting. Add it to a meeting and its cards come with it.";
 
+function useUsage(): Map<string, TabUsage> {
+  const { now } = useApp();
+  const tabs = useRecords("tabs");
+  const events = useRecords("events");
+  const cards = useRecords("cards");
+  const templates = useRecords("templates");
+  const log = useRecords("log");
+  return useMemo(() => tabUsage({ now, tabs, events, cards, templates, log }), [now, tabs, events, cards, templates, log]);
+}
+
 export function TemplatesScreen() {
   const { isViewer } = useApp();
+  const usage = useUsage();
   const templates = sortedTemplates(useRecords("templates"));
   const tabTemplates = sortedTabTemplates(useRecords("tabTemplates"));
   const run = useTemplates();
@@ -284,7 +308,7 @@ export function TemplatesScreen() {
         {tabTemplates.length === 0 ? (
           <EmptyState title="No tabs yet" body={isViewer ? undefined : "Add one above, then give it cards."} />
         ) : (
-          tabTemplates.map((t) => <TabTemplateEditor key={t.id} template={t} cardTemplates={templates} run={tabRun} readOnly={isViewer} />)
+          tabTemplates.map((t) => <TabTemplateEditor key={t.id} template={t} cardTemplates={templates} run={tabRun} readOnly={isViewer} usage={usage.get(t.id)} />)
         )}
       </section>
     </div>
