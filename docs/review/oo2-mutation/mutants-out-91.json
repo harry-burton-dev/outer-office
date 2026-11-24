@@ -1,0 +1,7 @@
+[
+ {"id":"OUT91-A1","what":"Automate: an unchanged run is not recorded, so freshness goes stale when nothing moved","file":"app/src/automate/diary-inbox-state.tsx","find":"      else record(outcome.kind === \"refused\" ? { ...base, outcome: \"refused\", reason: outcome.reason } : { ...base, outcome: \"unchanged\" });","replace":"      else if (outcome.kind === \"refused\") record({ ...base, outcome: \"refused\", reason: outcome.reason });"},
+ {"id":"OUT91-A2","what":"Automate: an older file read late replaces the newer run","file":"app/src/domain/commands/automate.ts","find":"    if (input.fileAt !== \"\" && (current.fileAt ?? \"\") > input.fileAt) return;","replace":""},
+ {"id":"OUT91-A3","what":"Automate: a late principal shows as on time","file":"app/src/automate/flows.ts","find":"age > flow.lateAfterMinutes * MINUTE_MS ? \"late\" : \"ok\"","replace":"age > flow.lateAfterMinutes * MINUTE_MS * 100 ? \"late\" : \"ok\""},
+ {"id":"OUT91-A4","what":"Automate: a viewer never sees an importer's refusal of the file still in the folder","file":"app/src/automate/flows.ts","find":"last.file === nameOf(entry.update.path) && last.outcome === \"refused\"","replace":"false"},
+ {"id":"OUT91-A5","what":"Automate: a file the scan can't read leaves no run record","file":"app/src/automate/diary-inbox-state.tsx","find":"        record({ now, flow: DIARY_SYNC, principal: entry.principal, file, fileAt: stampOf(file) ?? \"\", outcome: \"refused\", reason: entry.reason });","replace":""}
+]
