@@ -69,6 +69,8 @@ interface LastMove {
   title: string;
   start: string;
   before?: { start: string; end: string };
+  /** A group move's linked engagements, each with the proposal it replaced. */
+  children?: ReadonlyArray<{ event: string; before?: { start: string; end: string } }>;
 }
 
 const sameInstant = (a: string | undefined, b: string): boolean => a !== undefined && Date.parse(a) === Date.parse(b);
@@ -103,6 +105,7 @@ export function Diary({ principalId }: { principalId: string }) {
   const drop = useRun(commands.proposalDrop);
   const archive = useRun(commands.overlaySet);
   const move = useRun(commands.proposalMove);
+  const moveGroup = useRun(commands.proposalMoveGroup);
   const renew = useRun(commands.proposalNew);
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
 
@@ -218,8 +221,22 @@ export function Diary({ principalId }: { principalId: string }) {
     const id = eventIdOf(entryId);
     const event = eventById.get(id);
     const proposed = proposals.some((p) => !p._deleted && p.kind !== "new" && p.event === id);
-    if (event && sameInstant(event.start, start) && sameInstant(event.end, end)) return proposed ? withdraw.run({ event: id }) : true;
-    return move.run({ event: id, start, end });
+    const children = childrenOf(id);
+    if (event && sameInstant(event.start, start) && sameInstant(event.end, end)) {
+      // Back where Outlook has it: the proposal goes, and so do those its group move made.
+      for (const p of proposals) if (!p._deleted && p.group === id && p.event !== id) withdraw.run({ event: p.event ?? "" });
+      return proposed ? withdraw.run({ event: id }) : true;
+    }
+    // A parent moves with the engagements linked under it (5.2, B18).
+    return children.length > 0 ? moveGroup.run({ event: id, start, end }) : move.run({ event: id, start, end });
+  };
+
+  /** The live engagements linked under an engagement. */
+  const childrenOf = (id: string): string[] =>
+    overlays.filter((o) => !o._deleted && o.parent === id && eventById.get(o.event ?? "")?.gone !== true && eventById.has(o.event ?? "")).map((o) => o.event ?? "");
+  const proposedAt = (event: string) => {
+    const p = proposals.find((q) => !q._deleted && q.kind !== "new" && q.event === event);
+    return p?.start && p.end ? { start: p.start, end: p.end } : undefined;
   };
 
   const onMove = (entryId: string, start: string, end: string) => {
@@ -227,7 +244,8 @@ export function Diary({ principalId }: { principalId: string }) {
     const earlier = pid !== undefined ? proposalById(pid) : proposals.find((p) => !p._deleted && p.kind !== "new" && p.event === eventIdOf(entryId));
     const before = earlier?.start && earlier.end ? { start: earlier.start, end: earlier.end } : undefined;
     const title = data.faces.get(entryId)?.title ?? "The meeting";
-    if (moveTo(entryId, start, end)) setLastMove({ entry: pid !== undefined ? entryId : eventIdOf(entryId), title, start, before });
+    const children = pid === undefined ? childrenOf(eventIdOf(entryId)).map((event) => ({ event, before: proposedAt(event) })) : [];
+    if (moveTo(entryId, start, end)) setLastMove({ entry: pid !== undefined ? entryId : eventIdOf(entryId), title, start, before, children });
   };
 
   /** Ctrl+Z straight after a move: back to the proposal it replaced, or no proposal at all. */
@@ -239,6 +257,10 @@ export function Diary({ principalId }: { principalId: string }) {
       if (pid !== undefined) moveTo(lastMove.entry, lastMove.before.start, lastMove.before.end);
       else move.run({ event: lastMove.entry, ...lastMove.before });
     } else if (pid === undefined) withdraw.run({ event: lastMove.entry });
+    for (const child of lastMove.children ?? []) {
+      if (child.before) move.run({ event: child.event, ...child.before });
+      else if (proposedAt(child.event)) withdraw.run({ event: child.event });
+    }
   };
 
   useEffect(() => {
@@ -309,7 +331,7 @@ export function Diary({ principalId }: { principalId: string }) {
           <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={undo}>Undo (Ctrl+Z)</Button>
         </p>
       )}
-      {[withdraw.error, drop.error, archive.error, move.error, renew.error].filter(Boolean).map((e) => <p key={e} role="alert" className="text-xs text-destructive">{e}</p>)}
+      {[withdraw.error, drop.error, archive.error, move.error, moveGroup.error, renew.error].filter(Boolean).map((e) => <p key={e} role="alert" className="text-xs text-destructive">{e}</p>)}
     </>
   );
 }

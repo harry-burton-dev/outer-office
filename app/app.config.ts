@@ -112,13 +112,16 @@ const config = {
     // leaves a ghost behind until it is done or withdrawn.
     // Version 2: a proposal can be a new meeting (kind "new", no event), with
     // the fields Outlook needs to create it.
+    // Version 3 (v0.3 brief): group, shared by the proposals one group move made
+    // (OUT-85); superseded, when a sync moved the event somewhere else (OUT-83).
     proposals: {
-      version: 2,
+      version: 3,
       fields: {
         event: str, principal: str, start: str, end: str, by: str, at: str,
         kind: str, subject: str, allDay: bool, location: str, online: bool,
         requiredAttendees: str, optionalAttendees: str, categories: str,
         showAs: str, importance: str, sensitivity: str, notes: "text",
+        group: str, superseded: str,
       },
     },
     // Card templates (OUT-62): a shape shown on the meeting and a form, as JSON
@@ -195,6 +198,7 @@ const config = {
         online: record.online ?? false, requiredAttendees: record.requiredAttendees ?? "", optionalAttendees: record.optionalAttendees ?? "",
         categories: record.categories ?? "", showAs: record.showAs ?? "", importance: record.importance ?? "", sensitivity: record.sensitivity ?? "", notes: record.notes ?? "",
       }),
+      2: (record) => ({ ...record, group: record.group ?? "", superseded: record.superseded ?? "" }),
     },
     tasks: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
     people: { 1: (record) => ({ ...record, watchOff: record.watchOff ?? "" }) },

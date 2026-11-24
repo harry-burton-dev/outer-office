@@ -142,10 +142,37 @@ export const proposalMove = defineCommand("proposal.move", (tx: Tx, input: Propo
   if (input.end <= input.start) tx.fail("The meeting must end after it starts.");
   const event = liveEvent(tx, id);
   if (input.start === event.start && input.end === event.end) tx.fail("That is where the meeting already is.");
-  const pid = proposalId(tx, id);
+  putMove(tx, now, event, input.start, input.end, "");
+});
+
+/** Puts one move proposal and logs it. A move made on its own leaves any group, and is no longer superseded. */
+function putMove(tx: Tx, now: string, event: { id: string; principal?: string; start?: string }, start: string, end: string, group: string): void {
+  const pid = proposalId(tx, event.id);
   if (tx.get("proposals", pid)?._deleted) tx.restore("proposals", pid);
-  tx.put("proposals", pid, { kind: "move", event: id, principal: event.principal ?? "", start: input.start, end: input.end, by: tx.user, at: now });
-  writeLog(tx, now, { area: "proposal", kind: "move", principal: event.principal ?? "", event: id, from: event.start ?? "", to: input.start });
+  tx.put("proposals", pid, { kind: "move", event: event.id, principal: event.principal ?? "", start, end, by: tx.user, at: now, group, superseded: "" });
+  writeLog(tx, now, { area: "proposal", kind: "move", principal: event.principal ?? "", event: event.id, from: event.start ?? "", to: start, note: group ? "With its linked engagements" : "" });
+}
+
+export type ProposalMoveGroupInput = ProposalMoveInput;
+
+/**
+ * Proposes a new time for a parent and, at the same offsets, for each engagement
+ * linked under it (5.2): one proposal each, sharing the parent's id as their group.
+ */
+export const proposalMoveGroup = defineCommand("proposal.moveGroup", (tx: Tx, input: ProposalMoveGroupInput) => {
+  const now = requireNow(tx, input);
+  const id = requireText(tx, input.event, "The engagement");
+  if (!isIsoInstant(input.start) || !isIsoInstant(input.end)) tx.fail("Choose a new date and time.");
+  if (input.end <= input.start) tx.fail("The meeting must end after it starts.");
+  const parent = liveEvent(tx, id);
+  const shift = Date.parse(input.start) - Date.parse(parent.start ?? "");
+  if (shift === 0 && Date.parse(input.end) === Date.parse(parent.end ?? "")) tx.fail("That is where the meeting already is.");
+  const children = tx.list("overlays").filter((o) => !o._deleted && o.parent === id).map((o) => tx.get("events", o.event ?? ""))
+    .filter((e): e is NonNullable<typeof e> => e !== undefined && !e._deleted && e.gone !== true && Boolean(e.start) && Boolean(e.end));
+  putMove(tx, now, parent, input.start, input.end, id);
+  const by = (iso: string) => new Date(Date.parse(iso) + shift).toISOString();
+  for (const child of children) putMove(tx, now, child, by(child.start ?? ""), by(child.end ?? ""), id);
+  return children.length + 1;
 });
 
 /** Withdraws the proposal for an event. */

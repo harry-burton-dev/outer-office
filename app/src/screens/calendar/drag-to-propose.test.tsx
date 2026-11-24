@@ -119,3 +119,19 @@ test("on the Proposed layer the proposal moves, its ghost doesn't, and back to O
   for (const k of ["ArrowUp", "ArrowUp", "ArrowUp", "ArrowUp", "ArrowUp", "Enter"]) fireEvent.keyDown(key, { key: k });
   expect(rows(app, "proposals")).toHaveLength(0);
 });
+
+test("moving a parent proposes a move for each engagement linked under it, and Ctrl+Z takes them all back (B18)", async () => {
+  let speech = "";
+  const { app, id } = await diary((s, a) => {
+    importEvents(s, MONDAY_NOW, a, [syntheticEvent("a2", { subject: "Speech", start: "2026-11-24T14:15:00Z", end: "2026-11-24T14:45:00Z" })]);
+    speech = eventIdOf(s.device, a, "a2");
+    s.run(overlaySet, { now: MONDAY_NOW, event: speech, parent: eventIdOf(s.device, a, "a1") });
+  });
+  keys("Budget review", "ArrowDown", "Enter");
+  const proposals = rows(app, "proposals");
+  expect(proposals).toHaveLength(2);
+  expect(proposals.find((p) => p.event === id)).toMatchObject({ start: "2026-11-24T14:15:00.000Z", group: id });
+  expect(proposals.find((p) => p.event === speech)).toMatchObject({ start: "2026-11-24T14:30:00.000Z", group: id });
+  act(() => void fireEvent.keyDown(window, { key: "z", ctrlKey: true }));
+  expect(rows(app, "proposals")).toHaveLength(0);
+});

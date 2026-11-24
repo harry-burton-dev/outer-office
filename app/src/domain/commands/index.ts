@@ -11,7 +11,7 @@ import { projectSave, sectionSave } from "./projects";
 import { ackPrivacy, setMode } from "./people";
 import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
-import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
+import { proposalDrop, proposalMove, proposalMoveGroup, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
 import { wizardApply } from "./wizard";
 import { automateRecordRun } from "./automate";
@@ -24,11 +24,12 @@ export const commands = {
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
   templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
   ruleSettingSet, updateSet, automateRecordRun,
-  wizardApply,
+  wizardApply, proposalMoveGroup,
 } as const;
 
 export { officeSave, principalSave, importApply, overlaySet, seriesOverlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, ruleSettingSet, updateSet, automateRecordRun };
 export { wizardApply } from "./wizard";
+export { proposalMoveGroup } from "./proposals";
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -39,7 +40,7 @@ export type { ProjectSaveInput, SectionSaveInput } from "./projects";
 export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } from "./tags";
 export type { TemplateSaveInput } from "./cards";
-export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
+export type { ProposalMoveInput, ProposalMoveGroupInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
 export type { WizardApplyInput } from "./wizard";
 export type { FlowRunInput, FlowOutcome } from "./automate";
