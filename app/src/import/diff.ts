@@ -62,3 +62,19 @@ export function diffImport(stored: readonly StoredEvent[], parsed: ParseResult):
     unchanged, skippedOlder, droppedPrivate: parsed.droppedPrivate, maskedPrivate: parsed.maskedPrivate,
   };
 }
+
+/** Fewer gone than this never needs confirming, whatever the share. */
+const GONE_GUARD_MIN = 3;
+
+/**
+ * True when applying would mark more than half of the stored events in the
+ * range gone (and at least GONE_GUARD_MIN): what an empty, truncated or wrong
+ * file looks like. The person must confirm before such a diff is applied.
+ */
+export function marksMostGone(diff: ImportDiff): boolean {
+  const gone = diff.gone.length;
+  return gone >= GONE_GUARD_MIN && gone * 2 > storedInRange(diff);
+}
+
+/** Stored events, not already gone, inside the diff's range. */
+export const storedInRange = (diff: ImportDiff): number => diff.gone.length + diff.changed.length + diff.unchanged + diff.skippedOlder;

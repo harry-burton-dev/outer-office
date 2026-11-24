@@ -5,6 +5,7 @@ import type { DiaryEvent } from "@/calendar/diary-calendar";
 import { addDays, weekdayOf } from "@/domain/dates";
 import { eventsForPrincipal, type Event, type Overlay } from "@/domain/selectors";
 import { eventTags, type Tag } from "@/domain/tags";
+import { ARCHIVE_REASONS } from "@/domain/commands/overlay";
 import { LENS_COLOUR, lensFill, type Lens } from "@/domain/lenses";
 
 const SATURDAY = 6;
@@ -18,7 +19,7 @@ export function openingDate(today: string): string {
   return today;
 }
 
-export type Mark = "Move proposed" | "Proposed" | "New" | "Gone from Outlook" | "Archived" | "Flagged" | "Moved";
+export type Mark = "Move proposed" | "Proposed" | "New" | "Gone from Outlook" | "Archived" | `Archived: ${string}` | "Flagged" | "Moved";
 export type Proposal = RowOf<"proposals">;
 
 /** The diary's layers, top to bottom: proposed changes, the live diary, and the graveyard of events gone from Outlook. */
@@ -100,6 +101,12 @@ export interface LayerOn {
 
 const isArchived = (overlay: Overlay | undefined): boolean => Boolean(overlay?.archived);
 
+/** "Archived: Cancelled", or plain "Archived" when no reason was kept. */
+const archivedMark = (reason: string | undefined): Mark => {
+  const label = ARCHIVE_REASONS.find((r) => r.value === reason)?.label;
+  return label ? `Archived: ${label}` : "Archived";
+};
+
 /** The principal's events gone from Outlook (deleted or cancelled there) or archived by the office, by start. */
 const graveyardOf = (events: readonly Event[], principal: string, overlayOf: ReadonlyMap<string, Overlay>): Event[] =>
   events
@@ -143,7 +150,7 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
     const proposed = isNew || proposalOf.has(id);
     const ghost = e.id !== id || (layer === "live" && proposed);
     const archived = isArchived(overlay);
-    const lead: Mark[] = layer === "graveyard" ? [archived ? "Archived" : "Gone from Outlook"] : isNew ? ["New"] : !proposed ? [] : ghost ? ["Move proposed"] : ["Proposed"];
+    const lead: Mark[] = layer === "graveyard" ? [archived ? archivedMark(overlay?.archiveReason) : "Gone from Outlook"] : isNew ? ["New"] : !proposed ? [] : ghost ? ["Move proposed"] : ["Proposed"];
     const marks = [...lead, ...marksFor(e, overlay)].slice(0, MAX_MARKS);
     const face: EventFace = { title: titleOf(e), marks, tags: own, ownTags: overlay?.tags ?? "", categories: e.categories ?? "", ghost, proposed, archived };
     // The slider veils the live diary behind the proposals, not the proposals themselves.
