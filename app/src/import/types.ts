@@ -31,6 +31,46 @@ export interface ImportedEvent {
   sensitivity?: string;
   /** CREATED, as ISO UTC. */
   created?: string;
+  // events v3 (OUT-83, v0.3-brief.md section 3). Optional because a source
+  // may not carry one; a field left out keeps what an earlier import stored.
+  /** Where it came from: automate (the sync), ics or csv. */
+  source?: EventSource;
+  /** single, occurrence or exception. */
+  kind?: EventKind;
+  /** The series UID: `uid` for an occurrence or exception, "" for a single event. */
+  seriesId?: string;
+  /** Graph's id; "" from a file. */
+  outlookId?: string;
+  /** JSON [{ name, address, type: required|optional|resource, response, respondedAt }]. */
+  attendees?: string;
+  organizerAddress?: string;
+  locationType?: string;
+  online?: boolean;
+  onlineProvider?: string;
+  joinUrl?: string;
+  hasAttachments?: boolean;
+  webLink?: string;
+  /** The principal's own response: accepted, tentative, declined, no response, organizer, or "". */
+  response?: string;
+  isOrganizer?: boolean;
+  responseRequested?: boolean;
+  allowNewTimeProposals?: boolean;
+  /** Plain text, never HTML. "" for masked items (D7). */
+  body?: string;
+  /** The item as received: Graph JSON, the VEVENT lines, or the CSV row as JSON. "" for masked items. */
+  raw?: string;
+}
+
+export type EventSource = "automate" | "ics" | "csv";
+export type EventKind = "single" | "occurrence" | "exception";
+
+/** One attendee in `attendees`. */
+export interface Attendee {
+  name: string;
+  address: string;
+  type: "required" | "optional" | "resource";
+  response: string;
+  respondedAt: string;
 }
 
 /** An event as stored in the `events` table. */
@@ -58,6 +98,8 @@ export interface ImportDiff {
   rangeEnd: string;
   added: readonly ImportedEvent[];
   changed: readonly EventChange[];
+  /** Fields the stored event never had, now filled in (see import/compare.ts). Not a change to the meeting. Left out means none. */
+  filled?: readonly EventChange[];
   /** Stored, not gone, inside the range, and absent from the file. */
   gone: readonly StoredEvent[];
   /** Stored as gone, and present in the file again. */

@@ -25,7 +25,7 @@ export class BackupError extends Error {
   }
 }
 
-const ENTRY_RE = /^(\d{8}T\d{6}Z)\/([a-z][a-z0-9_-]*)\.ywb$/;
+const ENTRY_RE = /^(\d{8}T\d{6}Z)\/([a-zA-Z][a-zA-Z0-9_-]*)\.ywb$/;
 
 /**
  * Back up every table the engine opens. tables and adapters are the engine's

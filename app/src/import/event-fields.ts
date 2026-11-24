@@ -15,6 +15,11 @@ export interface EventDetails {
   importance: string;
   sensitivity: string;
   created: string;
+  // events v3 (OUT-83)
+  attendees: string;
+  organizerAddress: string;
+  body: string;
+  raw: string;
 }
 
 const BUSY_STATUSES: Readonly<Record<string, string>> = { BUSY: "busy", TENTATIVE: "tentative", FREE: "free", OOF: "oof" };
@@ -64,6 +69,27 @@ const RESPONSES: Readonly<Record<string, string>> = {
   ACCEPTED: "accepted", TENTATIVE: "tentative", DECLINED: "declined", "NEEDS-ACTION": "no response", DELEGATED: "delegated",
 };
 
+const ROLE_TYPES: Readonly<Record<string, "optional" | "required">> = { "OPT-PARTICIPANT": "optional", "NON-PARTICIPANT": "optional" };
+
+/** Every attendee as the stored list: required, optional or resource (CUTYPE=RESOURCE or ROOM). */
+function attendeeListOf(component: Component): string {
+  const list = component.getAllProperties("attendee").map((prop) => {
+    const address = String(prop.getFirstValue() ?? "").replace(/^mailto:/i, "").trim();
+    const cn = prop.getParameter("cn");
+    const name = (Array.isArray(cn) ? cn.join(", ") : cn ?? "").trim();
+    const cutype = String(prop.getParameter("cutype") ?? "").toUpperCase();
+    const type = cutype === "RESOURCE" || cutype === "ROOM" ? "resource" : ROLE_TYPES[String(prop.getParameter("role") ?? "").toUpperCase()] ?? "required";
+    const response = RESPONSES[String(prop.getParameter("partstat") ?? "").toUpperCase()] ?? "";
+    return { name, address, type, response, respondedAt: "" };
+  }).filter((a) => a.name !== "" || a.address !== "");
+  return JSON.stringify(list);
+}
+
+function organizerAddressOf(component: Component): string {
+  const address = component.getFirstProperty("organizer")?.getFirstValue();
+  return typeof address === "string" ? address.replace(/^mailto:/i, "").trim() : "";
+}
+
 /** Attendees with the given ROLE, one per line: "Name <address> · response". */
 function attendeesOf(component: Component, optional: boolean): string {
   return component.getAllProperties("attendee")
@@ -102,6 +128,10 @@ export function detailsOf(component: Component): EventDetails {
     importance: importanceOf(component),
     sensitivity: sensitivityOf(component),
     created: utcIsoOf(component, "created"),
+    attendees: attendeeListOf(component),
+    organizerAddress: organizerAddressOf(component),
+    body: textOf(component, "description").replace(/\r\n/g, "\n").trim(),
+    raw: component.toString(),
   };
 }
 
@@ -111,4 +141,5 @@ export const isCancelled = (component: Component): boolean => textOf(component, 
 /** The private policy's "mask": times and showAs stay, everything identifying goes. */
 export const maskDetails = (details: EventDetails): EventDetails => ({
   ...details, subject: MASKED_SUBJECT, location: "", organizer: "", categories: "", requiredAttendees: "", optionalAttendees: "",
+  attendees: "[]", organizerAddress: "", body: "", raw: "",
 });

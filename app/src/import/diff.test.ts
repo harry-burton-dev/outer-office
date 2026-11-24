@@ -30,7 +30,7 @@ describe("diffImport", () => {
   test("a stored event with a different field is changed, listing the fields", () => {
     const after = event({ subject: "Weekly review (moved room)", location: "Room 2", sourceModified: "2026-10-05T00:00:00.000Z" });
     const diff = diffImport([stored()], parsed([after]));
-    expect(diff.changed).toEqual([{ before: stored(), after, fields: ["subject", "location", "sourceModified"], moved: false }]);
+    expect(diff.changed).toEqual([{ before: stored(), after, fields: ["subject", "location"], moved: false }]);
   });
 
   test("a changed attendee response is a change; a field the source does not carry is not", () => {

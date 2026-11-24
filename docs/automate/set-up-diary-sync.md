@@ -68,12 +68,18 @@ You need:
    **E.** Paste:
 
    ```text
-   &$top=999&$select=iCalUId,type,seriesMasterId,originalStart,start,end,isAllDay,isCancelled,subject,location,organizer,categories,showAs,sensitivity,lastModifiedDateTime,attendees
+   &$top=999&$select=id,iCalUId,type,seriesMasterId,originalStart,start,end,isAllDay,isCancelled,subject,location,locations,organizer,categories,showAs,sensitivity,importance,createdDateTime,lastModifiedDateTime,attendees,responseStatus,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,hasAttachments,webLink,isOrganizer,responseRequested,allowNewTimeProposals,body
    ```
 
    When you've finished, the box reads: piece A, a purple `startOfDay(...)` token, `&endDateTime=`, a second purple token, then piece E. There are no spaces anywhere.
 6. Leave **Body** empty. Leave **Content-Type** as it is.
-7. Optional: if the action shows a header box under **Advanced parameters**, add the header `Prefer` with the value `outlook.timezone="UTC"`. Outlook sends UTC without it, so you can skip this step.
+7. Under **Advanced parameters**, add the header `Prefer` with this value:
+
+   ```text
+   outlook.timezone="UTC", outlook.body-content-type="text"
+   ```
+
+   It asks for each meeting's body as plain text. If your action has no header box, skip this step: the app then turns the body Outlook sends into plain text itself.
 
 Don't change the `-7` or the `60`. The app works out the window from the file's name and expects those two numbers.
 

@@ -37,7 +37,8 @@ describe("date order", () => {
     const uk = parseCsv(ukText, UK);
     expect(uk.warnings).toEqual([]);
     expect(uk.events).toHaveLength(6);
-    expect(parseCsv(usText, US).events).toEqual(uk.events);
+    const fields = ({ raw: _raw, ...rest }: ImportedEvent) => rest;
+    expect(parseCsv(usText, US).events.map(fields)).toEqual(uk.events.map(fields));
   });
 
   test("the wrong order skips dates that can't exist, with a warning", () => {
@@ -55,7 +56,9 @@ describe("fields", () => {
       uid: `${CSV_UID_PREFIX}2026-11-23T09:00:00.000Z|Weekly team meeting|Alex Example`, recurrenceId: "",
       start: "2026-11-23T09:00:00.000Z", end: "2026-11-23T10:00:00.000Z", allDay: false, subject: "Weekly team meeting",
       location: "Room 1", organizer: "Alex Example", categories: "Internal, Team", showAs: "busy", masked: false, sourceModified: "",
+      source: "csv", kind: "single", seriesId: "", body: expect.any(String), raw: expect.any(String),
     });
+    expect(JSON.parse(bySubject(events, "Weekly team meeting")?.raw ?? "")).toMatchObject({ Subject: "Weekly team meeting" });
   });
 
   test("British Summer Time is applied to summer dates", () => {
