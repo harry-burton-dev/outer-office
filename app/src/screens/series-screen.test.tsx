@@ -62,6 +62,31 @@ test("standing clashes come first, and a series opens to its occurrences", async
   expect(JSON.parse(probe().panel)).toMatchObject({ kind: "engagement" });
 });
 
+test("a series' priority and Quiet apply to its occurrences still to come, not past ones (B42)", async () => {
+  const file = syntheticDiaries(new Date(NOW)).find((f) => f.fileName === "PRINCIPAL-B.ics")!;
+  const app = await renderApp({
+    seed: (s) => {
+      const principal = s.principal("PRINCIPAL-B");
+      s.run(importApply, { now: NOW, principal, file: file.fileName, diff: diffImport([], parseIcs(file.text, WINDOW)) });
+    },
+    children: <SeriesScreen />,
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Chair and CEO catch-up" }));
+  const settings = screen.getByRole("region", { name: "Office settings for Chair and CEO catch-up" });
+  fireEvent.change(within(settings).getByLabelText("Priority"), { target: { value: "1" } });
+  fireEvent.click(within(settings).getByRole("switch", { name: "Quiet" }));
+
+  const occurrences = rows(app.device, "events").filter((e) => e.subject === "Chair and CEO catch-up");
+  const overlayOf = new Map(rows(app.device, "overlays").map((o) => [o.event, o]));
+  const future = occurrences.filter((e) => (e.start ?? "") >= NOW);
+  const past = occurrences.filter((e) => (e.start ?? "") < NOW);
+  expect(future.length).toBeGreaterThan(0);
+  expect(past.length).toBeGreaterThan(0);
+  for (const e of future) expect(overlayOf.get(e.id)).toMatchObject({ priority: 1, quiet: true });
+  for (const e of past) expect(overlayOf.get(e.id)?.quiet ?? false).toBe(false);
+  expect(within(settings).getByLabelText("Priority")).toHaveProperty("value", "1");
+});
+
 test("a principal with no recurring meetings sees an empty state", async () => {
   await renderApp({ seed: (s) => s.principal("PRINCIPAL-A"), children: <SeriesScreen /> });
   expect(screen.getByText("No recurring meetings")).toBeTruthy();
