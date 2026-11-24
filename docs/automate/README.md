@@ -2,7 +2,7 @@
 
 Power Automate does one thing for Outer Office: it reads a principal's Outlook calendar and saves Outlook's answer, untouched, as a file in the shared folder. The app does everything else.
 
-To build the flow, follow **[set-up-diary-sync.md](set-up-diary-sync.md)**. It has three steps and takes about ten minutes per principal.
+To build the flow, follow **[set-up-diary-sync.md](../../app/src/automate/guides/set-up-diary-sync.md)**, which the app also shows on its **Automate** page. It has three steps and takes about ten minutes per principal.
 
 ## What the flow does
 

@@ -167,6 +167,16 @@ const config = {
         source: str,
       },
     },
+    // The last file each Power Automate flow left for a principal, and what the
+    // app did with it (OUT-91), for the Automate page. One record per flow and
+    // principal code, overwritten on each run. An unchanged run counts too.
+    flowRuns: {
+      version: 1,
+      fields: {
+        flow: str, principal: str, file: str, fileAt: str, readAt: str, readBy: str,
+        outcome: str, reason: str, added: num, changed: num, gone: num, events: num,
+      },
+    },
   },
   migrations: {
     office: {
