@@ -1,13 +1,17 @@
 // Series (OUT-87): a principal's recurring meetings as a whole, worked out from
 // the stored occurrences. Pure: no hooks.
 //
-// A series is every event of one principal sharing a UID with a recurrence id
-// (the brief's seriesId). CSV engagements have no recurrence id, so never
-// appear. Each occurrence keeps its original slot in recurrenceId, so:
+// A series is every event of one principal sharing a seriesId (the series
+// UID). CSV engagements have none, so never appear. Each occurrence keeps its
+// original slot in recurrenceId, so:
 // - moved: its start is not its original slot;
 // - cancelled: gone from Outlook while a later occurrence is still there;
 // - cut: gone with nothing later, so the series was cut short.
+import type { RowOf } from "@trellis/framework";
 import type { Event } from "./selectors";
+
+/** The series record an import writes (OUT-83): it carries the pattern when the flow fetches masters. */
+export type SeriesRecord = RowOf<"series">;
 
 const DAY_MS = 86_400_000;
 const HOUR_MS = 3_600_000;
@@ -42,6 +46,8 @@ export interface Series {
   principal: string;
   /** The subject of the latest occurrence still in Outlook. */
   subject: string;
+  /** The pattern text from the series record, or "" when the flow doesn't fetch masters. */
+  pattern: string;
   /** Every occurrence stored, in order of original slot. */
   occurrences: SeriesOccurrence[];
   /** The next occurrence still in Outlook that hasn't started, if any. */
@@ -101,7 +107,7 @@ function healthOf(occurrences: readonly SeriesOccurrence[], now: number): Series
   };
 }
 
-function seriesFrom(key: string, principal: string, events: readonly Event[], now: number): Series {
+function seriesFrom(key: string, principal: string, events: readonly Event[], now: number, pattern: string): Series {
   const occurrences = statesOf(events);
   const live = occurrences.filter((o) => o.state !== "cancelled" && o.state !== "cut").map((o) => o.event);
   const byStart = [...live].sort((a, b) => ms(a.start) - ms(b.start));
@@ -110,6 +116,7 @@ function seriesFrom(key: string, principal: string, events: readonly Event[], no
     key,
     principal,
     subject: last?.subject ?? occurrences[occurrences.length - 1]?.event.subject ?? "",
+    pattern,
     occurrences,
     next: byStart.find((e) => ms(e.start) >= now),
     count: live.length,
@@ -121,16 +128,17 @@ function seriesFrom(key: string, principal: string, events: readonly Event[], no
 }
 
 /** A principal's series, the ones with an occurrence still to come first, each group by next or last start. */
-export function seriesFor(events: readonly Event[], principal: string, now: string): Series[] {
+export function seriesFor(events: readonly Event[], principal: string, now: string, records: readonly SeriesRecord[] = []): Series[] {
   const at = ms(now);
   const groups = new Map<string, Event[]>();
   for (const event of events) {
-    if (event._deleted || event.principal !== principal || !event.uid || !event.recurrenceId) continue;
-    const group = groups.get(event.uid) ?? [];
+    if (event._deleted || event.principal !== principal || !event.seriesId) continue;
+    const group = groups.get(event.seriesId) ?? [];
     group.push(event);
-    groups.set(event.uid, group);
+    groups.set(event.seriesId, group);
   }
-  const all = [...groups].map(([key, group]) => seriesFrom(key, principal, group, at));
+  const patterns = new Map(records.filter((r) => !r._deleted && r.principal === principal).map((r) => [r.seriesId ?? "", r.pattern ?? ""]));
+  const all = [...groups].map(([key, group]) => seriesFrom(key, principal, group, at, patterns.get(key) ?? ""));
   const upcoming = all.filter((s) => s.next !== undefined).sort((a, b) => ms(a.next?.start) - ms(b.next?.start) || a.key.localeCompare(b.key));
   const ended = all.filter((s) => s.next === undefined).sort((a, b) => ms(b.end) - ms(a.end) || a.key.localeCompare(b.key));
   return [...upcoming, ...ended];

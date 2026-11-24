@@ -1,6 +1,7 @@
-// Tags: the office's labels and their colours, shared by tasks and events.
-// A meeting carries a tag automatically when one of its Outlook categories has
-// the tag's name. Right-click a meeting or a task to tag it by hand.
+// Tags: the office's labels and their colours, shared by tasks and events,
+// then the Outlook categories the diary has used (OUT-83). The two are
+// separate lists: a category never tags a meeting. Right-click a meeting or a
+// task to tag it.
 import { useState, type FormEvent } from "react";
 import { useCommand, useRecords } from "@trellis/framework";
 import { Trash2 } from "lucide-react";
@@ -14,7 +15,10 @@ import { commands } from "@/domain/commands";
 import { sortedTags, TAG_COLOURS, type Tag } from "@/domain/tags";
 import { TagDot } from "./tag-dot";
 
-const DESCRIPTION = "Tags colour the diary and the task lists. A meeting gets a tag by itself when its Outlook category has the same name.";
+const DESCRIPTION = "Tags are the office's own labels. They colour the diary and the task lists.";
+const CATEGORIES_DESCRIPTION = "Found in Outlook by each import. Set their colours here; their names come from Outlook.";
+
+type Coloured = { id: string; name?: string; colour?: string };
 
 function useRun() {
   const { now } = useApp();
@@ -31,7 +35,7 @@ function useRun() {
   };
 }
 
-function ColourPicker({ tag, onPick, disabled }: { tag: Tag; onPick(colour: string): void; disabled: boolean }) {
+function ColourPicker({ tag, onPick, disabled }: { tag: Coloured; onPick(colour: string): void; disabled: boolean }) {
   const current = TAG_COLOURS.find((c) => c.value === tag.colour)?.name ?? "No colour";
   return (
     <DropdownMenu>
@@ -92,6 +96,32 @@ function AddTag({ run }: { run: ReturnType<typeof useRun> }) {
   );
 }
 
+function OutlookCategories({ readOnly }: { readOnly: boolean }) {
+  const { now } = useApp();
+  const save = useCommand(commands.categorySave);
+  const categories = useRecords("categories")
+    .filter((c) => !c._deleted && (c.name ?? "") !== "")
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.name ?? "").localeCompare(b.name ?? ""));
+  return (
+    <section aria-labelledby="outlook-categories" className="flex flex-col gap-2">
+      <h2 id="outlook-categories" className="text-base font-medium">Outlook categories</h2>
+      <p className="text-sm text-muted-foreground">{CATEGORIES_DESCRIPTION}</p>
+      {categories.length === 0 ? (
+        <p className="text-sm text-muted-foreground">None yet. They appear after an import that uses one.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {categories.map((c) => (
+            <li key={c.id} className="flex items-center gap-2">
+              <ColourPicker tag={c} disabled={readOnly} onPick={(colour) => save({ now, id: c.id, colour })} />
+              <span className="flex-1">{c.name}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export function TagsScreen() {
   const { isViewer } = useApp();
   const tags = sortedTags(useRecords("tags"));
@@ -102,12 +132,13 @@ export function TagsScreen() {
       {!isViewer && <AddTag run={run} />}
       {run.error && <p className="text-sm text-destructive" role="alert">{run.error}</p>}
       {tags.length === 0 ? (
-        <EmptyState title="No tags yet" body={isViewer ? undefined : "Add one above. Name it after an Outlook category to colour those meetings."} />
+        <EmptyState title="No tags yet" body={isViewer ? undefined : "Add one above."} />
       ) : (
         <ul className="flex flex-col gap-2">
           {tags.map((tag) => <TagRow key={tag.id} tag={tag} run={run} readOnly={isViewer} />)}
         </ul>
       )}
+      <OutlookCategories readOnly={isViewer} />
     </div>
   );
 }

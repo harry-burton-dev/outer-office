@@ -29,6 +29,7 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
   "principal-added": "Principal added", "principal-changed": "Principal changed",
   move: "Move proposed", withdraw: "Proposal withdrawn", new: "Meeting proposed", settled: "Found in Outlook",
   archived: "Archived", unarchived: "Back from the archive", "card-ready": "Card ready",
+  "tag-added": "Tag added", "tag-removed": "Tag removed",
 };
 
 /** A log kind in plain words: "prep" is "Prep changed"; an unknown kind is tidied. */
