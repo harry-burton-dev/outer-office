@@ -1,13 +1,15 @@
 // import.apply: a confirmed diff into `events`. Each event is checked again
 // against what is stored when the command runs, so applying a diff twice, or
 // on two computers, lands on one set of events. Overlays and tasks are never
-// touched.
+// touched, except that a future occurrence an import adds takes its series'
+// tags, Quiet and priority (D8).
 import { defineCommand, type RowOf, type Tx } from "@trellis/framework";
 import type { ImportDiff, ImportedEvent, StoredEvent } from "../../import/types";
 import { isIsoInstant, requireNow, requireText, writeLog } from "./shared";
 import { settleProposals } from "./proposals";
 import { HISTORY_SKIPS, V3_FIELDS, fieldChanges, valueOf, type ComparedField } from "../../import/compare";
 import { TAG_COLOURS } from "../tags";
+import { applySeriesValues, NO_SERIES_VALUES, seriesOverlayId } from "./series-overlay";
 
 export interface ImportApplyInput {
   now: string;
@@ -175,6 +177,18 @@ function recordSeries(tx: Tx, principal: string, written: ReadonlyMap<string, Wr
   }
 }
 
+/** A future occurrence this run added takes its series' values (D8). */
+function applySeriesOverlays(tx: Tx, now: string, principal: string, added: readonly ImportedEvent[], written: ReadonlyMap<string, Written>): void {
+  for (const event of added) {
+    const id = eventId(tx, principal, event);
+    const seriesId = written.get(id)?.seriesId ?? "";
+    if (seriesId === "" || event.start < now) continue;
+    const values = tx.get("seriesOverlays", seriesOverlayId(tx, principal, seriesId));
+    if (!values || values._deleted) continue;
+    applySeriesValues(tx, id, NO_SERIES_VALUES, { tags: values.tags ?? "", quiet: values.quiet ?? false, priority: values.priority ?? 4 });
+  }
+}
+
 function applyGone(tx: Tx, now: string, principal: string, importId: string, event: StoredEvent, written: Map<string, Written>): boolean {
   const id = eventId(tx, principal, event);
   const stored = tx.get("events", id);
@@ -205,6 +219,7 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
   const gone = input.diff.gone.filter((event) => applyGone(tx, now, principal, importId, event, written)).length;
   recordCategories(tx, now, incoming);
   recordSeries(tx, principal, written);
+  applySeriesOverlays(tx, now, principal, incoming.filter((_, i) => kinds[i] === "added"), written);
   const count = (kind: Kind) => kinds.filter((k) => k === kind).length;
   const result = { importId, added: count("added"), changed: count("changed") + count("moved"), gone, returned: count("returned") };
   const { rangeStart, rangeEnd } = input.diff;

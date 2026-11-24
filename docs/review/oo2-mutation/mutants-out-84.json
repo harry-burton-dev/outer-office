@@ -22,5 +22,12 @@
  {"id": "OUT84-B21", "what": "overlay.set: priority 0 is allowed", "file": "app/src/domain/commands/overlay.ts", "find": "![1, 2, 3, 4].includes(value)", "replace": "![0, 1, 2, 3, 4].includes(value)"},
  {"id": "OUT84-B22", "what": "overlay.set: a priority change isn't logged", "file": "app/src/domain/commands/overlay.ts", "find": "if (fields.priority !== undefined && fields.priority !== priority) writeLog", "replace": "if (false) writeLog"},
  {"id": "OUT84-B23", "what": "Priority lens: p4 reads as full colour", "file": "app/src/domain/lenses.ts", "find": "overlay?.priority ?? 4", "replace": "overlay?.priority ?? 1"},
- {"id": "OUT84-B24", "what": "migration: old overlays read as quiet", "file": "app/app.config.ts", "find": "quiet: record.quiet ?? false", "replace": "quiet: record.quiet ?? true"}
+ {"id": "OUT84-B24", "what": "migration: old overlays read as quiet", "file": "app/app.config.ts", "find": "quiet: record.quiet ?? false", "replace": "quiet: record.quiet ?? true"},
+ {"id": "OUT84-B25", "what": "seriesOverlay: past occurrences get the values too", "file": "app/src/domain/commands/series-overlay.ts", "find": "(e.start ?? \"\") >= now", "replace": "true"},
+ {"id": "OUT84-B26", "what": "seriesOverlay: dropped series tags stay on", "file": "app/src/domain/commands/series-overlay.ts", "find": "own.filter((t) => !dropped.has(t))", "replace": "own"},
+ {"id": "OUT84-B27", "what": "seriesOverlay: series tags replace an occurrence's own", "file": "app/src/domain/commands/series-overlay.ts", "find": "[...own.filter((t) => !dropped.has(t)), ...tagIdsOf(after.tags)]", "replace": "[...tagIdsOf(after.tags)]"},
+ {"id": "OUT84-B28", "what": "seriesOverlay: an unchanged priority overwrites the occurrence's", "file": "app/src/domain/commands/series-overlay.ts", "find": "after.priority !== before.priority ? after.priority : (live?.priority ?? 4)", "replace": "after.priority"},
+ {"id": "OUT84-B29", "what": "seriesOverlay: gone occurrences get the values", "file": "app/src/domain/commands/series-overlay.ts", "find": " && e.gone !== true", "replace": ""},
+ {"id": "OUT84-B30", "what": "import: added occurrences skip the series values", "file": "app/src/domain/commands/import.ts", "find": "  applySeriesOverlays(tx, now, principal, incoming.filter((_, i) => kinds[i] === \"added\"), written);\n", "replace": ""},
+ {"id": "OUT84-B31", "what": "import: a past added occurrence takes the series values", "file": "app/src/domain/commands/import.ts", "find": " || event.start < now", "replace": ""}
 ]

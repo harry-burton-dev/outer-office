@@ -70,6 +70,13 @@ const config = {
         firstStart: str, lastStart: str, count: num, exceptions: num,
       },
     },
+    // The office's tags, Quiet and priority on a whole series (OUT-84, D8).
+    // Id tx.id("seriesOverlay", series record id). They apply to future
+    // occurrences, and to occurrences a later import adds. Office data only.
+    seriesOverlays: {
+      version: 1,
+      fields: { series: str, tags: str, quiet: bool, priority: num },
+    },
     overlays: {
       version: 5,
       // Version 2: tags, comma-separated tag ids (OUT-76).
