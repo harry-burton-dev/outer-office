@@ -124,6 +124,18 @@ const config = {
         group: str, superseded: str,
       },
     },
+    // A viewer's suggestion (OUT-85, D15): what their drag, Find a time choice
+    // or clash-wizard fix would have done. It changes nothing until an
+    // assistant takes it (it becomes the proposal, quiet flag, link or note it
+    // describes) or dismisses it. kind: move, quiet, link or note; state: open,
+    // taken or dismissed.
+    suggestions: {
+      version: 1,
+      fields: {
+        event: str, principal: str, by: str, at: str, kind: str,
+        start: str, end: str, parent: str, note: "text", state: str, doneBy: str,
+      },
+    },
     // Card templates (OUT-62): a shape shown on the meeting and a form, as JSON
     // fields [{ id, label, type, options, required }].
     templates: {
