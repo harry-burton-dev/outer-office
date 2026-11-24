@@ -1,0 +1,8 @@
+[
+ {"id":"OUT83-A29","what":"History: a changed field the stored source carried is filed as filled in, not changed","file":"app/src/import/compare.ts","find":"    if (never) filled.push(field);","replace":"    if (never || V3.has(field)) filled.push(field);"},
+ {"id":"OUT83-A30","what":"History: the body's text is copied into history","file":"app/src/domain/commands/import.ts","find":"const secret = field === \"body\";","replace":"const secret = false;"},
+ {"id":"OUT83-A31","what":"Series: an occurrence gone from the end counts as an exception","file":"app/src/domain/commands/import.ts","find":"all.filter((r) => r.gone && r.start < lastLive).length","replace":"all.filter((r) => r.gone).length"},
+ {"id":"OUT83-A32","what":"Categories: names that differ only in case make two records","file":"app/src/domain/commands/import.ts","find":"tx.id(\"category\", name.toLowerCase())","replace":"tx.id(\"category\", name)"},
+ {"id":"OUT83-A33","what":"Masking: a private sync item keeps its raw item","file":"app/src/import/parse-automate.ts","find":"...fields, raw: blank(event.raw, \"\"),","replace":"...fields, raw: carried(event.raw),"},
+ {"id":"OUT83-A34","what":"Filling in: a pre-v3 row's new fields are reported as changes","file":"app/src/import/compare.ts","find":"const carried = stored.source ? CARRIED[stored.source] : undefined;","replace":"const carried = CARRIED[stored.source ?? \"automate\"] ?? CARRIED.automate;"}
+]
