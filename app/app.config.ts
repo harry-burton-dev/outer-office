@@ -32,6 +32,18 @@ const config = {
       version: 1,
       fields: { userId: str, scope: str, at: str },
     },
+    // A user's switch, amount and surfaces for one built-in rule (v0.3 brief 5.3, OUT-86).
+    // Id tx.id("ruleSetting", userId, rule). surfaces is a comma list of home, needs, badge.
+    ruleSettings: {
+      version: 1,
+      fields: { userId: str, rule: str, on: bool, amount: num, surfaces: str },
+    },
+    // A user's state for one update, by its coalesce key (OUT-86): seen, dismissed,
+    // snoozed (until) or pinned. at is the newest change the update held then.
+    updateState: {
+      version: 1,
+      fields: { userId: str, key: str, state: str, until: str, at: str },
+    },
     events: {
       version: 3,
       fields: {
