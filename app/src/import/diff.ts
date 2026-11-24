@@ -3,6 +3,7 @@
 import type { EventChange, ImportDiff, ImportedEvent, StoredEvent } from "./types";
 import { eventKey } from "./types";
 import { fieldChanges } from "./compare";
+import { findRekeys } from "./rekey";
 import type { ParseResult } from "./parse-ics";
 
 const change = (before: StoredEvent, after: ImportedEvent, fields: readonly string[]): EventChange =>
@@ -42,8 +43,9 @@ export function diffImport(stored: readonly StoredEvent[], parsed: ParseResult):
     else filled.push(change(before, after, fields.filled));
   }
   const gone = stored.filter((e) => !e.gone && !fileKeys.has(eventKey(e)) && isInRange(e, parsed.rangeStart, parsed.rangeEnd));
+  const rekeys = findRekeys({ added, gone });
   return {
-    rangeStart: parsed.rangeStart, rangeEnd: parsed.rangeEnd, added, changed, filled, gone, returned,
+    rangeStart: parsed.rangeStart, rangeEnd: parsed.rangeEnd, added, changed, filled, gone, returned, ...(rekeys.length > 0 && { rekeys }),
     unchanged, skippedOlder, droppedPrivate: parsed.droppedPrivate, maskedPrivate: parsed.maskedPrivate,
   };
 }
@@ -57,7 +59,9 @@ const GONE_GUARD_MIN = 3;
  * file looks like. The person must confirm before such a diff is applied.
  */
 export function marksMostGone(diff: ImportDiff): boolean {
-  const gone = diff.gone.length;
+  // Occurrences a series re-key moves aren't lost.
+  const moved = (diff.rekeys ?? []).filter((r) => !r.ambiguous).reduce((n, r) => n + r.pairs.length, 0);
+  const gone = diff.gone.length - moved;
   return gone >= GONE_GUARD_MIN && gone * 2 > storedInRange(diff);
 }
 
