@@ -83,16 +83,19 @@ const config = {
     // Tab templates (OUT-88): a name, a shape and card templates in order
     // (cards, a comma list of template ids). Applying one to a meeting adds a
     // tab with those cards. Editing one bumps version; tabs keep their copy.
+    // triggerKind is none, tag or category, and trigger that tag's or
+    // category's id. tasks is JSON [{ title, daysBefore, owner }].
     tabTemplates: {
       version: 1,
-      fields: { name: str, shape: str, cards: str, order: num, version: num },
+      fields: { name: str, shape: str, cards: str, triggerKind: str, trigger: str, tasks: "text", order: num, version: num },
     },
     // A tab on a meeting, id tx.id("tab", event, tabTemplate): at most one per
     // meeting per tab template. version is the template's when it was applied
     // or last updated; via is how it came (hand, tag, category or series).
+    // orphaned is when its trigger was removed while it had content ("" otherwise).
     tabs: {
       version: 1,
-      fields: { event: str, tabTemplate: str, version: num, appliedAt: str, appliedBy: str, via: str },
+      fields: { event: str, tabTemplate: str, version: num, appliedAt: str, appliedBy: str, via: str, orphaned: str },
     },
     projects: {
       version: 1,

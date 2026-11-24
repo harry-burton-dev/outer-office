@@ -140,7 +140,10 @@ export const tabTemplateSave = defineCommand("tabTemplate.save", (tx: Tx, input:
   }
   const id = current?.id ?? tx.newId();
   const order = current?.order ?? live.reduce((max, t) => Math.max(max, (t.order ?? 0) + 1), 0);
-  tx.put("tabTemplates", id, { name, shape, cards: cards.join(","), order, version: (current?.version ?? 0) + 1 });
+  tx.put("tabTemplates", id, {
+    name, shape, cards: cards.join(","), order, version: (current?.version ?? 0) + 1,
+    ...(!current && { triggerKind: "none", trigger: "", tasks: "[]" }),
+  });
   return id;
 });
 
@@ -162,7 +165,7 @@ export function applyTab(tx: Tx, now: string, event: string, tabTemplate: { id: 
   const current = tx.get("tabs", id);
   if (current && !current._deleted) return id;
   if (current?._deleted) tx.restore("tabs", id);
-  tx.put("tabs", id, { event, tabTemplate: tabTemplate.id, version: tabTemplate.version ?? 0, appliedAt: now, appliedBy: tx.user, via });
+  tx.put("tabs", id, { event, tabTemplate: tabTemplate.id, version: tabTemplate.version ?? 0, appliedAt: now, appliedBy: tx.user, via, orphaned: "" });
   let order = nextCardOrder(tx, event);
   for (const cardTemplate of cardTemplatesOf(tabTemplate.cards)) {
     const t = tx.get("templates", cardTemplate);
