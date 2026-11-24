@@ -10,9 +10,11 @@ type Event = RowOf<"events">;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WINDOW_MS = 365 * DAY_MS;
 
-/** Which series an engagement belongs to: its principal and uid when it is an occurrence, "" for a single event. */
-// TODO(OUT-83): read events.seriesId once it lands.
-const seriesKeyOf = (e: Event): string => ((e.recurrenceId ?? "") !== "" ? `${e.principal ?? ""}|${e.uid ?? ""}` : "");
+/** Which series an engagement belongs to: its principal and series id, or its uid for an occurrence imported before series ids; "" for a single event. */
+const seriesKeyOf = (e: Event): string => {
+  const series = (e.seriesId ?? "") !== "" ? e.seriesId : (e.recurrenceId ?? "") !== "" ? e.uid : "";
+  return series ? `${e.principal ?? ""}|${series}` : "";
+};
 
 const sameOrganiser = (a: Event, b: Event): boolean => (a.organizer ?? "").trim() !== "" && (a.organizer ?? "").trim().toLowerCase() === (b.organizer ?? "").trim().toLowerCase();
 
