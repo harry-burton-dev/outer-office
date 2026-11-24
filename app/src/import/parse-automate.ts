@@ -103,6 +103,37 @@ function keyOf(event: DiaryEvent, masters: ReadonlyMap<string, string>, zone: st
   return { uid, recurrenceId: toIso(original) };
 }
 
+const RESPONSES: Readonly<Record<string, string>> = {
+  accepted: "accepted", tentativelyAccepted: "tentative", declined: "declined", notResponded: "no response",
+};
+
+interface GraphAttendee {
+  type?: string;
+  status?: { response?: string } | null;
+  emailAddress?: { name?: string | null; address?: string | null } | null;
+}
+
+/** Graph attendees of one kind, one per line as the .ics parser writes them: "Name <address> · response". */
+function attendeesOf(list: readonly object[], optional: boolean): string {
+  return (list as readonly GraphAttendee[])
+    .filter((a) => (a.type === "optional") === optional)
+    .map((a) => {
+      const address = a.emailAddress?.address?.trim() ?? "";
+      const name = a.emailAddress?.name?.trim() ?? "";
+      const who = name && address && name !== address ? `${name} <${address}>` : address || name;
+      return [who, RESPONSES[a.status?.response ?? ""] ?? ""].filter(Boolean).join(" · ");
+    })
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+/** Both attendee lists, or nothing when the payload has no attendees, so a missing list is not read as "none". */
+function attendeeFields(event: DiaryEvent, masked: boolean): Pick<ImportedEvent, "requiredAttendees" | "optionalAttendees"> {
+  if (!Array.isArray(event.attendees)) return {};
+  if (masked) return { requiredAttendees: "", optionalAttendees: "" };
+  return { requiredAttendees: attendeesOf(event.attendees, false), optionalAttendees: attendeesOf(event.attendees, true) };
+}
+
 function toImported(event: DiaryEvent, masters: ReadonlyMap<string, string>, zone: string, masked: boolean): ImportedEvent {
   if (!event.isAllDay && event.timeZone !== "UTC") {
     throw new Refusal(`"${event.subject}" is in time zone "${event.timeZone ?? ""}", not UTC. The flow's calendar read needs the header Prefer: outlook.timezone="UTC".`);
@@ -117,6 +148,7 @@ function toImported(event: DiaryEvent, masters: ReadonlyMap<string, string>, zon
   return {
     ...keyOf(event, masters, zone), start: toIso(startMs), end: toIso(Math.max(startMs, at(event.end))), allDay: event.isAllDay,
     ...details, ...(masked ? { subject: MASKED_SUBJECT, location: "", organizer: "", categories: "" } : {}), masked,
+    ...attendeeFields(event, masked),
   };
 }
 
