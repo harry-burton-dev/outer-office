@@ -151,3 +151,55 @@ export function isEnding(series: Series, now: string): boolean {
   const at = ms(now);
   return end > at && end - at <= ENDING_NOTICE_DAYS * DAY_MS;
 }
+
+/** A clash between two engagements, by event id: the shape of OUT-84's clashes(). */
+export interface ClashPair {
+  first: string;
+  second: string;
+}
+
+export interface StandingClash {
+  /** The two series' keys, sorted and joined: stable, for the update's coalesce key. */
+  key: string;
+  /** The series that clashes on the larger share of its own occurrences. */
+  a: Series;
+  b: Series;
+  /** How many of a's occurrences still in Outlook clash with one of b's. */
+  clashing: number;
+}
+
+/**
+ * Two series clash standing when they clash on at least half of either one's
+ * occurrences still in Outlook. Each pair shows once, the worst first.
+ */
+export function standingClashes(series: readonly Series[], clashes: readonly ClashPair[]): StandingClash[] {
+  const seriesOf = new Map<string, Series>();
+  for (const s of series) for (const o of s.occurrences) seriesOf.set(o.event.id, s);
+  // For each ordered pair of series, the occurrences of the first that clash with the second.
+  const hits = new Map<Series, Map<Series, Set<string>>>();
+  const hit = (from: string, to: string) => {
+    const a = seriesOf.get(from);
+    const b = seriesOf.get(to);
+    if (!a || !b || a === b) return;
+    const row = hits.get(a) ?? new Map<Series, Set<string>>();
+    hits.set(a, row);
+    const ids = row.get(b) ?? new Set<string>();
+    row.set(b, ids);
+    ids.add(from);
+  };
+  for (const c of clashes) {
+    hit(c.first, c.second);
+    hit(c.second, c.first);
+  }
+  const found = new Map<string, StandingClash & { share: number }>();
+  for (const [a, row] of hits) {
+    for (const [b, ids] of row) {
+      if (a.count === 0 || ids.size * 2 < a.count) continue;
+      const key = [a.key, b.key].sort().join("|");
+      const share = ids.size / a.count;
+      const seen = found.get(key);
+      if (!seen || share > seen.share) found.set(key, { key, a, b, clashing: ids.size, share });
+    }
+  }
+  return [...found.values()].sort((x, y) => y.share - x.share || x.key.localeCompare(y.key)).map(({ share: _share, ...rest }) => rest);
+}
