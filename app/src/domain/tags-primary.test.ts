@@ -8,16 +8,12 @@ const TAGS = [tag("a", "Board", 1), tag("b", "Urgent", 2), tag("c", "Travel", 3)
 describe("primary tag", () => {
   test("the first own tag leads, the rest keep tag order", () => {
     expect(taskTags("c,a,b", TAGS).map((t) => t.id)).toEqual(["c", "a", "b"]);
-    expect(eventTags("Board", "b", TAGS).map((t) => t.id)).toEqual(["b", "a"]);
+    expect(eventTags("b,a", TAGS).map((t) => t.id)).toEqual(["b", "a"]);
   });
 
-  test("with only category tags, tag order decides", () => {
-    expect(eventTags("Travel,Board", "", TAGS).map((t) => t.id)).toEqual(["a", "c"]);
-  });
-
-  test("makePrimary moves a tag to the front, adding a category tag to the own tags", () => {
+  test("makePrimary moves a tag to the front", () => {
     expect(makePrimary("a,b", "b")).toEqual(["b", "a"]);
     expect(makePrimary("b", "a")).toEqual(["a", "b"]);
-    expect(eventTags("Board", makePrimary("b", "a").join(","), TAGS)[0]?.id).toBe("a");
+    expect(eventTags(makePrimary("b", "a").join(","), TAGS)[0]?.id).toBe("a");
   });
 });
