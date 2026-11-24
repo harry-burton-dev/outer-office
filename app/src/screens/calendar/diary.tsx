@@ -162,9 +162,9 @@ export function Diary({ principalId }: { principalId: string }) {
 
   const eventById = useMemo(() => new Map(events.filter((e) => !e._deleted).map((e) => [e.id, e])), [events]);
 
-  /** An engagement that isn't masked, gone, archived or all-day can be moved, and so can a proposal; a ghost can't. Viewers can't yet (D15). */
+  /** An engagement that isn't masked, gone, archived or all-day can be moved, and so can a proposal; a ghost can't. Viewers get no onMove at all (their suggestions, D15, come later). */
   const canMove = useCallback((entryId: string): boolean => {
-    if (isViewer || layer === "graveyard") return false;
+    if (layer === "graveyard") return false;
     const face = data.faces.get(entryId);
     if (!face || face.archived) return false;
     const pid = proposalIdOf(entryId);
@@ -172,7 +172,7 @@ export function Diary({ principalId }: { principalId: string }) {
     if (layer === "proposed" && face.ghost) return false;
     const event = eventById.get(eventIdOf(entryId));
     return event !== undefined && event.masked !== true && event.gone !== true && event.allDay !== true;
-  }, [isViewer, layer, data, proposals, eventById]);
+  }, [layer, data, proposals, eventById]);
 
   /** Moves a proposed new meeting, or proposes (or re-proposes) a move; back to where Outlook has it withdraws the proposal. */
   const moveTo = (entryId: string, start: string, end: string): boolean => {

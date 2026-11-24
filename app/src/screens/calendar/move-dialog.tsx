@@ -1,12 +1,19 @@
-// Propose a move: pick a new day and start time; the length stays the same.
-// The event stays where Outlook has it until the change is made there.
+// Propose a move: pick a new day and start time, or one of the next free slots
+// from Find a time; the length stays the same. The event stays where Outlook
+// has it until the change is made there.
 import { useState, type FormEvent } from "react";
+import { useRecords } from "@trellis/framework";
+import { useApp } from "@/app/app-state";
+import { useOffice } from "@/app/frame-data";
+import { findATime, type Slot } from "@/domain/find-a-time";
+import type { Event } from "@/domain/selectors";
+import { DEFAULT_DAY_END, DEFAULT_DAY_START, newId, type Proposal } from "./calendar-data";
 import { Button } from "@/components/ui/button";
 import { DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { commands } from "@/domain/commands";
-import { dateIn, formatTime, instantIn } from "@/domain/dates";
+import { dateIn, formatDay, formatTime, instantIn } from "@/domain/dates";
 import { ErrorLine } from "@/screens/tasks/list-parts";
 import { useRun } from "@/screens/tasks/use-run";
 
@@ -24,10 +31,38 @@ export interface MoveDialogProps {
   onDone(): void;
 }
 
+/** The principal's proposals as rows at their proposed times, for Find a time: a move under its engagement's id, a new meeting under its diary id. */
+function proposedRows(proposals: readonly Proposal[], events: readonly Event[]): Event[] {
+  const byId = new Map(events.map((e) => [e.id, e]));
+  return proposals.filter((p) => !p._deleted && p.start && p.end).flatMap((p): Event[] => {
+    if (p.kind === "new") return [{ id: newId(p.id), _deleted: false, _conflicts: {}, principal: p.principal, start: p.start, end: p.end, allDay: p.allDay, showAs: p.showAs || "busy" } as Event];
+    const event = byId.get(p.event ?? "");
+    return event ? [{ ...event, start: p.start, end: p.end }] : [];
+  });
+}
+
 export function MoveDialog({ target, timeZone, onDone }: MoveDialogProps) {
   const move = useRun(commands.proposalMove);
   const [date, setDate] = useState(() => dateIn(target.start, timeZone));
   const [time, setTime] = useState(() => formatTime(target.start, timeZone));
+  const { now } = useApp();
+  const office = useOffice();
+  const events = useRecords("events");
+  const overlays = useRecords("overlays");
+  const proposals = useRecords("proposals");
+  const [slots, setSlots] = useState<Slot[] | null>(null);
+  const findTime = () => {
+    const event = events.find((e) => e.id === target.id && !e._deleted);
+    if (!event) return setSlots([]);
+    setSlots(findATime({
+      event: { ...event, start: target.start, end: target.end }, events, overlays, proposed: proposedRows(proposals, events), zone: timeZone,
+      dayStart: office?.dayStart || DEFAULT_DAY_START, dayEnd: office?.dayEnd || DEFAULT_DAY_END, now,
+    }));
+  };
+  const choose = (slot: Slot) => {
+    setDate(dateIn(slot.start, timeZone));
+    setTime(formatTime(slot.start, timeZone));
+  };
   const length = Date.parse(target.end) - Date.parse(target.start);
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -54,6 +89,20 @@ export function MoveDialog({ target, timeZone, onDone }: MoveDialogProps) {
             <Label htmlFor="move-time">Starts</Label>
             <Input id="move-time" type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
           </div>
+        </div>
+        <div className="flex flex-col gap-2">
+          <Button type="button" variant="outline" size="sm" className="self-start" onClick={findTime}>Find a time</Button>
+          {slots !== null && (slots.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No free time of this length in the next 10 working days.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Free times">
+              {slots.map((slot) => {
+                const label = `${formatDay(slot.start, timeZone)}, ${formatTime(slot.start, timeZone)} to ${formatTime(slot.end, timeZone)}`;
+                const chosen = dateIn(slot.start, timeZone) === date && formatTime(slot.start, timeZone) === time;
+                return <Button key={slot.start} type="button" size="sm" variant={chosen ? "default" : "secondary"} aria-pressed={chosen} onClick={() => choose(slot)}>{label}</Button>;
+              })}
+            </div>
+          ))}
         </div>
         <ErrorLine error={move.error} />
         <DialogFooter>
