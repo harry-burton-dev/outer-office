@@ -2,6 +2,7 @@
 import { defineCommand, type Tx } from "@trellis/framework";
 import { FIELD_TYPES, SHAPES, cardFieldsOf, cardTemplatesOf, fieldsOf, isComplete, progressOf, templateTasksOf, valuesOf, type TemplateField, type TemplateTask } from "../cards";
 import { createTabTasks } from "./tab-tasks";
+import { copyPlan } from "../copy-from";
 import { requireNow, requireText, writeLog } from "./shared";
 
 export interface TemplateSaveInput {
@@ -83,15 +84,19 @@ export const cardSet = defineCommand("card.set", (tx: Tx, input: { now: string; 
   const before = valuesOf(card.values);
   const values = { ...before };
   for (const [key, value] of Object.entries(input.values)) if (typeof value === "string") values[key] = value;
-  tx.put("cards", id, { values: JSON.stringify(values) });
-  // Logged when the card becomes complete, so Stats can tell prep done before the meeting from after (OUT-69).
+  putValues(tx, input.now, card, before, values);
+});
+
+/** Writes a card's values, logging card-ready when it becomes complete, so Stats can tell prep done before the meeting from after (OUT-69). */
+function putValues(tx: Tx, now: string, card: { id: string; event?: string; template?: string; fields?: string }, before: Record<string, string>, values: Record<string, string>): void {
+  tx.put("cards", card.id, { values: JSON.stringify(values) });
   const template = tx.get("templates", card.template ?? "");
   const fields = cardFieldsOf(card, template);
   if (fields.length > 0 && isComplete(progressOf(fields, values)) && !isComplete(progressOf(fields, before))) {
     const event = tx.get("events", card.event ?? "");
-    writeLog(tx, input.now, { area: "overlay", kind: "card-ready", principal: event?.principal ?? "", event: card.event ?? "", note: template?.name ?? "" });
+    writeLog(tx, now, { area: "overlay", kind: "card-ready", principal: event?.principal ?? "", event: card.event ?? "", note: template?.name ?? "" });
   }
-});
+}
 
 /** Takes a card off its meeting. */
 export const cardRemove = defineCommand("card.remove", (tx: Tx, input: { now: string; id: string }) => {
@@ -236,4 +241,22 @@ export const tabUpdate = defineCommand("tab.update", (tx: Tx, input: { now: stri
     if (t && !t._deleted) putCard(tx, tab.event ?? "", t, tab.id, order++);
   }
   tx.put("tabs", tab.id, { version: template.version ?? 0 });
+});
+
+/** Fills a tab's empty fields from another engagement's tab of the same template, except ticks, never across masked items (OUT-88). Returns how many cards gained something. */
+export const tabCopyFrom = defineCommand("tab.copyFrom", (tx: Tx, input: { now: string; tab: string; from: string }) => {
+  requireNow(tx, input);
+  const target = tx.get("tabs", requireText(tx, input.tab, "The tab"));
+  const source = tx.get("tabs", requireText(tx, input.from, "The tab to copy from"));
+  if (!target || target._deleted || !source || source._deleted) tx.fail("That tab has been removed.");
+  if (target.id === source.id || target.tabTemplate !== source.tabTemplate) tx.fail("Copy only from another engagement's tab of the same kind.");
+  const masked = (id: string | undefined) => tx.get("events", id ?? "")?.masked === true;
+  if (masked(target.event) || masked(source.event)) tx.fail("Private engagements can't be copied from or to.");
+  const templates = new Map(tx.list("templates").map((t) => [t.id, t]));
+  const plan = copyPlan(source, target, tx.list("cards"), templates);
+  for (const { card, values } of plan) {
+    const before = valuesOf(card.values);
+    putValues(tx, input.now, card, before, { ...before, ...values });
+  }
+  return plan.length;
 });
