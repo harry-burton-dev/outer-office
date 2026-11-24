@@ -52,7 +52,9 @@ export function diffImport(stored: readonly StoredEvent[], parsed: ParseResult):
     const before = storedByKey.get(eventKey(after));
     if (!before) added.push(after);
     else if (before.gone) returned.push(change(before, after));
-    else if (differingFields(before, after).length === 0) unchanged += 1;
+    // Outlook moves the modified time for edits the app never reads (the body, a reminder):
+    // that alone is not a change, or the sync would apply and log one on every run.
+    else if (differingFields(before, after).every((field) => field === "sourceModified")) unchanged += 1;
     else if (isOlder(after.sourceModified, before.sourceModified)) skippedOlder += 1;
     else changed.push(change(before, after));
   }
