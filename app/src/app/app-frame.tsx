@@ -17,12 +17,12 @@ export function AppFrame() {
     <TooltipProvider>
       <SidebarProvider>
         <AppSidebar />
-        <div className="flex h-svh min-w-0 flex-1 flex-col">
+        <div className="flex h-svh min-w-0 flex-1 flex-col print:block print:h-auto">
           <TopBar />
-          <div className="px-6 pt-4 empty:hidden">
+          <div className="px-6 pt-4 empty:hidden print:hidden">
             <ConflictPrompt />
           </div>
-          <div className="min-h-0 flex-1 overflow-auto p-6">
+          <div className="min-h-0 flex-1 overflow-auto p-6 print:overflow-visible print:p-0">
             <ScreenContent />
           </div>
         </div>

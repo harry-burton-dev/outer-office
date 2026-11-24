@@ -1,7 +1,8 @@
 // The engagement panel: Outlook's fields as text, the flag, prep saved through
 // overlay.set, follow-ups, viewer mode, and the states it must tolerate.
+import { useState } from "react";
 import { afterEach, expect, test } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Sheet } from "@/components/ui/sheet";
 import { overlaySet, templateSave } from "@/domain/commands";
 import { AppProbe, cleanupApp, probe, renderApp, type Seeder } from "@/app/testing/render-app";
@@ -15,7 +16,7 @@ interface Seeded {
   event: string;
 }
 
-async function openPanel(extra: (s: Seeder, seeded: Seeded) => void = () => undefined) {
+async function openPanel(extra: (s: Seeder, seeded: Seeded) => void = () => undefined, closable = false) {
   const seeded: Seeded = { principal: "", event: "" };
   const app = await renderApp({
     now: MONDAY_NOW,
@@ -25,9 +26,15 @@ async function openPanel(extra: (s: Seeder, seeded: Seeded) => void = () => unde
       seeded.event = eventIdOf(s.device, seeded.principal, "a1");
       extra(s, seeded);
     },
-    children: <><Sheet open><PanelFor seeded={seeded} /></Sheet><AppProbe /></>,
+    children: <>{closable ? <ClosableSheet seeded={seeded} /> : <Sheet open><PanelFor seeded={seeded} /></Sheet>}<AppProbe /></>,
   });
   return { app, ...seeded };
+}
+
+/** A sheet that closes the way the app's does: Escape sets open to false. */
+function ClosableSheet({ seeded }: PanelForProps) {
+  const [open, setOpen] = useState(true);
+  return <Sheet open={open} onOpenChange={setOpen}>{open && <PanelFor seeded={seeded} />}</Sheet>;
 }
 
 interface PanelForProps {
@@ -89,6 +96,23 @@ test("notes save on blur, not while typing", async () => {
   expect(rows(app.device, "overlays")).toHaveLength(0);
   fireEvent.blur(notes);
   expect(rows(app.device, "overlays")[0]).toMatchObject({ notes: "Bring the figures" });
+});
+
+test("notes and card fields typed and left by pressing Escape are kept", async () => {
+  const { app } = await openPanel((s) => {
+    s.run(templateSave, { now: MONDAY_NOW, name: "POC", shape: "user", fields: [{ id: "name", label: "Point of contact", type: "text", required: true }] });
+  }, true);
+  fireEvent.click(await screen.findByRole("button", { name: "Add a card" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "POC" }));
+  fireEvent.change(await screen.findByRole("textbox", { name: "Point of contact *" }), { target: { value: "Avery Stone" } });
+  fireEvent.click(screen.getByRole("tab", { name: "Notes" }));
+  const notes = screen.getByRole("textbox", { name: "Notes" });
+  notes.focus();
+  fireEvent.change(notes, { target: { value: "Bring the figures" } });
+  fireEvent.keyDown(notes, { key: "Escape" });
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(rows(app.device, "overlays")[0]).toMatchObject({ notes: "Bring the figures" });
+  expect(rows(app.device, "cards")[0]?.values).toBe(JSON.stringify({ name: "Avery Stone" }));
 });
 
 test("add follow-up creates a task linked to the event and tagged to the principal", async () => {
