@@ -15,3 +15,7 @@ test("an overlay archived before reasons existed reads as archived for an unknow
 test("a person stored before watch rules reads with the default rules", () => {
   expect(config.migrations.people[1]({ name: "A" })).toEqual({ name: "A", watchOff: "" });
 });
+
+test("a card stored before tabs reads as on no tab, using its template's fields", () => {
+  expect(config.migrations.cards[1]({ event: "e1", template: "t1" })).toEqual({ event: "e1", template: "t1", tab: "", fields: "" });
+});

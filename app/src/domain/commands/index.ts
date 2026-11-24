@@ -9,7 +9,7 @@ import { taskAssign } from "./task-assign";
 import { projectSave, sectionSave } from "./projects";
 import { ackPrivacy, setMode } from "./people";
 import { tagRemove, tagSave, tagsSet } from "./tags";
-import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
+import { cardAdd, cardRemove, cardSet, cardUpdate, tabApply, tabRemove, tabUpdate, tabTemplateRemove, tabTemplateSave, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
 
@@ -19,9 +19,10 @@ export const commands = {
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet,
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
   templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
+  cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch };
+export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, cardUpdate, tabTemplateSave, tabTemplateRemove, tabApply, tabRemove, tabUpdate };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -30,7 +31,7 @@ export type { TaskAssignInput, AssignAction } from "./task-assign";
 export type { ProjectSaveInput, SectionSaveInput } from "./projects";
 export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput } from "./tags";
-export type { TemplateSaveInput } from "./cards";
+export type { TemplateSaveInput, TabTemplateSaveInput, TabVia } from "./cards";
 export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
 export { OFFICE_ID } from "./office";

@@ -3,7 +3,7 @@
 // the screen reads the rows and prints what this returns. A private item shows
 // its time only, since a sheet can be handed round.
 import { dateIn, addDays } from "./dates";
-import { cardsOn, fieldsOf, optionsOf, progressOf, valuesOf, type Card, type Template, type TemplateField } from "./cards";
+import { cardFieldsOf, cardsOn, optionsOf, progressOf, valuesOf, type Card, type Template, type TemplateField } from "./cards";
 import { eventsForPrincipal, byOrder, type Event, type Overlay, type Task } from "./selectors";
 import { eventTags, type Tag } from "./tags";
 
@@ -92,7 +92,7 @@ function fieldText(field: TemplateField, value: string, nameOf: (id: string) => 
 
 function sheetCard(card: Card, templates: readonly Template[], nameOf: (id: string) => string): SheetCard {
   const template = templates.find((t) => t.id === card.template && !t._deleted);
-  const fields = fieldsOf(template?.fields);
+  const fields = cardFieldsOf(card, template);
   const values = valuesOf(card.values);
   const progress = progressOf(fields, values);
   return {

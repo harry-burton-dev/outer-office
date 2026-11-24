@@ -73,9 +73,26 @@ const config = {
       fields: { name: str, shape: str, fields: "text", order: num },
     },
     // A card on a meeting: one template's form, filled in. values is JSON { fieldId: value }.
+    // Version 2 (OUT-88): tab, the tab it came with ("" for a card added on its
+    // own), and fields, a copy of its template's fields taken when it was added,
+    // so later template edits don't change it ("" for older cards: use the template's).
     cards: {
+      version: 2,
+      fields: { event: str, template: str, values: "text", order: num, tab: str, fields: "text" },
+    },
+    // Tab templates (OUT-88): a name, a shape and card templates in order
+    // (cards, a comma list of template ids). Applying one to a meeting adds a
+    // tab with those cards. Editing one bumps version; tabs keep their copy.
+    tabTemplates: {
       version: 1,
-      fields: { event: str, template: str, values: "text", order: num },
+      fields: { name: str, shape: str, cards: str, order: num, version: num },
+    },
+    // A tab on a meeting, id tx.id("tab", event, tabTemplate): at most one per
+    // meeting per tab template. version is the template's when it was applied
+    // or last updated; via is how it came (hand, tag, category or series).
+    tabs: {
+      version: 1,
+      fields: { event: str, tabTemplate: str, version: num, appliedAt: str, appliedBy: str, via: str },
     },
     projects: {
       version: 1,
@@ -128,6 +145,7 @@ const config = {
       }),
     },
     tasks: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
+    cards: { 1: (record) => ({ ...record, tab: record.tab ?? "", fields: record.fields ?? "" }) },
     people: { 1: (record) => ({ ...record, watchOff: record.watchOff ?? "" }) },
     events: {
       1: (record) => ({

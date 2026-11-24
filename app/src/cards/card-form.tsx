@@ -1,13 +1,13 @@
 // One card on a meeting: its template's form, saved field by field.
 import { useCommand } from "@trellis/framework";
-import { Trash2 } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Field } from "@/app/ui";
 import { useApp } from "@/app/app-state";
 import { usePeople } from "@/app/people";
 import { PersonSelect } from "@/app/person-select";
-import { fieldsOf, isComplete, optionsOf, progressOf, valuesOf, type Card, type Template, type TemplateField } from "@/domain/cards";
+import { cardFieldsOf, cardIsBehind, isComplete, optionsOf, progressOf, valuesOf, type Card, type Template, type TemplateField } from "@/domain/cards";
 import { commands } from "@/domain/commands";
 import { BlurField } from "@/panels/engagement/blur-field";
 import { NativeSelect } from "@/panels/task/native-select";
@@ -43,18 +43,22 @@ function Value({ field, value, readOnly, onSave }: { field: TemplateField; value
   );
 }
 
-export function CardForm({ card, template }: { card: Card; template: Template | undefined }) {
+/** One card's form. In a tab, the card shows its name above its fields. */
+export function CardForm({ card, template, titled = false }: { card: Card; template: Template | undefined; titled?: boolean }) {
   const { now, isViewer } = useApp();
   const set = useCommand(commands.cardSet);
   const remove = useCommand(commands.cardRemove);
-  const fields = fieldsOf(template?.fields);
+  const update = useCommand(commands.cardUpdate);
+  const fields = cardFieldsOf(card, template);
   const values = valuesOf(card.values);
   const progress = progressOf(fields, values);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <ShapeIcon shape={template?.shape} className={isComplete(progress) ? "size-4 text-foreground" : "size-4"} />
-        <span className="flex-1">{template ? `${progress.done} of ${progress.total} done` : "This card's template has been removed."}</span>
+        {titled && <span className="font-medium text-foreground">{template?.name ?? "Removed template"}</span>}
+        <span className="flex-1">{`${progress.done} of ${progress.total} done`}{!template && " · its template has been removed"}</span>
+        {!isViewer && !titled && cardIsBehind(card, template) && <Button variant="ghost" size="sm" onClick={() => update({ now, id: card.id })}><RefreshCw />Update to the latest</Button>}
         {!isViewer && <Button variant="ghost" size="sm" onClick={() => remove({ now, id: card.id })}><Trash2 />Remove card</Button>}
       </div>
       {fields.map((f) => (

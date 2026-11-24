@@ -1,7 +1,7 @@
 // Stats (OUT-69): simple counts for the office over a month, per principal.
 // Pure reads over events, overlays, cards, templates and the log.
 import type { RowOf } from "@trellis/framework";
-import { cardsOn, fieldsOf, isComplete, progressOf, valuesOf, type Card, type Template } from "./cards";
+import { cardFieldsOf, cardsOn, isComplete, progressOf, valuesOf, type Card, type Template } from "./cards";
 import { instantIn } from "./dates";
 import type { Event, Overlay } from "./selectors";
 
@@ -57,7 +57,7 @@ type Prep = "none" | "on-time" | "late" | "not-ready";
 function prepOf(event: Event, cards: readonly Card[], templates: ReadonlyMap<string, Template>, readyAt: ReadonlyMap<string, string>): Prep {
   const on = cardsOn(cards, event.id);
   if (on.length === 0) return "none";
-  const complete = on.every((c) => isComplete(progressOf(fieldsOf(templates.get(c.template ?? "")?.fields), valuesOf(c.values))));
+  const complete = on.every((c) => isComplete(progressOf(cardFieldsOf(c, templates.get(c.template ?? "")), valuesOf(c.values))));
   if (!complete) return "not-ready";
   const last = readyAt.get(event.id);
   return last !== undefined && Date.parse(last) > Date.parse(event.start ?? "") ? "late" : "on-time";
