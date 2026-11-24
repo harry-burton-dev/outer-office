@@ -152,10 +152,12 @@ const config = {
       },
     },
     imports: {
-      version: 1,
+      version: 2,
       fields: {
         principal: str, at: str, by: str, rangeStart: str, rangeEnd: str,
         added: num, changed: num, gone: num,
+        // Version 2: automate, ics or csv; "" when not known (OUT-83).
+        source: str,
       },
     },
   },
@@ -179,6 +181,7 @@ const config = {
     },
     tasks: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
     people: { 1: (record) => ({ ...record, watchOff: record.watchOff ?? "" }) },
+    imports: { 1: (record) => ({ ...record, source: record.source ?? "" }) },
     events: {
       1: (record) => ({
         ...record,

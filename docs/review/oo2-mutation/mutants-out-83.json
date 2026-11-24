@@ -10,5 +10,9 @@
  {"id":"OUT83-A37","what":"re-key: a new occurrence at the window's end pairs with a deleted one","file":"app/src/import/rekey.ts","find":"const [from, to] = [byStart(near(olds, news)), byStart(near(news, olds))];","replace":"const [from, to] = [byStart([...olds]), byStart([...news])];"},
  {"id":"OUT83-A38","what":"re-key: cards stay on the gone occurrence","file":"app/src/domain/commands/rekey.ts","find":"for (const c of tx.list(\"cards\")) { const event = to(c.event); if (event) tx.put(\"cards\", c.id, { event }); }","replace":""},
  {"id":"OUT83-A39","what":"re-key: a sync applies an ambiguous re-key","file":"app/src/automate/apply-diary.ts","find":"if (unclear.length > 0) return","replace":"if (unclear.length < 0) return"},
- {"id":"OUT83-A40","what":"cancelled: a gone occurrence mid-series gets no archive reason","file":"app/src/domain/commands/import.ts","find":"&& w.start < lastLive && !quiet.has(id)) markCancelled(tx, id);","replace":"&& w.start < lastLive && !quiet.has(id)) void id;"}
+ {"id":"OUT83-A40","what":"cancelled: a gone occurrence mid-series gets no archive reason","file":"app/src/domain/commands/import.ts","find":"&& w.start < lastLive && !quiet.has(id)) markCancelled(tx, id);","replace":"&& w.start < lastLive && !quiet.has(id)) void id;"},
+ {"id":"OUT83-A41","what":"Overview: a javascript: link from Outlook is followed","file":"app/src/panels/engagement/outlook-fields.ts","find":"url.protocol === \"https:\" || url.protocol === \"http:\" ? url.href : undefined","replace":"url.href"},
+ {"id":"OUT83-A42","what":"All Outlook fields: an internal key is listed","file":"app/src/panels/engagement/outlook-fields.ts","find":".filter(([key]) => !INTERNAL_KEYS.has(key))","replace":".filter(([key]) => key !== \"\")"},
+ {"id":"OUT83-A43","what":"Field age: an import that doesn't carry the field confirms it","file":"app/src/domain/field-sources.ts","find":"i.source && carries(i.source, field)","replace":"i.source"},
+ {"id":"OUT83-A44","what":"Overview: a masked item shows its Outlook fields","file":"app/src/panels/engagement/overview-tab.tsx","find":"if (event.masked === true) return null;","replace":""}
 ]

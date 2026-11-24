@@ -246,7 +246,8 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
   const count = (kind: Kind) => kinds.filter((k) => k === kind).length;
   const result = { importId, added: count("added"), changed: count("changed") + count("moved"), gone, returned: count("returned") };
   const { rangeStart, rangeEnd } = input.diff;
-  tx.put("imports", importId, { principal, at: now, by: tx.user, rangeStart, rangeEnd, added: result.added, changed: result.changed + result.returned, gone });
+  const source = incoming.find((e) => e.source)?.source ?? "";
+  tx.put("imports", importId, { principal, at: now, by: tx.user, rangeStart, rangeEnd, added: result.added, changed: result.changed + result.returned, gone, source });
   writeLog(tx, now, {
     area: "import", kind: "applied", principal,
     note: `${file || "Import"}: ${result.added} added, ${result.changed} changed, ${gone} gone, ${result.returned} returned`,
