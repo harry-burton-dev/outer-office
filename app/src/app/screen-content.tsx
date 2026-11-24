@@ -1,6 +1,7 @@
 // The content area: the current screen, or the no-principals empty state for
 // the screens that follow the principal switch.
 import { CalendarScreen } from "@/screens/calendar-screen";
+import { HomeScreen } from "@/screens/home-screen";
 import { ImportScreen } from "@/screens/import-screen";
 import { LogScreen } from "@/screens/log-screen";
 import { PrintScreen } from "@/screens/print-screen";
@@ -16,7 +17,7 @@ const TASK_SCREENS: ReadonlySet<Screen> = new Set<Screen>(["inbox", "today", "pr
 
 export const isTaskScreen = (screen: Screen): screen is TaskScreen => TASK_SCREENS.has(screen);
 
-function PrincipalScreen({ screen, principalId }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates" | "stats">; principalId: string }) {
+function PrincipalScreen({ screen, principalId }: { screen: Exclude<Screen, TaskScreen | "tags" | "templates" | "stats" | "home">; principalId: string }) {
   if (screen === "import") return <ImportScreen />;
   if (screen === "log") return <LogScreen />;
   if (screen === "print") return <PrintScreen key={principalId} principalId={principalId} />;
@@ -26,6 +27,7 @@ function PrincipalScreen({ screen, principalId }: { screen: Exclude<Screen, Task
 export function ScreenContent() {
   const { screen, principalId } = useApp();
   if (isTaskScreen(screen)) return <TaskListScreen key={screen} list={screen} />;
+  if (screen === "home") return <HomeScreen />;
   if (screen === "tags") return <TagsScreen />;
   if (screen === "templates") return <TemplatesScreen />;
   if (screen === "stats") return <StatsScreen />;

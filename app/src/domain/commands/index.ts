@@ -11,16 +11,17 @@ import { ackPrivacy, setMode } from "./people";
 import { tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
+import { homeMarkSeen, homeSetWatch } from "./home";
 
 export const commands = {
   officeSave, principalSave, importApply, overlaySet,
   taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove,
   projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet,
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
-  templateSave, templateRemove, cardAdd, cardSet, cardRemove,
+  templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove };
+export { officeSave, principalSave, importApply, overlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch };
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -31,5 +32,6 @@ export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput } from "./tags";
 export type { TemplateSaveInput } from "./cards";
 export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
+export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
 export { OFFICE_ID } from "./office";
 export { INBOX_NAME } from "./projects";

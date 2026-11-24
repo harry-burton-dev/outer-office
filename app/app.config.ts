@@ -20,8 +20,14 @@ const config = {
       fields: { code: str, title: str, order: num, active: bool },
     },
     people: {
+      version: 2,
+      // Version 2: watchOff, the comma-separated Home watch rules this user turned off (OUT-58).
+      fields: { userId: str, mode: str, privacyAckAt: str, watchOff: str },
+    },
+    // When a user last marked Home as seen, for one principal or for "me" (their own tasks) (OUT-58).
+    seen: {
       version: 1,
-      fields: { userId: str, mode: str, privacyAckAt: str },
+      fields: { userId: str, scope: str, at: str },
     },
     events: {
       version: 2,
@@ -122,6 +128,7 @@ const config = {
       }),
     },
     tasks: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
+    people: { 1: (record) => ({ ...record, watchOff: record.watchOff ?? "" }) },
     events: {
       1: (record) => ({
         ...record,
