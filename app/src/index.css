@@ -85,7 +85,7 @@
     --chart-5: var(--cg-danger);
     --radius: var(--cg-r-md);
     /* The sidebar is ChatGPT's flat grey column. */
-    --sidebar: var(--cg-bg-2);
+    --sidebar: var(--cg-panel);
     --sidebar-foreground: var(--cg-tx);
     --sidebar-primary: var(--cg-tx);
     --sidebar-primary-foreground: var(--cg-bg);
