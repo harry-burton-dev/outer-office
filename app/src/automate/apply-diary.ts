@@ -2,10 +2,12 @@
 // sync is the primary source, so its result goes straight into `events`
 // through the same diff and import.apply as an .ics file. A run that changes
 // something leaves an import and a log entry; a run that changes nothing
-// leaves neither. A payload the adapter refuses applies nothing and says why.
+// leaves neither. A payload the adapter refuses applies nothing and says why,
+// and so does one that would mark most of the diary gone (OUT-81): an .ics
+// import, where a person confirms it, settles that case.
 import type { RowOf } from "@trellis/framework";
 import { parseAutomate } from "@/import/parse-automate";
-import { diffImport } from "@/import/diff";
+import { diffImport, marksMostGone, storedInRange } from "@/import/diff";
 import { changesAnything, toStored, type PrivatePolicy } from "@/screens/import/import-model";
 import type { ImportApplyInput } from "@/domain/commands/import";
 import type { DiaryUpdate } from "./diary-inbox";
@@ -32,6 +34,10 @@ export function applyDiaryUpdate(update: DiaryUpdate, ctx: ApplyContext): ApplyO
   if (parsed.events.length === 0 && parsed.warnings.length > 0) return { kind: "refused", reason: parsed.warnings.join(" ") };
   const diff = diffImport(toStored(ctx.events, principal.id), parsed);
   if (!changesAnything(diff)) return { kind: "unchanged" };
+  if (marksMostGone(diff)) {
+    const reason = `it would mark ${diff.gone.length} of ${storedInRange(diff)} events gone, so it was held back. If they really are gone, import an .ics file and confirm`;
+    return { kind: "refused", reason };
+  }
   const result = ctx.run({ now: ctx.now, principal: principal.id, file: SYNC_FILE, diff });
   return result.ok ? { kind: "applied" } : { kind: "refused", reason: result.error };
 }

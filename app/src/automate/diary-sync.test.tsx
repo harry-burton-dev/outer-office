@@ -89,6 +89,21 @@ describe("diary sync", () => {
     expect(files.files.has(NEWEST)).toBe(true);
   });
 
+  test("a run that would mark most events gone is held back", async () => {
+    const files = inbox();
+    const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
+    await app.tick();
+    const HELD = `${A}/20261123T213000Z.json`;
+    await files.write(HELD, diaryEvent("2026-11-23T21:30:00Z", payloadOf(MAIN_PAYLOAD_EVENTS.slice(0, 3))));
+    await app.tick();
+    expect(rows(app.device, "events").filter((e) => e.gone === true)).toHaveLength(0);
+    expect(syncNotes(app)).toHaveLength(1);
+    expect(files.files.has(HELD)).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Diary update can't be used" }));
+    expect(screen.getByRole("alert").textContent).toMatch(/would mark \d+ of \d+ events gone, so it was held back/);
+  });
+
   test("an unusable file shows in Needs action and on Import with the reason", async () => {
     const files = memoryPlainFiles("automate", { [NEWEST]: diaryEvent("2026-11-23T21:00:00Z", { ...MAIN_PAYLOAD, principal: "PRINCIPAL-B" }) });
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
