@@ -176,7 +176,7 @@ export function Diary({ principalId }: { principalId: string }) {
       </>
     );
     return (
-      <TagMenu target="event" id={id} own={face.ownTags} categories={face.categories} onOpen={open} actions={actions}>
+      <TagMenu target="event" id={id} own={face.ownTags} onOpen={open} actions={actions}>
         <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} time={time} timeZone={timezone} /></div>
       </TagMenu>
     );

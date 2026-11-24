@@ -39,9 +39,8 @@ export interface EventFace {
   marks: readonly Mark[];
   /** Its tags, first one colours the event. A masked event has none. */
   tags: readonly Tag[];
-  /** Its own tag ids and Outlook categories, for the right-click menu. */
+  /** Its own tag ids, for the right-click menu. */
   ownTags: string;
-  categories: string;
   /** With a lens on: what it says in place of the title, if anything. */
   lensText?: string;
   /** With a lens on: the fill laid over the event, its strength as colour. */
@@ -160,7 +159,7 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
   const faces = new Map(shown.map((e) => {
     const id = eventIdOf(e.id);
     const overlay = overlayOf.get(id);
-    const own = e.masked === true ? [] : eventTags(e.categories, overlay?.tags, tags);
+    const own = e.masked === true ? [] : eventTags(overlay?.tags, tags);
     const isNew = proposalIdOf(e.id) !== undefined;
     const proposed = isNew || proposalOf.has(id);
     const ghost = e.id !== id || (layer === "live" && proposed);
@@ -170,7 +169,7 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
     // A quiet event shows only its own Quiet mark (D17).
     const layerMarks: Mark[] = e.masked === true ? [] : quiet ? ["Quiet"] : [...(outside(e) ? ["Outside its parent" as const] : []), ...marksFor(e, overlay)];
     const marks = [...lead, ...layerMarks].slice(0, MAX_MARKS);
-    const face: EventFace = { title: titleOf(e), marks, tags: own, ownTags: overlay?.tags ?? "", categories: e.categories ?? "", ghost, proposed, archived };
+    const face: EventFace = { title: titleOf(e), marks, tags: own, ownTags: overlay?.tags ?? "", ghost, proposed, archived };
     const clash = ghost ? undefined : clashOf.get(e.id);
     if (clash) face.clash = { severity: clash.severity, with: clash.with.map((other: string) => titleOf(realById.get(other) ?? e)) };
     const priority = overlay?.priority;
