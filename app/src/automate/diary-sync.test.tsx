@@ -79,6 +79,20 @@ describe("diary sync", () => {
     expect([...files.files.keys()]).toEqual([]);
   });
 
+  test("a run where Outlook moved only the modified time leaves no import or log entry", async () => {
+    const files = inbox();
+    const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
+    await app.tick();
+    const touched = MAIN_PAYLOAD_EVENTS.map((e) => (e.iCalUId === UID.lunch ? { ...e, lastModifiedDateTime: "2026-11-23T21:20:00.0000000Z" } : e));
+    for (const at of ["213000", "214500"]) {
+      await files.write(`${A}/20261123T${at}Z.json`, diaryEvent(`2026-11-23T${at.slice(0, 2)}:${at.slice(2, 4)}:00Z`, payloadOf(touched)));
+      await app.tick();
+      await app.tick();
+    }
+    expect(rows(app.device, "imports")).toHaveLength(1);
+    expect(syncNotes(app)).toHaveLength(1);
+  });
+
   test("a payload the adapter refuses shows why, and nothing is applied", async () => {
     const files = memoryPlainFiles("automate", { [NEWEST]: diaryEvent("2026-11-23T21:00:00Z", { ...MAIN_PAYLOAD, count: 99 }) });
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });

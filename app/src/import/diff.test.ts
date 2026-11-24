@@ -40,6 +40,19 @@ describe("diffImport", () => {
     expect(diffImport([stored({ importance: "" })], parsed([event()])).changed).toEqual([]);
   });
 
+  test("the same instant written another way is not a change", () => {
+    const after = event({ start: "2026-10-20T09:00:00Z", end: "2026-10-20T10:00:00+00:00" });
+    const diff = diffImport([stored()], parsed([after]));
+    expect(diff.changed).toEqual([]);
+    expect(diff.unchanged).toBe(1);
+  });
+
+  test("a newer modified time with nothing else changed is not a change", () => {
+    const diff = diffImport([stored()], parsed([event({ sourceModified: "2026-10-05T00:00:00.000Z" })]));
+    expect(diff.changed).toEqual([]);
+    expect(diff.unchanged).toBe(1);
+  });
+
   test("a changed start marks the change as moved", () => {
     const after = event({ start: "2026-10-21T09:00:00.000Z", end: "2026-10-21T10:00:00.000Z" });
     const [change] = diffImport([stored()], parsed([after])).changed;
@@ -139,6 +152,14 @@ describe("marksMostGone", () => {
     const storedEvents = many(6);
     const kept = storedEvents.slice(0, 3).map(({ id: _id, principal: _p, gone: _g, moves: _m, ...e }) => e);
     expect(marksMostGone(diffImport(storedEvents, parsed(kept)))).toBe(false);
+  });
+
+  test("events skipped as older still count as in the diary", () => {
+    const storedEvents = many(6);
+    const stale = storedEvents.slice(0, 3).map(({ id: _id, principal: _p, gone: _g, moves: _m, ...e }) => ({ ...e, subject: "Stale", sourceModified: "2026-09-01T00:00:00.000Z" }));
+    const diff = diffImport(storedEvents, parsed(stale));
+    expect(diff.skippedOlder).toBe(3);
+    expect(marksMostGone(diff)).toBe(false);
   });
 
   test("fewer than three gone never does", () => {
