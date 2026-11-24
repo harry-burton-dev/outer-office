@@ -6,6 +6,7 @@ import { dateIn, addDays } from "./dates";
 import { cardFieldsOf, cardsOn, optionsOf, progressOf, valuesOf, type Card, type Template, type TemplateField } from "./cards";
 import { eventsForPrincipal, byOrder, type Event, type Overlay, type Task } from "./selectors";
 import { eventTags, type Tag } from "./tags";
+import { isInside } from "./clashes";
 
 export const PRIVATE_TITLE = "Private, busy";
 
@@ -45,6 +46,8 @@ export interface SheetEntry {
   notes: string;
   cards: SheetCard[];
   tasks: SheetTask[];
+  /** The engagements linked under it and sitting inside it, by start: its run of show (OUT-84). */
+  children: SheetEntry[];
 }
 
 export interface SheetDay {
@@ -105,7 +108,7 @@ function sheetCard(card: Card, templates: readonly Template[], nameOf: (id: stri
 function entryOf(event: Event, input: SheetInput, overlay: Overlay | undefined): SheetEntry {
   const base = { id: event.id, start: event.start ?? "", end: event.end ?? "", allDay: event.allDay === true };
   if (event.masked === true) {
-    return { ...base, title: PRIVATE_TITLE, masked: true, location: "", flagged: false, tags: [], attendees: [], notes: "", cards: [], tasks: [] };
+    return { ...base, title: PRIVATE_TITLE, masked: true, location: "", flagged: false, tags: [], attendees: [], notes: "", cards: [], tasks: [], children: [] };
   }
   const tasks = input.tasks.filter((t) => !t._deleted && t.event === event.id).sort(byOrder);
   return {
@@ -119,16 +122,30 @@ function entryOf(event: Event, input: SheetInput, overlay: Overlay | undefined):
     notes: overlay?.notes?.trim() ?? "",
     cards: cardsOn(input.cards, event.id).map((c) => sheetCard(c, input.templates, input.nameOf)),
     tasks: tasks.map((t) => ({ title: t.title || "Untitled", owner: t.assignee ? input.nameOf(t.assignee) : "", due: t.due ?? "", done: t.done === true })),
+    children: [],
   };
 }
 
-/** The principal's live engagements on each day, all-day ones first, then by start. Gone and archived ones are left out. */
+/**
+ * The principal's live engagements on each day, all-day ones first, then by start. Gone and archived ones are left out.
+ * An engagement linked under another on the day, and sitting inside it, is printed within its parent as a run of show.
+ */
 export function sheetDays(input: SheetInput): SheetDay[] {
   const overlayOf = new Map(input.overlays.filter((o) => !o._deleted).map((o) => [o.event ?? "", o]));
   const shown = eventsForPrincipal(input.events, input.principal).filter((e) => !overlayOf.get(e.id)?.archived);
   return Array.from({ length: input.days }, (_, i) => {
     const date = addDays(input.from, i);
     const on = shown.filter((e) => isOn(e, date, input.zone)).sort((a, b) => Number(b.allDay === true) - Number(a.allDay === true));
-    return { date, entries: on.map((e) => entryOf(e, input, overlayOf.get(e.id))) };
+    const onIds = new Set(on.map((e) => e.id));
+    const parentOf = (e: Event) => {
+      const parent = on.find((p) => p.id === overlayOf.get(e.id)?.parent);
+      return parent && onIds.has(parent.id) && isInside(e, parent) ? parent.id : "";
+    };
+    const nested = new Set(on.filter((e) => parentOf(e) !== "").map((e) => e.id));
+    const entries = on.filter((e) => !nested.has(e.id)).map((e) => ({
+      ...entryOf(e, input, overlayOf.get(e.id)),
+      children: on.filter((c) => parentOf(c) === e.id).map((c) => entryOf(c, input, overlayOf.get(c.id))),
+    }));
+    return { date, entries };
   });
 }

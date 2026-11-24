@@ -195,3 +195,26 @@ test("a masked event shows no details", async () => {
   expect(screen.queryByText("Secret subject")).toBeNull();
   expect(screen.queryByText("Hidden room")).toBeNull();
 });
+
+test("priority and Quiet are set on the Overview, a log row each", async () => {
+  const { app } = await openPanel();
+  fireEvent.change(await screen.findByLabelText("Priority"), { target: { value: "2" } });
+  fireEvent.click(screen.getByRole("switch", { name: "Quiet" }));
+  expect(rows(app.device, "overlays")[0]).toMatchObject({ priority: 2, quiet: true });
+  expect(rows(app.device, "log").filter((r) => r.area === "overlay").map((r) => r.kind).sort()).toEqual(["priority", "quiet"]);
+});
+
+test("the Overview suggests linking under an engagement it sits inside, and links and unlinks by hand", async () => {
+  const { app, event } = await openPanel((s, seeded) => {
+    importEvents(s, MONDAY_NOW, seeded.principal, [syntheticEvent("visit", { subject: "Site visit", start: "2026-11-24T13:00:00Z", end: "2026-11-24T17:00:00Z" })]);
+  });
+  const linked = await screen.findByRole("region", { name: "Linked" });
+  expect(linked.textContent).toContain("Sits inside13:00–17:00 Site visit");
+  fireEvent.click(within(linked).getByRole("button", { name: "Link under it" }));
+  const visit = rows(app.device, "overlays").find((r) => r.event === event)?.parent;
+  expect(visit).toBeTruthy();
+  expect(await screen.findByRole("button", { name: "Unlink" })).toBeTruthy();
+  expect(screen.getByRole("region", { name: "Linked" }).textContent).toContain("Inside13:00–17:00 Site visit");
+  fireEvent.click(screen.getByRole("button", { name: "Unlink" }));
+  expect(rows(app.device, "overlays").find((r) => r.event === event)?.parent).toBe("");
+});

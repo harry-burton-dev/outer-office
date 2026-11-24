@@ -39,12 +39,15 @@ function render(ctx: AdminPanelContext, notice: { text: string }): Node[] {
   const zone = textField(el, "office-timezone", "Time zone (IANA, such as Europe/London)", value("timezone"), "Europe/London");
   const start = textField(el, "office-day-start", "Working day starts (HH:MM)", value("dayStart"), "08:00");
   const end = textField(el, "office-day-end", "Working day ends (HH:MM)", value("dayEnd"), "18:00");
+  const number = (field: string): string => (typeof row?.[field] === "number" ? String(row[field]) : "");
+  const longRun = textField(el, "office-long-run", "Day summary: flag a run without a break longer than (hours)", number("longRunHours"), "4");
+  const placeChange = textField(el, "office-place-change", "Day summary: flag a change of place less than this apart (minutes)", number("placeChangeMinutes"), "30");
   const policy = policySelect(el, value("privatePolicy") || "mask");
   const automate = automateSelect(el, row?.automate === true);
   const status = statusLine(el, notice.text);
   const save = el("button", { id: "office-save" }, "Save");
   save.addEventListener("click", () => {
-    const built = officeInput({ name: name.input.value, timezone: zone.input.value, dayStart: start.input.value, dayEnd: end.input.value, privatePolicy: policy.select.value, automate: automate.select.value }, nowIso());
+    const built = officeInput({ name: name.input.value, timezone: zone.input.value, dayStart: start.input.value, dayEnd: end.input.value, privatePolicy: policy.select.value, automate: automate.select.value, longRunHours: longRun.input.value, placeChangeMinutes: placeChange.input.value }, nowIso());
     if (!built.ok) return void (status.textContent = built.error);
     const result = data.run(commands.officeSave, built.input);
     if (!result.ok) return void (status.textContent = result.error);
@@ -54,7 +57,7 @@ function render(ctx: AdminPanelContext, notice: { text: string }): Node[] {
   notice.text = "";
   return [
     el("p", {}, "These settings sync to every user like any other data."),
-    ...name.nodes, ...zone.nodes, ...start.nodes, ...end.nodes, ...policy.nodes, ...automate.nodes,
+    ...name.nodes, ...zone.nodes, ...start.nodes, ...end.nodes, ...longRun.nodes, ...placeChange.nodes, ...policy.nodes, ...automate.nodes,
     save,
     status,
   ];

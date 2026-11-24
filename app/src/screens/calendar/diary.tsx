@@ -18,15 +18,18 @@ import { lensById } from "@/domain/lenses";
 import { TagMenu } from "@/tags/tag-menu";
 import { useRun } from "../tasks/use-run";
 import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, proposalIdOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
-import { EventFaceView, type CardShape } from "./event-face";
+import { CLASH_EDGE, CLASH_LABELS, EventFaceView, type CardShape } from "./event-face";
 import { cardFieldsOf, cardsOn, isComplete, progressOf, valuesOf } from "@/domain/cards";
 import { LayerSwitch } from "./layer-switch";
 import { LensMenu } from "./lens-menu";
 import { MoveDialog, type MoveTarget } from "./move-dialog";
 import { ProposeDialog } from "./propose-dialog";
+import { DaySummaryView } from "./day-summary-view";
+import { clashes } from "@/domain/clashes";
+import { daySummary } from "@/domain/day-summary";
 
 /** What fills a meeting: the right-click target over all of it, a lens's fill, a ghost's dashes or the slider's veil. */
-function Entry({ face, shapes, time }: { face: EventFace; shapes?: readonly CardShape[]; time?: string }) {
+function Entry({ face, shapes, time, timeZone }: { face: EventFace; shapes?: readonly CardShape[]; time?: string; timeZone?: string }) {
   const cover = face.ghost
     ? { className: "absolute inset-0 rounded-[inherit] border border-dashed border-foreground/40 bg-background/80 [background-image:repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_srgb,var(--foreground)_5%,transparent)_6px_7px)]" }
     : face.veil
@@ -36,8 +39,11 @@ function Entry({ face, shapes, time }: { face: EventFace; shapes?: readonly Card
     <div className="min-w-0 pl-2" data-ghost={face.ghost ? "" : undefined}>
       <span aria-hidden {...cover} />
       <span aria-hidden className="absolute inset-y-1 left-1 w-[3px] rounded-full bg-(--fc-event-color)" />
+      {face.clash && (
+        <span aria-hidden data-clash={face.clash.severity} title={`${CLASH_LABELS[face.clash.severity]} with ${face.clash.with.join(", ")}`} className={`absolute inset-y-0 right-0 w-1 rounded-r-[inherit] ${CLASH_EDGE[face.clash.severity]}`} />
+      )}
       <div className={face.ghost ? "relative min-w-0 text-muted-foreground" : "relative min-w-0"} style={face.veil ? { opacity: 1 - face.veil * 0.8 } : undefined}>
-        <EventFaceView face={face} shapes={shapes} time={time} />
+        <EventFaceView face={face} shapes={shapes} time={time} timeZone={timeZone} />
       </div>
     </div>
   );
@@ -100,8 +106,22 @@ export function Diary({ principalId }: { principalId: string }) {
 
   const data = useMemo(() => {
     const lens = lensById(lensId);
-    return diaryData(events, overlays, principalId, tags, lens ? { lens, now: new Date(now) } : undefined, { layer, proposals, liveAlpha });
-  }, [events, overlays, principalId, tags, lensId, now, layer, proposals, liveAlpha]);
+    return diaryData(events, overlays, principalId, tags, lens ? { lens, now: new Date(now) } : undefined, { layer, proposals, liveAlpha }, timezone);
+  }, [events, overlays, principalId, tags, lensId, now, layer, proposals, liveAlpha, timezone]);
+
+  // The day summary reads the live diary, whichever layer is shown (5.4).
+  const liveClashes = useMemo(() => clashes(events.filter((e) => e.principal === principalId), overlays, timezone), [events, overlays, principalId, timezone]);
+  const renderDayHeader = (day: string) => (
+    <DaySummaryView summary={daySummary({
+      date: day, zone: timezone, principal: principalId, events, overlays, clashes: liveClashes,
+      dayStart: office?.dayStart || DEFAULT_DAY_START, dayEnd: office?.dayEnd || DEFAULT_DAY_END,
+      longRunHours: office?.longRunHours, placeChangeMinutes: office?.placeChangeMinutes,
+    })} />
+  );
+
+  const overlayOf = (id: string) => overlays.find((o) => !o._deleted && o.event === id);
+  const quietOf = (id: string) => overlayOf(id)?.quiet === true;
+  const priorityOf = (id: string) => overlayOf(id)?.priority ?? 4;
 
   const proposalById = (id: string) => proposals.find((p) => p.id === id && !p._deleted);
   const editNew = (pid: string) => {
@@ -141,6 +161,12 @@ export function Diary({ principalId }: { principalId: string }) {
         <ContextMenuItem onClick={() => setDialog({ kind: "move", target: { id, title: face.title, ...from } })}>Move…</ContextMenuItem>
         {face.proposed && <ContextMenuItem onClick={() => withdraw.run({ event: id })}>Withdraw the proposal</ContextMenuItem>}
         <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => archive.run({ event: id, quiet: !quietOf(id) })}>{quietOf(id) ? "Not quiet" : "Quiet: never clashes"}</ContextMenuItem>
+        <ContextMenuLabel>Priority</ContextMenuLabel>
+        {[1, 2, 3, 4].map((p) => (
+          <ContextMenuItem key={p} onClick={() => archive.run({ event: id, priority: p })}>{`P${p}${p === 4 ? " (none)" : ""}${priorityOf(id) === p ? " ✓" : ""}`}</ContextMenuItem>
+        ))}
+        <ContextMenuSeparator />
         <ContextMenuLabel>Archive as</ContextMenuLabel>
         {ARCHIVE_REASONS.map((r) => (
           <ContextMenuItem key={r.value} onClick={() => archive.run({ event: id, archived: true, archiveReason: r.value })}>{r.label}</ContextMenuItem>
@@ -149,7 +175,7 @@ export function Diary({ principalId }: { principalId: string }) {
     );
     return (
       <TagMenu target="event" id={id} own={face.ownTags} categories={face.categories} onOpen={open} actions={actions}>
-        <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} time={time} /></div>
+        <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} time={time} timeZone={timezone} /></div>
       </TagMenu>
     );
   };
@@ -245,6 +271,7 @@ export function Diary({ principalId }: { principalId: string }) {
         renderEvent={renderEvent}
         onMove={isViewer ? undefined : onMove}
         canMove={canMove}
+        renderDayHeader={layer === "graveyard" ? undefined : renderDayHeader}
         toolbarExtra={
           <>
             {!isViewer && <Button variant="outline" onClick={propose}><PlusIcon />Propose</Button>}

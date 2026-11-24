@@ -47,9 +47,10 @@ describe("cross-source keys: the .ics file and the diary payload for the same di
   test("give identical events, field for field", () => {
     // The .ics file also carries importance, sensitivity and created (OUT-78), which the
     // diary payload does not have yet; the two must agree on everything else, attendees included.
-    const shared = ({ importance: _i, sensitivity: _s, created: _c, ...rest }: ImportedEvent) => rest;
+    // Each source also carries its own raw item and says it is its source; the .ics file has the body and organizer address.
+    const shared = ({ importance: _i, sensitivity: _s, created: _c, raw: _r, source: _so, body: _b, organizerAddress: _o, ...rest }: ImportedEvent) => rest;
     const fromIcs = parseIcs(MAIN_FIXTURE, { ...MAIN_WINDOW, privatePolicy: "mask" }).events.map(shared);
-    const fromPayload = parseAutomate(MAIN_PAYLOAD, MASK).events;
+    const fromPayload = parseAutomate(MAIN_PAYLOAD, MASK).events.map(shared);
     expect(fromPayload).toHaveLength(23);
     expect(fromPayload).toEqual(fromIcs);
   });

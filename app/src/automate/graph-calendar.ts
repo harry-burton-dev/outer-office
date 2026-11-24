@@ -14,6 +14,7 @@ type Json = Record<string, unknown>;
 const isObject = (value: unknown): value is Json => typeof value === "object" && value !== null && !Array.isArray(value);
 const isText = (value: unknown): value is string => typeof value === "string";
 const textOrNull = (value: unknown): string | null => (isText(value) ? value : null);
+const boolOrNull = (value: unknown): boolean | null => (typeof value === "boolean" ? value : null);
 const SENSITIVITIES = new Set(["normal", "personal", "private", "confidential"]);
 
 /** "20261124T090000Z.json", or a conflict copy such as "20261124T090000Z (1).json", gives the run's time. */
@@ -52,6 +53,24 @@ function mastersOf(events: readonly DiaryEvent[]): { id: string; iCalUId: string
   return [...uids].map(([id, set]) => ({ id, iCalUId: set.size === 1 ? [...set][0] ?? id : `graph-series:${id}` }));
 }
 
+const ENTITIES: Readonly<Record<string, string>> = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", apos: "'", nbsp: " " };
+
+/**
+ * The body as plain text (D7). The flow asks for text with the header
+ * Prefer: outlook.body-content-type="text"; if that header is missing Graph
+ * sends HTML, which is reduced to its text here, so markup is never stored.
+ */
+function plainBody(body: Json): string {
+  const content = textOrNull(body.content) ?? "";
+  if (String(body.contentType ?? "").toLowerCase() !== "html") return content.replace(/\r\n/g, "\n").trim();
+  return content
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<br\s*\/?>|<\/(p|div|li|tr|h\d)>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(amp|lt|gt|quot|#39|apos|nbsp);/g, (_, name: string) => ENTITIES[name] ?? "")
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 interface GraphTime { dateTime?: unknown; timeZone?: unknown }
 
 /** One Graph event as the adapter's DiaryEvent, or why it can't be read. */
@@ -86,6 +105,23 @@ function toDiaryEvent(raw: unknown): DiaryEvent | string {
     sensitivity: raw.sensitivity as DiaryEvent["sensitivity"],
     lastModifiedDateTime: raw.lastModifiedDateTime as string,
     attendees: Array.isArray(raw.attendees) ? (raw.attendees as object[]) : null,
+    // The widened $select (OUT-83). Each is null when the flow didn't ask for it.
+    id: textOrNull(raw.id),
+    importance: textOrNull(raw.importance),
+    createdDateTime: textOrNull(raw.createdDateTime),
+    response: isObject(raw.responseStatus) ? textOrNull(raw.responseStatus.response) : null,
+    isOnlineMeeting: boolOrNull(raw.isOnlineMeeting),
+    onlineMeetingProvider: "onlineMeetingProvider" in raw ? textOrNull(raw.onlineMeetingProvider) ?? "" : null,
+    joinUrl: "onlineMeeting" in raw ? (isObject(raw.onlineMeeting) ? textOrNull(raw.onlineMeeting.joinUrl) : null) ?? "" : null,
+    hasAttachments: boolOrNull(raw.hasAttachments),
+    webLink: textOrNull(raw.webLink),
+    isOrganizer: boolOrNull(raw.isOrganizer),
+    responseRequested: boolOrNull(raw.responseRequested),
+    allowNewTimeProposals: boolOrNull(raw.allowNewTimeProposals),
+    organizerAddress: isObject(raw.organizer) ? textOrNull(who.address) ?? "" : null,
+    locationType: isObject(raw.location) ? textOrNull(raw.location.locationType) ?? "" : null,
+    body: isObject(raw.body) ? plainBody(raw.body) : null,
+    raw: JSON.stringify(raw),
   };
 }
 

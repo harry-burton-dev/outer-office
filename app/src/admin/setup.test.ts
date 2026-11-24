@@ -17,6 +17,7 @@ describe("officeInput", () => {
   });
 
   test("Power Automate is on only when \"on\" is chosen", () => {
+    expect(officeInput({ ...FORM, longRunHours: " 5 ", placeChangeMinutes: "0" }, NOW)).toMatchObject({ ok: true, input: { longRunHours: 5, placeChangeMinutes: 0 } });
     const built = officeInput({ ...FORM, automate: "on" }, NOW);
     expect(built.ok && built.input.automate).toBe(true);
   });
@@ -29,6 +30,8 @@ describe("officeInput", () => {
   test("refuses an unknown time zone and an unknown policy", () => {
     expect(officeInput({ ...FORM, timezone: "Mars/Base" }, NOW)).toEqual({ ok: false, error: expect.stringContaining("not a time zone") });
     expect(officeInput({ ...FORM, privatePolicy: "keep" }, NOW)).toEqual({ ok: false, error: expect.stringContaining("masked or dropped") });
+    expect(officeInput({ ...FORM, longRunHours: "four" }, NOW)).toEqual({ ok: false, error: expect.stringContaining("number of hours") });
+    expect(officeInput({ ...FORM, placeChangeMinutes: "soon" }, NOW)).toEqual({ ok: false, error: expect.stringContaining("number of minutes") });
   });
 });
 

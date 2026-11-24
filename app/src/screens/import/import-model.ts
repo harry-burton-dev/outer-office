@@ -3,6 +3,7 @@
 import type { RowOf } from "@trellis/framework";
 import type { EventChange, ImportDiff, ImportedEvent, StoredEvent } from "@/import/types";
 import { formatDay, formatTime } from "@/domain/dates";
+import { V3_FIELDS } from "@/import/compare";
 
 export type EventRow = RowOf<"events">;
 export type OverlayRow = RowOf<"overlays">;
@@ -23,6 +24,13 @@ export function importWindow(now: string): { windowStart: string; windowEnd: str
   return { windowStart: shiftMonths(now, -MONTHS_BACK), windowEnd: shiftMonths(now, MONTHS_FORWARD) };
 }
 
+/** A row's events v3 fields, left out where the row has none, so the diff reads them as never stored. */
+function v3Of(row: EventRow): Partial<ImportedEvent> {
+  const out: Record<string, unknown> = {};
+  for (const field of [...V3_FIELDS, "source"] as const) if (row[field] !== undefined) out[field] = row[field];
+  return out as Partial<ImportedEvent>;
+}
+
 /** The stored rows of one principal as the diff expects them; missing fields become empty. */
 export function toStored(rows: readonly EventRow[], principal: string): StoredEvent[] {
   return rows
@@ -33,12 +41,13 @@ export function toStored(rows: readonly EventRow[], principal: string): StoredEv
       categories: r.categories ?? "", showAs: r.showAs ?? "", masked: r.masked === true, sourceModified: r.sourceModified ?? "",
       requiredAttendees: r.requiredAttendees ?? "", optionalAttendees: r.optionalAttendees ?? "", importance: r.importance ?? "",
       sensitivity: r.sensitivity ?? "", created: r.created ?? "",
+      ...v3Of(r),
       gone: r.gone === true, moves: r.moves ?? 0,
     }));
 }
 
 export const changesAnything = (diff: ImportDiff): boolean =>
-  diff.added.length + diff.changed.length + diff.gone.length + diff.returned.length > 0;
+  diff.added.length + diff.changed.length + (diff.filled?.length ?? 0) + diff.gone.length + diff.returned.length > 0;
 
 /** One plain line: every count the review shows. */
 export function countsLine(diff: ImportDiff, policy: PrivatePolicy): string {
@@ -47,6 +56,7 @@ export function countsLine(diff: ImportDiff, policy: PrivatePolicy): string {
   return [
     `${diff.added.length} added`, `${moved} moved`, `${diff.changed.length - moved} changed`, `${diff.gone.length} gone`,
     `${diff.returned.length} returned`, `${diff.unchanged} unchanged`, `${diff.skippedOlder} skipped as older`, privateCount,
+    ...(diff.filled?.length ? [`${diff.filled.length} with Outlook details filled in`] : []),
   ].join(", ");
 }
 
