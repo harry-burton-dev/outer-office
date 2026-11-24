@@ -1,7 +1,7 @@
 // The left navigation: the app name, the principal switch, the principal's
 // screens (labelled with its code), then the task lists.
 import type { LucideIcon } from "lucide-react";
-import { ChartColumn, CalendarDays, CalendarCheck, FolderOpen, House, Inbox, ScrollText, LayoutTemplate, Printer, Tags, Trash2, Upload } from "lucide-react";
+import { ChartColumn, CalendarDays, CalendarCheck, FolderOpen, House, Inbox, ScrollText, LayoutTemplate, Printer, Repeat, Tags, Trash2, Upload } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +27,7 @@ interface NavItem {
 
 const PRINCIPAL_ITEMS: readonly NavItem[] = [
   { screen: "calendar", label: "Calendar", icon: CalendarDays },
+  { screen: "series", label: "Series", icon: Repeat },
   { screen: "import", label: "Import", icon: Upload },
   { screen: "log", label: "Log", icon: ScrollText },
   { screen: "print", label: "Print", icon: Printer },
