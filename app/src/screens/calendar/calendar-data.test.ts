@@ -20,17 +20,18 @@ test("a masked event has no marks and a removed overlay counts for nothing", () 
 test("diary data leaves out gone events, other principals and events without times", () => {
   const data = diaryData([event(), event({ id: "e2", gone: true }), event({ id: "e3", principal: "p2" }), event({ id: "e4", start: undefined })], [], "p1");
   expect(data.events.map((e) => e.id)).toEqual(["e1"]);
-  expect(data.faces.get("e1")).toEqual({ title: "Meeting", marks: [], tags: [], ownTags: "", categories: "", ghost: false, proposed: false, archived: false });
+  expect(data.faces.get("e1")).toEqual({ title: "Meeting", marks: [], tags: [], ownTags: "", ghost: false, proposed: false, archived: false });
 });
 
-test("an event is coloured by its primary tag: its first own tag leads its Outlook category tags", () => {
+test("an event is coloured by its primary tag; an Outlook category with a tag's name doesn't add it (B5)", () => {
   const tags = [
     { id: "t1", _deleted: false, _conflicts: {}, name: "Board", colour: "#4ade80", order: 0 },
     { id: "t2", _deleted: false, _conflicts: {}, name: "Urgent", colour: "#f87171", order: 1 },
   ] as Parameters<typeof diaryData>[3];
-  const overlays = [{ id: "o1", _deleted: false, _conflicts: {}, event: "e1", tags: "t2" }] as Parameters<typeof diaryData>[1];
-  const data = diaryData([event({ categories: "board" }), event({ id: "e2" })], overlays, "p1", tags);
+  const overlays = [{ id: "o1", _deleted: false, _conflicts: {}, event: "e1", tags: "t2,t1" }] as Parameters<typeof diaryData>[1];
+  const data = diaryData([event({ categories: "board" }), event({ id: "e2", categories: "Board" })], overlays, "p1", tags);
   expect(data.faces.get("e1")?.tags.map((t) => t.name)).toEqual(["Urgent", "Board"]);
+  expect(data.faces.get("e2")?.tags).toEqual([]);
   expect(data.events.map((e) => e.colour)).toEqual(["#f87171", undefined]);
 });
 
