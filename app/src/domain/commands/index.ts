@@ -13,19 +13,92 @@ import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen } from "./home";
+import { wizardApply } from "./wizard";
 import { automateRecordRun } from "./automate";
 import { coverRemove, coverSave, ruleRemove, ruleSave, ruleSettingSet, updateSet } from "./alerts";
 
+// One name per line, so threads adding a command don't conflict on one line.
 export const commands = {
-  officeSave, principalSave, importApply, overlaySet, seriesOverlaySet,
-  taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove,
-  projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave,
-  proposalMove, proposalWithdraw, proposalNew, proposalDrop,
-  templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen,
-  ruleSettingSet, updateSet, automateRecordRun, ruleSave, ruleRemove, coverSave, coverRemove,
+  officeSave,
+  principalSave,
+  importApply,
+  overlaySet,
+  seriesOverlaySet,
+  taskAdd,
+  taskUpdate,
+  taskMove,
+  taskComplete,
+  taskAssign,
+  taskLink,
+  taskRemove,
+  projectSave,
+  sectionSave,
+  ackPrivacy,
+  setMode,
+  tagSave,
+  tagRemove,
+  tagsSet,
+  categorySave,
+  proposalMove,
+  proposalWithdraw,
+  proposalNew,
+  proposalDrop,
+  templateSave,
+  templateRemove,
+  cardAdd,
+  cardSet,
+  cardRemove,
+  homeMarkSeen,
+  ruleSettingSet,
+  updateSet,
+  ruleSave,
+  ruleRemove,
+  coverSave,
+  coverRemove,
+  automateRecordRun,
+  wizardApply,
 } as const;
 
-export { officeSave, principalSave, importApply, overlaySet, seriesOverlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, ruleSettingSet, updateSet, automateRecordRun };
+export {
+  officeSave,
+  principalSave,
+  importApply,
+  overlaySet,
+  seriesOverlaySet,
+  taskAdd,
+  taskUpdate,
+  taskMove,
+  taskComplete,
+  taskAssign,
+  taskLink,
+  taskRemove,
+  projectSave,
+  sectionSave,
+  ackPrivacy,
+  setMode,
+  tagSave,
+  tagRemove,
+  tagsSet,
+  categorySave,
+  proposalMove,
+  proposalWithdraw,
+  proposalNew,
+  proposalDrop,
+  templateSave,
+  templateRemove,
+  cardAdd,
+  cardSet,
+  cardRemove,
+  homeMarkSeen,
+  ruleSettingSet,
+  updateSet,
+  ruleSave,
+  ruleRemove,
+  coverSave,
+  coverRemove,
+  automateRecordRun,
+};
+export { wizardApply } from "./wizard";
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -38,6 +111,7 @@ export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } fr
 export type { TemplateSaveInput } from "./cards";
 export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput } from "./home";
+export type { WizardApplyInput } from "./wizard";
 export type { FlowRunInput, FlowOutcome } from "./automate";
 export type { RuleSettingSetInput, UpdateSetInput, UpdateAction, RuleSaveInput, CoverSaveInput } from "./alerts";
 export { OFFICE_ID } from "./office";
