@@ -31,9 +31,15 @@
  {"id":"D30","what":"the user's own row counts as dealt with","file":"app/src/domain/updates.ts","find":".filter((r) => live(r) && r.by !== user && (r.at ?? \"\") > after","replace":".filter((r) => live(r) && (r.at ?? \"\") > after"},
  {"id":"D31","what":"update.set lets a needs-you update be dismissed","file":"app/src/domain/commands/alerts.ts","find":"ruleOfKey(key)?.lane === \"needs\"","replace":"ruleOfKey(key)?.lane === \"info\""},
  {"id":"D32","what":"dismissing an update no longer hides it","file":"app/src/domain/updates.ts","find":"return marked > scopeAt ? marked : scopeAt;","replace":"return scopeAt;"},
- {"id": "D33", "what": "a standing clash's meetings also post one clash each", "file": "app/src/domain/updates.ts", "find": "(inStanding.has(c.first) && inStanding.has(c.second))", "replace": "false"},
- {"id": "D34", "what": "series-ending ignores its amount", "file": "app/src/domain/updates.ts", "find": "amount(\"series-ending\") * 7 * DAY_MS", "replace": "28 * DAY_MS"},
- {"id": "D35", "what": "a seen series-ending update comes back", "file": "app/src/domain/updates.ts", "find": "if (own?.state === \"seen\" || own?.state === \"dismissed\") return false;", "replace": "if (own?.state === \"dismissed\") return false;"},
- {"id": "D36", "what": "series-ending fires after the last meeting has started", "file": "app/src/domain/updates.ts", "find": "end > Date.parse(now) && end", "replace": "end"},
- {"id": "D37", "what": "every clash is called hard", "file": "app/src/domain/updates.ts", "find": "kinds: [c.severity]", "replace": "kinds: [\"hard\"]"}
+ {"id":"D33","what":"a standing clash's meetings also post one clash each","file":"app/src/domain/updates.ts","find":"(inStanding.has(c.first) && inStanding.has(c.second))","replace":"false"},
+ {"id":"D34","what":"series-ending ignores its amount","file":"app/src/domain/updates.ts","find":"amount(\"series-ending\") * 7 * DAY_MS","replace":"28 * DAY_MS"},
+ {"id":"D35","what":"a seen series-ending update comes back","file":"app/src/domain/updates.ts","find":"if (own?.state === \"seen\" || own?.state === \"dismissed\") return false;","replace":"if (own?.state === \"dismissed\") return false;"},
+ {"id":"D36","what":"series-ending fires after the last meeting has started","file":"app/src/domain/updates.ts","find":"end > Date.parse(now) && end","replace":"end"},
+ {"id":"D37","what":"every clash is called hard","file":"app/src/domain/updates.ts","find":"kinds: [c.severity]","replace":"kinds: [\"hard\"]"},
+ {"id":"D38","what":"priority-changed ignores the amount","file":"app/src/domain/rules.ts","find":"Number(row.to) <= amount","replace":"Number(row.to) <= 4"},
+ {"id":"D39","what":"a deleted proposal still posts","file":"app/src/domain/updates.ts","find":"if (!live(p) || !p.superseded","replace":"if (!p.superseded"},
+ {"id":"D40","what":"a removed tab still posts","file":"app/src/domain/updates.ts","find":"if (!live(t) || !t.orphaned","replace":"if (!t.orphaned"},
+ {"id":"D41","what":"viewers see viewer suggestions too","file":"app/src/domain/updates.ts","find":"on(\"viewer-suggestion\") && !input.isViewer","replace":"on(\"viewer-suggestion\")"},
+ {"id":"D42","what":"closed suggestions still post","file":"app/src/domain/updates.ts","find":"s.state !== \"open\"","replace":"s.state === \"never\""},
+ {"id":"D43","what":"a rekeyed series is not called a series change","file":"app/src/domain/updates.ts","find":"...(rekeyed ? [\"series-rekeyed\"] : [])","replace":"...[]"}
 ]

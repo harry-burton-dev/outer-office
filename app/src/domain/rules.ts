@@ -19,7 +19,7 @@ export type RuleGroup = "Diary" | "Proposals" | "Tasks" | "Sync";
 
 export interface Amount {
   readonly label: string;
-  readonly unit: "hours" | "weeks";
+  readonly unit: "hours" | "weeks" | "priority";
   readonly default: number;
   readonly min: number;
   readonly max: number;
@@ -96,6 +96,21 @@ export const RULES: readonly Rule[] = [
     },
   }),
   change({ id: "flagged-changed", group: "Diary", label: "A meeting is flagged or unflagged", lane: "info", scope: "principal", match: is("overlay", "flag") }),
+  change({
+    id: "priority-changed", group: "Diary", label: "A meeting is given a high priority", lane: "info", scope: "principal",
+    // p1 is highest: the amount is the lowest priority that counts (default p2, so p1 and p2).
+    amount: { label: "Up to p", unit: "priority", default: 2, min: 1, max: 4 },
+    match: (row, _context, amount) => is("overlay", "priority")(row) && Number(row.to) >= 1 && Number(row.to) <= amount,
+  }),
+  change({
+    id: "tagged-changed", group: "Diary", label: "A meeting's or task's tags change", lane: "info", scope: "principal", offByDefault: true,
+    match: (row) => (row.area === "overlay" || row.area === "task") && (row.kind === "tag-added" || row.kind === "tag-removed"),
+  }),
+  change({ id: "card-ready", group: "Diary", label: "A card on a meeting is complete", lane: "info", scope: "principal", match: is("overlay", "card-ready") }),
+  change({
+    id: "series-changed", group: "Diary", label: "A series changes", lane: "info", scope: "principal",
+    match: (row) => is("calendar", "series-rekeyed")(row) || is("overlay", "series")(row),
+  }),
   change({ id: "proposal-made", group: "Proposals", label: "A move or new meeting is proposed", lane: "info", scope: "principal", match: is("proposal", "move", "new") }),
   change({ id: "proposal-withdrawn", group: "Proposals", label: "A proposal is withdrawn", lane: "info", scope: "principal", match: is("proposal", "withdraw") }),
   change({ id: "proposal-settled", group: "Proposals", label: "A proposal shows up in Outlook", lane: "info", scope: "principal", match: is("proposal", "settled") }),
@@ -128,6 +143,10 @@ export const RULES: readonly Rule[] = [
     id: "series-ending", group: "Diary", label: "A series is about to end", lane: "info", scope: "principal",
     amount: { label: "Before its last meeting", unit: "weeks", default: 4, min: 1, max: 12 },
   }),
+  state({ id: "proposal-superseded", group: "Proposals", label: "A proposal no longer matches the diary", lane: "needs", scope: "principal" }),
+  state({ id: "linked-outside", group: "Diary", label: "A sync moved a linked meeting outside its parent", lane: "needs", scope: "principal" }),
+  state({ id: "tab-orphaned", group: "Diary", label: "A tab with content lost the tag that added it", lane: "needs", scope: "principal" }),
+  state({ id: "viewer-suggestion", group: "Proposals", label: "A viewer made a suggestion", lane: "needs", scope: "principal" }),
   state({ id: "gone-no-reason", group: "Diary", label: "A gone meeting with office data has no reason", lane: "needs", scope: "principal" }),
   // One update per sync run, holding the engagements it changed.
   change({ id: "sync-applied", group: "Sync", label: "A sync or import changes the diary", lane: "info", scope: "principal", match: is("import", "applied") }),

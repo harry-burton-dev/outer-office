@@ -47,6 +47,8 @@ export function useUpdates(): Updates {
   const cover = useRecords("cover");
   const flowRuns = useRecords("flowRuns");
   const tabs = useRecords("tabs");
+  const proposals = useRecords("proposals");
+  const suggestions = useRecords("suggestions");
   const cards = useRecords("cards");
   const templates = useRecords("templates");
   const readiness = useMemo(() => readinessByEvent(tabs, cards, templates), [tabs, cards, templates]);
@@ -74,10 +76,10 @@ export function useUpdates(): Updates {
     const input: UpdatesInput = {
       user: userId, now, timezone, dayStart: office?.dayStart || "08:00", dayEnd: office?.dayEnd || "18:00",
       principals, log, tasks, events, overlays, seen, updateState, settings, ownRules, covering,
-      sync, readiness,
+      sync, readiness, proposals, tabs, suggestions, isViewer,
     };
     return { groups: updatesFor(input), input, settings, lastSync };
-  }, [userId, now, timezone, isViewer, office, principals, log, tasks, events, overlays, seen, updateState, ruleSettings, people, imports, entries, ownRules, cover, flowRuns, readiness]);
+  }, [userId, now, timezone, isViewer, office, principals, log, tasks, events, overlays, seen, updateState, ruleSettings, people, imports, entries, ownRules, cover, flowRuns, readiness, proposals, tabs, suggestions]);
 }
 
 /** Whether an update shows on a surface, by the user's setting for each rule it matched. */
