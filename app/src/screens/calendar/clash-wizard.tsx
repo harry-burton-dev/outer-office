@@ -26,6 +26,8 @@ export interface ClashWizardProps {
   /** The range it covers: clashes beginning in [from, to), ISO UTC instants. */
   from: string;
   to: string;
+  /** A viewer's run (D15): Apply makes suggestions instead of changes. */
+  suggest?: boolean;
   onDone(): void;
 }
 
@@ -48,13 +50,13 @@ function Engagement({ event, zone, priority }: { event: Event; zone: string; pri
   );
 }
 
-export function ClashWizard({ principal, from, to, onDone }: ClashWizardProps) {
+export function ClashWizard({ principal, from, to, suggest = false, onDone }: ClashWizardProps) {
   const { now, timezone } = useApp();
   const office = useOffice();
   const events = useRecords("events");
   const overlays = useRecords("overlays");
   const proposals = useRecords("proposals");
-  const apply = useRun(commands.wizardApply);
+  const apply = useRun(suggest ? commands.suggestionFromWizard : commands.wizardApply);
   const world = useMemo<WizardWorld>(() => {
     const live = events.filter((e) => !e._deleted);
     return { events: live, overlays: overlays.filter((o) => !o._deleted), proposed: proposedRows(proposals, live), zone: timezone, dayStart: office?.dayStart || DEFAULT_DAY_START, dayEnd: office?.dayEnd || DEFAULT_DAY_END, now };
@@ -128,8 +130,8 @@ export function ClashWizard({ principal, from, to, onDone }: ClashWizardProps) {
     return (
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Apply these fixes?</DialogTitle>
-          <DialogDescription>Moves become proposals on the Proposed layer. Outlook doesn't change.</DialogDescription>
+          <DialogTitle>{suggest ? "Suggest these fixes?" : "Apply these fixes?"}</DialogTitle>
+          <DialogDescription>{suggest ? "Each fix becomes a suggestion an assistant can take or dismiss. Nothing else changes." : "Moves become proposals on the Proposed layer. Outlook doesn't change."}</DialogDescription>
         </DialogHeader>
         {chosen.length === 0 ? <p className="text-sm text-muted-foreground">Every clash is left as it is.</p> : (
           <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm" aria-label="Chosen fixes">
@@ -140,7 +142,7 @@ export function ClashWizard({ principal, from, to, onDone }: ClashWizardProps) {
         <DialogFooter>
           <Button variant="ghost" onClick={() => setAt(steps.length - 1)}>Back</Button>
           <Button variant="outline" onClick={onDone}>Cancel</Button>
-          <Button onClick={() => apply.run({ fixes: chosen }) && onDone()} disabled={chosen.length === 0}>Apply</Button>
+          <Button onClick={() => apply.run({ fixes: chosen }) && onDone()} disabled={chosen.length === 0}>{suggest ? "Suggest" : "Apply"}</Button>
         </DialogFooter>
       </DialogContent>
     );

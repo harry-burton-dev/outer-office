@@ -29,18 +29,38 @@ export function summaryItems(s: DaySummary): Item[] {
   return items;
 }
 
-export function DaySummaryView({ summary }: { summary: DaySummary }) {
+const CLASH_KEYS = new Set(["hard", "soft", "away"]);
+
+/** With onClashes, each clash count is a button that opens the clash wizard for the day (OUT-85). */
+export function DaySummaryView({ summary, onClashes }: { summary: DaySummary; onClashes?: () => void }) {
   if (!hasWarnings(summary)) return null;
   const items = summaryItems(summary);
   return (
     <ul className="mt-1 flex flex-wrap gap-x-1.5 gap-y-0.5 text-[0.6875rem] tabular-nums normal-case" aria-label="Day summary" data-day-summary="">
-      {items.map((item) => (
-        <li key={item.key} title={item.label} className={`flex items-center gap-0.5 [&_svg]:size-3 ${item.tone}`} data-summary={item.key}>
-          {item.icon}
-          <span aria-hidden>{item.short}</span>
-          <span className="sr-only">{item.label}</span>
-        </li>
-      ))}
+      {items.map((item) => {
+        const content = (
+          <>
+            {item.icon}
+            <span aria-hidden>{item.short}</span>
+            <span className="sr-only">{item.label}</span>
+          </>
+        );
+        return (
+          <li key={item.key} title={item.label} className={`flex items-center gap-0.5 [&_svg]:size-3 ${item.tone}`} data-summary={item.key}>
+            {onClashes && CLASH_KEYS.has(item.key) ? (
+              <button
+                type="button"
+                className="flex items-center gap-0.5 rounded-sm hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                title={`${item.label}: open the clash wizard`}
+                onClick={(e) => { e.stopPropagation(); onClashes(); }}
+                data-open-wizard=""
+              >
+                {content}
+              </button>
+            ) : content}
+          </li>
+        );
+      })}
     </ul>
   );
 }

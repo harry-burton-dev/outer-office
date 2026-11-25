@@ -44,3 +44,7 @@ test("an event stored before v3 gets its attendee list, series identity and empt
 test("a card stored before tabs reads as on no tab, using its template's fields", () => {
   expect(config.migrations.cards[1]({ event: "e1", template: "t1" })).toEqual({ event: "e1", template: "t1", tab: "", fields: "" });
 });
+
+test("a proposal stored before groups reads ungrouped and not superseded", () => {
+  expect(config.migrations.proposals[2]({ event: "e1", kind: "move" })).toEqual({ event: "e1", kind: "move", group: "", superseded: "" });
+});

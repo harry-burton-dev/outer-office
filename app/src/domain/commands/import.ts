@@ -272,6 +272,6 @@ export const importApply = defineCommand("import.apply", (tx: Tx, input: ImportA
   });
   // Proposals Outlook now shows are done.
   const landed = incoming.map((e) => ({ id: eventId(tx, principal, e), start: e.start, end: e.end, subject: e.subject }));
-  settleProposals(tx, now, principal, landed, new Set(input.diff.gone.map((e) => eventId(tx, principal, e))));
+  settleProposals(tx, now, principal, landed, new Set(input.diff.gone.map((e) => eventId(tx, principal, e))), quiet);
   return result;
 });
