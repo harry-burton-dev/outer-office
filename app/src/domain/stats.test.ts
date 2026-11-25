@@ -4,10 +4,11 @@ import { monthRange, nextMonth, officeStats, totalOf, type StatsInput } from "./
 const row = <T>(fields: Record<string, unknown>) => ({ _deleted: false, _conflicts: {}, ...fields }) as T;
 const TEMPLATE = row({ id: "t", name: "Brief", fields: JSON.stringify([{ id: "f", label: "Brief", type: "text", required: true }]) });
 const ev = (id: string, start: string, more: Record<string, unknown> = {}) => row({ id, principal: "p1", start, end: start, ...more });
-const card = (event: string, done: boolean) => row({ id: `c-${event}`, event, template: "t", values: JSON.stringify(done ? { f: "x" } : {}), order: 0 });
+const card = (event: string, done: boolean) => row({ id: `c-${event}`, event, template: "t", tab: `tab-${event}`, values: JSON.stringify(done ? { f: "x" } : {}), order: 0 });
+const tabsFor = (...events: string[]) => events.map((event) => row({ id: `tab-${event}`, event, tabTemplate: "tt" })) as never[];
 
 function input(over: Partial<StatsInput>): StatsInput {
-  return { month: "2026-11", timezone: "Europe/London", now: "2026-11-23T12:00:00Z", events: [], overlays: [], cards: [], templates: [TEMPLATE] as never, log: [], ...over };
+  return { month: "2026-11", timezone: "Europe/London", now: "2026-11-23T12:00:00Z", events: [], overlays: [], tabs: [], cards: [], templates: [TEMPLATE] as never, log: [], ...over };
 }
 
 describe("stats", () => {
@@ -30,7 +31,7 @@ describe("stats", () => {
     expect(totalOf(stats.values()).engagements).toBe(3);
   });
 
-  test("prep is on time when every card was complete by the start, late when finished after", () => {
+  test("prep is on time when every required card on its tabs was complete by the start, late when finished after", () => {
     const events = [
       ev("ready", "2026-11-10T10:00:00Z"), ev("late", "2026-11-11T10:00:00Z"), ev("open", "2026-11-12T10:00:00Z"),
       ev("bare", "2026-11-13T10:00:00Z"), ev("ahead", "2026-11-28T10:00:00Z"),
@@ -40,7 +41,10 @@ describe("stats", () => {
       row({ id: "l1", kind: "card-ready", event: "ready", at: "2026-11-09T10:00:00Z" }),
       row({ id: "l2", kind: "card-ready", event: "late", at: "2026-11-11T12:00:00Z" }),
     ] as never[];
-    expect(officeStats(input({ events, cards, log })).get("p1")).toMatchObject({ engagements: 5, withCards: 3, prepOnTime: 1, prepLate: 1 });
+    const tabs = tabsFor("ready", "late", "open", "ahead");
+    expect(officeStats(input({ events, tabs, cards, log })).get("p1")).toMatchObject({ engagements: 5, withCards: 3, prepOnTime: 1, prepLate: 1 });
+    // A card added on its own, outside a tab, doesn't count.
+    expect(officeStats(input({ events, cards, log })).get("p1")).toMatchObject({ withCards: 0 });
   });
 
   test("the month ends just before the next one starts, and prep done at the start is on time", () => {
@@ -48,7 +52,7 @@ describe("stats", () => {
     const events = [ev("edge", "2026-12-01T00:00:00Z"), ev("start", "2026-11-20T10:00:00Z")] as never[];
     const cards = [card("start", true)] as never[];
     const log = [row({ id: "l", kind: "card-ready", event: "start", at: "2026-11-20T10:00:00Z" })] as never[];
-    expect(officeStats(input({ events, cards, log })).get("p1")).toMatchObject({ engagements: 1, prepOnTime: 1, prepLate: 0 });
+    expect(officeStats(input({ events, tabs: tabsFor("start"), cards, log })).get("p1")).toMatchObject({ engagements: 1, prepOnTime: 1, prepLate: 0 });
   });
 
   test("moves come from the month's log", () => {

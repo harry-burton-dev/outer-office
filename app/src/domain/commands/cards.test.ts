@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { ImportDiff } from "../../import/types";
 import { cardFieldsOf, cardIsBehind, cardTemplatesOf, tabIsBehind, fieldsOf, isComplete, optionsOf, progressOf, tabsOn, valuesOf } from "../cards";
-import { cardAdd, cardRemove, cardSet, cardUpdate, tabApply, tabRemove, tabTemplateRemove, tabUpdate, tabTemplateSave, templateRemove, templateSave } from "./cards";
+import { cardAdd, cardRemove, cardSet, cardUpdate, tabApply, tabCopyFrom, tabRemove, tabTemplateRemove, tabUpdate, tabTemplateSave, templateRemove, templateSave } from "./cards";
 import { importApply } from "./import";
 import { principalSave } from "./office";
 import { byId, fails, idOf, NOW, ok, oneDevice, rows } from "./testing/world";
@@ -150,5 +150,32 @@ describe("tabs", () => {
     expect(rows(a, "tabs")).toEqual([]);
     expect(ok(a, tabApply, { now: NOW, event, tabTemplate })).toBe(tab);
     expect(rows(a, "cards").filter((c) => c.tab === tab)).toHaveLength(2);
+  });
+});
+
+describe("copy from last time", () => {
+  test("tab.copyFrom fills empty fields except ticks, and refuses masked items (B37)", async () => {
+    const a = await oneDevice();
+    const principal = ok(a, principalSave, { now: NOW, code: "PRINCIPAL-A", title: "Principal A" });
+    const base = DIFF.added[0]!;
+    const added = [
+      { ...base, uid: "last", start: "2026-11-10T14:00:00Z", end: "2026-11-10T15:00:00Z" },
+      { ...base, uid: "next" },
+      { ...base, uid: "private", masked: true, start: "2026-11-12T14:00:00Z", end: "2026-11-12T15:00:00Z" },
+    ];
+    ok(a, importApply, { now: NOW, principal, file: "f.ics", diff: { ...DIFF, added } });
+    const [last, next, hidden] = ["last", "next", "private"].map((uid) => idOf(a, "event", principal, uid)) as [string, string, string];
+    const dialIn = ok(a, templateSave, { now: NOW, name: "Dial-in", fields: DIAL_IN });
+    const tabTemplate = ok(a, tabTemplateSave, { now: NOW, name: "Board", cards: [dialIn] });
+    const from = ok(a, tabApply, { now: NOW, event: last, tabTemplate });
+    const into = ok(a, tabApply, { now: NOW, event: next, tabTemplate });
+    const hiddenTab = ok(a, tabApply, { now: NOW, event: hidden, tabTemplate });
+    const cardOn = (tab: string) => rows(a, "cards").find((c) => c.tab === tab)!;
+    ok(a, cardSet, { now: NOW, id: cardOn(from).id, values: { system: "Zoom room", host: "true" } });
+    expect(ok(a, tabCopyFrom, { now: NOW, tab: into, from })).toBe(1);
+    expect(valuesOf(cardOn(into).values)).toEqual({ system: "Zoom room" });
+    expect(rows(a, "log").filter((l) => l.kind === "card-ready" && l.event === next)).toHaveLength(1);
+    expect(fails(a, tabCopyFrom, { now: NOW, tab: into, from: hiddenTab })).toMatch(/Private/);
+    expect(fails(a, tabCopyFrom, { now: NOW, tab: hiddenTab, from })).toMatch(/Private/);
   });
 });

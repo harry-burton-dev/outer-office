@@ -2,6 +2,7 @@
 // point at a record that has not arrived, so nothing here assumes a match.
 import type { RowOf } from "@trellis/framework";
 import { todayIn } from "./dates";
+import type { Readiness } from "./readiness";
 
 export type Task = RowOf<"tasks">;
 export type Event = RowOf<"events">;
@@ -37,6 +38,8 @@ export interface NeedsActionInput {
   tasks: readonly Task[];
   events: readonly Event[];
   overlays: readonly Overlay[];
+  /** Each engagement's tab readiness (readinessByEvent), which replaces overlay.prep (OUT-88). */
+  readiness: ReadonlyMap<string, Readiness>;
   /** ISO UTC instant. */
   now: string;
   /** The office's IANA zone, which decides what "today" is. */
@@ -68,7 +71,7 @@ export function needsAction(input: NeedsActionInput): NeedsAction {
   return {
     overdue: tagged.filter((t) => isOverdue(t, today)).sort(byEarliest),
     dueToday: tagged.filter((t) => isDueToday(t, today)).sort(byOrder),
-    prepNeeded: mine.filter((e) => !e.gone && startsSoon(e) && overlayOf.get(e.id)?.prep === "needed").sort(byStart),
+    prepNeeded: mine.filter((e) => !e.gone && startsSoon(e) && input.readiness.get(e.id)?.ready === false).sort(byStart),
     goneWithData: mine.filter((e) => e.gone === true && (hasOfficeData(overlayOf.get(e.id)) || linked.has(e.id))).sort(byStart),
   };
 }

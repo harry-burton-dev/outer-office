@@ -12,7 +12,7 @@ import { dateIn } from "@/domain/dates";
 import { EMPTY_STATS, nextMonth, officeStats, totalOf, type PrincipalStats } from "@/domain/stats";
 
 const DESCRIPTION =
-  "Engagements starting this month, not counting all-day, gone or archived ones. Prep counts meetings that have started and carry cards: on time when every card was complete by the start. Moves are times Outlook moved a meeting this month.";
+  "Engagements starting this month, not counting all-day, gone or archived ones. Prep counts meetings that have started and carry a required card on a tab: on time when every required card on its tabs was complete by the start. Moves are times Outlook moved a meeting this month.";
 
 const monthName = (month: string) =>
   new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${month}-01T12:00:00Z`));
@@ -55,11 +55,12 @@ export function StatsScreen() {
   const events = useRecords("events");
   const overlays = useRecords("overlays");
   const cards = useRecords("cards");
+  const tabs = useRecords("tabs");
   const templates = useRecords("templates");
   const log = useRecords("log");
   const stats = useMemo(
-    () => officeStats({ month, timezone, now, events, overlays, cards, templates, log }),
-    [month, timezone, now, events, overlays, cards, templates, log],
+    () => officeStats({ month, timezone, now, events, overlays, tabs, cards, templates, log }),
+    [month, timezone, now, events, overlays, tabs, cards, templates, log],
   );
   const rows = principals.map((p) => ({ principal: p, row: stats.get(p.id) ?? EMPTY_STATS }));
   return (
