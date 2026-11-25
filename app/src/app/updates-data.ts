@@ -5,6 +5,7 @@ import { useRecords } from "@trellis/framework";
 import { settingsFor, type RuleSetting, type Surface } from "@/domain/rules";
 import { updatesFor, type Update, type UpdateGroup, type UpdatesInput } from "@/domain/updates";
 import { coverInForce } from "@/domain/coverage";
+import { readinessByEvent } from "@/domain/readiness";
 import { useDiaryInbox } from "@/automate/diary-inbox-state";
 import { DIARY_SYNC_FLOW, principalHealth } from "@/automate/flows";
 import { useApp } from "./app-state";
@@ -45,6 +46,10 @@ export function useUpdates(): Updates {
   const ownRules = useRecords("rules");
   const cover = useRecords("cover");
   const flowRuns = useRecords("flowRuns");
+  const tabs = useRecords("tabs");
+  const cards = useRecords("cards");
+  const templates = useRecords("templates");
+  const readiness = useMemo(() => readinessByEvent(tabs, cards, templates), [tabs, cards, templates]);
   const { entries } = useDiaryInbox();
   return useMemo(() => {
     const idOfCode = new Map(principals.map((p) => [p.code ?? "", p.id]));
@@ -69,10 +74,10 @@ export function useUpdates(): Updates {
     const input: UpdatesInput = {
       user: userId, now, timezone, dayStart: office?.dayStart || "08:00", dayEnd: office?.dayEnd || "18:00",
       principals, log, tasks, events, overlays, seen, updateState, settings, ownRules, covering,
-      sync,
+      sync, readiness,
     };
     return { groups: updatesFor(input), input, settings, lastSync };
-  }, [userId, now, timezone, isViewer, office, principals, log, tasks, events, overlays, seen, updateState, ruleSettings, people, imports, entries, ownRules, cover, flowRuns]);
+  }, [userId, now, timezone, isViewer, office, principals, log, tasks, events, overlays, seen, updateState, ruleSettings, people, imports, entries, ownRules, cover, flowRuns, readiness]);
 }
 
 /** Whether an update shows on a surface, by the user's setting for each rule it matched. */

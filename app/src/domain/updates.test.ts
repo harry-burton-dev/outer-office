@@ -22,11 +22,14 @@ function input(over: Partial<UpdatesInput> = {}): UpdatesInput {
   return {
     user: "user-a", now: NOW, timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00",
     principals: [{ id: "p-a" }], log: [], tasks: [], events: [], overlays: [], seen: [], updateState: [],
-    settings: settingsFor("user-a", [], undefined), sync: new Map(),
+    settings: settingsFor("user-a", [], undefined), sync: new Map(), readiness: new Map(),
     ...over,
   };
 }
 const group = (i: UpdatesInput, scope = "p-a") => updatesFor(i).find((g) => g.scope === scope)!;
+/** Tab readiness (OUT-88): these engagements have required cards not yet complete; others are ready. */
+const notReady = (...ids: string[]) => new Map(ids.map((id) => [id, { required: 1, done: 0, ready: false }]));
+const ready = (...ids: string[]) => new Map(ids.map((id) => [id, { required: 1, done: 1, ready: true }]));
 
 describe("settingsFor", () => {
   test("defaults: every rule on except gone and out-of-hours", () => {
@@ -198,7 +201,7 @@ describe("needs you", () => {
         { ...meta("mine"), assignee: "user-a", assignedBy: "user-a", assignment: "accepted", done: false } as RowOf<"tasks">,
       ],
       events: [ev("soon", { start: "2026-11-25T09:00:00Z" }), ev("far", { start: "2026-11-27T09:00:00Z" }), ev("gone", { gone: true })],
-      overlays: [overlay("soon", { prep: "needed" }), overlay("far", { prep: "needed" }), overlay("gone", { notes: "Keep" })],
+      overlays: [overlay("gone", { notes: "Keep" })], readiness: notReady("soon", "far"),
       sync: new Map([["p-a", { state: "refused", reason: "it would mark 9 of 10 events gone", lastRunAt: T(30) }]]),
     });
     const groups = updatesFor(i);
@@ -212,7 +215,7 @@ describe("needs you", () => {
     const i = input({
       tasks: [{ ...meta("offer"), assignee: "user-a", assignedBy: "user-b", assignment: "accepted", done: false } as RowOf<"tasks">],
       events: [ev("soon", { start: "2026-11-25T09:00:00Z" }), ev("gone", { gone: true })],
-      overlays: [overlay("soon", { prep: "done" }), overlay("gone", { notes: "Keep", archived: T(1), archiveReason: "cancelled" })],
+      overlays: [overlay("gone", { notes: "Keep", archived: T(1), archiveReason: "cancelled" })], readiness: ready("soon"),
       sync: new Map([["p-a", { state: "ok", reason: null, lastRunAt: T(1) }]]),
     });
     expect(updatesFor(i).flatMap((g) => g.needs)).toEqual([]);
@@ -326,7 +329,7 @@ describe("each built-in state rule", () => {
     const i = input({
       settings: tuned,
       events: [ev("in", { start: "2026-11-24T13:00:00.000Z" }), ev("out", { start: "2026-11-24T15:00:00.000Z" })],
-      overlays: ["in", "out"].map((e) => ({ ...meta(`o-${e}`), event: e, prep: "needed" }) as RowOf<"overlays">),
+      readiness: notReady("in", "out"),
     });
     expect(group(i).needs.map((u) => u.key).sort()).toEqual(["prep-due|in"]);
   });
@@ -336,14 +339,16 @@ describe("needs you, carried over from Needs action", () => {
   const ov = (event: string, over: Partial<RowOf<"overlays">> = {}) => ({ ...meta(`o-${event}`), event, prep: "none", flagged: false, ...over }) as RowOf<"overlays">;
   const at = "2026-11-22T09:00:00.000Z";
 
-  test("prep-due lists meetings in the next 24 hours whose prep is needed", () => {
+  test("prep-due lists meetings in the next 24 hours whose tabs aren't ready", () => {
     const events = [
       ev("soon", { start: "2026-11-22T15:00:00Z" }), ev("tomorrow-late", { start: "2026-11-23T10:00:00Z" }),
       ev("started", { start: "2026-11-22T08:00:00Z" }), ev("ready", { start: "2026-11-22T15:00:00Z" }),
       ev("no-overlay", { start: "2026-11-22T15:00:00Z" }), ev("other", { start: "2026-11-22T15:00:00Z", principal: "p-b" }),
     ];
-    const overlays = [ov("soon", { prep: "needed" }), ov("tomorrow-late", { prep: "needed" }), ov("started", { prep: "needed" }), ov("ready", { prep: "ready" }), ov("other", { prep: "needed" })];
-    expect(group(input({ now: at, events, overlays })).needs.map((u) => u.key)).toEqual(["prep-due|soon"]);
+    const readiness = new Map([...notReady("soon", "tomorrow-late", "started", "other"), ...ready("ready")]);
+    // overlay.prep is retired: "needed" there no longer counts.
+    const overlays = [ov("no-overlay", { prep: "needed" })];
+    expect(group(input({ now: at, events, overlays, readiness })).needs.map((u) => u.key)).toEqual(["prep-due|soon"]);
   });
 
   test("gone-no-reason lists gone meetings that carry office data or a linked task", () => {
@@ -398,9 +403,9 @@ describe("own rules, cover and the preview", () => {
 
   test("a state rule with an amount and a principal adds to the built-in one, one update per key", () => {
     const events = [ev("soon", { start: "2026-11-25T09:00:00Z" }), ev("later", { start: "2026-11-26T09:00:00Z" })];
-    const overlays = ["soon", "later"].map((e) => ({ ...meta(`o-${e}`), event: e, prep: "needed" }) as RowOf<"overlays">);
+    const readiness = notReady("soon", "later");
     const rule = own({ condition: "prep-due", lane: "needs", params: JSON.stringify({ principal: "p-a", amount: 72 }), surfaces: "badge" });
-    const { needs } = group(input({ events, overlays, ownRules: [rule] }));
+    const { needs } = group(input({ events, readiness, ownRules: [rule] }));
     expect(needs.map((u) => [u.key, u.rules, u.surfaces])).toEqual([
       ["prep-due|soon", ["prep-due", `own:${rule.id}`], ["home", "needs", "badge"]],
       ["prep-due|later", [`own:${rule.id}`], ["badge"]],

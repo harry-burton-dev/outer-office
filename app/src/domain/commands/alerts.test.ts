@@ -60,7 +60,7 @@ describe("update.set", () => {
     const groups = updatesFor({
       user: "user-a", now: LATER, timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", principals: [{ id: principal }],
       log: log as never, tasks: [], events: [], overlays: [], seen: [], updateState: rows(a, "updateState"),
-      settings: settingsFor("user-a", [], undefined), sync: new Map(),
+      settings: settingsFor("user-a", [], undefined), sync: new Map(), readiness: new Map(),
     });
     expect(groups[0].info[0].dealtWith).toEqual({ by: "user-b", at: LATER });
   });

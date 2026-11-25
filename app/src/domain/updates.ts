@@ -12,6 +12,7 @@ import { todayIn } from "./dates";
 import { FIRST_LOOK_DAYS, ME } from "./home";
 import { isDueToday, isOverdue } from "./selectors";
 import type { PrincipalHealth } from "../automate/flows";
+import type { Readiness } from "./readiness";
 import { RULES, ruleById, type ChangeContext, type Lane, type RuleSetting, type Surface, SURFACES } from "./rules";
 
 type LogRow = RowOf<"log">;
@@ -47,6 +48,8 @@ export interface UpdatesInput {
   updateState: readonly UpdateStateRow[];
   /** settingsFor(user, …). */
   settings: ReadonlyMap<string, RuleSetting>;
+  /** Each engagement's tab readiness, by event id (readinessByEvent, OUT-88): prep-due reads it. */
+  readiness: ReadonlyMap<string, Readiness>;
   /** Each principal's diary sync health, by principal id, from principalHealth (OUT-91). */
   sync: ReadonlyMap<string, SyncHealth>;
   /** Rules users made (D4); only the user's own, switched on, count. */
@@ -370,7 +373,8 @@ function needsUpdates(ctx: Ctx, settings: ReadonlyMap<string, RuleSetting>, user
     const until = from + amount("prep-due") * HOUR_MS;
     for (const e of events) {
       const start = Date.parse(e.start ?? "");
-      if (e.gone || overlayOf.get(e.id)?.prep !== "needed" || !(start >= from && start < until)) continue;
+      // A tab with required cards not yet complete (v0.3 brief 5.3); overlay.prep is retired.
+      if (e.gone || input.readiness.get(e.id)?.ready !== false || !(start >= from && start < until)) continue;
       add("prep-due", e.principal ?? "", e.id, e.start ?? "", { event: e.id });
     }
   }

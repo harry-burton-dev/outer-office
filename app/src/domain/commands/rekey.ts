@@ -7,12 +7,13 @@ import type { Tx } from "@trellis/framework";
 import type { SeriesRekey } from "../../import/rekey";
 import { overlayId } from "./overlay";
 import { proposalId } from "./proposals";
+import { tabId } from "./cards";
 import { writeLog } from "./shared";
 
 type Row = Record<string, unknown> & { id: string; _deleted?: boolean; _conflicts?: unknown };
 
 /** Writes a record's fields under a new id and removes the old one. */
-function moveRecord(tx: Tx, table: "overlays" | "proposals", row: Row, toId: string, changes: Record<string, unknown>): void {
+function moveRecord(tx: Tx, table: "overlays" | "proposals" | "tabs", row: Row, toId: string, changes: Record<string, unknown>): void {
   const { id: _id, _deleted, _conflicts, ...fields } = row;
   if (tx.get(table, toId)?._deleted) tx.restore(table, toId);
   tx.put(table, toId, { ...fields, ...changes } as never);
@@ -35,8 +36,21 @@ function moveAll(tx: Tx, moves: ReadonlyMap<string, string>): void {
     const event = to(p.event);
     if (event && p.id === proposalId(tx, p.event ?? "")) moveRecord(tx, "proposals", p as Row, proposalId(tx, event), { event });
   }
-  for (const c of tx.list("cards")) { const event = to(c.event); if (event) tx.put("cards", c.id, { event }); }
-  for (const t of tx.list("tasks")) { const event = to(t.event); if (event) tx.put("tasks", t.id, { event }); }
+  // A tab's id is keyed to its event (OUT-88), so it moves to a new id and its cards and tasks follow.
+  const tabMoves = new Map<string, string>();
+  for (const t of tx.list("tabs")) {
+    const event = to(t.event);
+    if (!event) continue;
+    const toId = tabId(tx, event, t.tabTemplate ?? "");
+    tabMoves.set(t.id, toId);
+    moveRecord(tx, "tabs", t as Row, toId, { event });
+  }
+  const follow = (r: { event?: string; tab?: string }) => {
+    const [event, tab] = [to(r.event), tabMoves.get(r.tab ?? "")];
+    return event || tab ? { ...(event && { event }), ...(tab && { tab }) } : undefined;
+  };
+  for (const c of tx.list("cards")) { const changes = follow(c); if (changes) tx.put("cards", c.id, changes); }
+  for (const t of tx.list("tasks")) { const changes = follow(t); if (changes) tx.put("tasks", t.id, changes); }
   for (const h of tx.list("eventHistory")) { const event = to(h.event); if (event) tx.put("eventHistory", h.id, { event }); }
 }
 

@@ -3,7 +3,7 @@
 import { afterEach, expect, test } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { Sheet } from "@/components/ui/sheet";
-import { overlaySet } from "@/domain/commands";
+import { overlaySet, tabApply, tabTemplateSave, templateSave } from "@/domain/commands";
 import { AppProbe, cleanupApp, NOW, probe, renderApp } from "@/app/testing/render-app";
 import { eventIdOf, importEvents, markGone, syntheticEvent } from "@/screens/calendar/testing/events";
 import { NeedsActionPanel } from "../needs-action-panel";
@@ -47,7 +47,8 @@ test("prep needed soon and a gone meeting with office data show and open the eng
       const goneEvent = syntheticEvent("g1", { subject: "Cancelled visit", start: "2026-11-25T10:00:00Z", end: "2026-11-25T11:00:00Z" });
       importEvents(s, NOW, a, [syntheticEvent("s1", { subject: "Board briefing", start: "2026-11-22T14:00:00Z", end: "2026-11-22T15:00:00Z" }), goneEvent]);
       soon = eventIdOf(s.device, a, "s1");
-      s.run(overlaySet, { now: NOW, event: soon, prep: "needed" });
+      const brief = s.run(templateSave, { now: NOW, name: "Brief", fields: [{ id: "who", label: "Who", type: "text", required: true }] });
+      s.run(tabApply, { now: NOW, event: soon, tabTemplate: s.run(tabTemplateSave, { now: NOW, name: "Board", cards: [brief] }) });
       s.run(overlaySet, { now: NOW, event: eventIdOf(s.device, a, "g1"), notes: "Rebook" });
       markGone(s, NOW, a, goneEvent);
     },

@@ -10,13 +10,15 @@ import { taskAssign } from "./task-assign";
 import { projectSave, sectionSave } from "./projects";
 import { ackPrivacy, setMode } from "./people";
 import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
-import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
+import { cardAdd, cardRemove, cardSet, cardUpdate, tabApply, tabCopyFrom, tabRemove, tabUpdate, tabTemplateRemove, tabTemplateSave, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalMoveGroup, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen } from "./home";
 import { wizardApply } from "./wizard";
 import { suggestionDismiss, suggestionFromWizard, suggestionMake, suggestionTake } from "./suggestions";
 import { automateRecordRun } from "./automate";
 import { coverRemove, coverSave, ruleRemove, ruleSave, ruleSettingSet, updateSet } from "./alerts";
+import { taskRetime } from "./tab-tasks";
+import { tabKeep } from "./tab-triggers";
 
 // One name per line, so threads adding a command don't conflict on one line.
 export const commands = {
@@ -51,6 +53,15 @@ export const commands = {
   cardSet,
   cardRemove,
   homeMarkSeen,
+  cardUpdate,
+  tabTemplateSave,
+  tabTemplateRemove,
+  tabApply,
+  tabRemove,
+  tabUpdate,
+  taskRetime,
+  tabCopyFrom,
+  tabKeep,
   ruleSettingSet,
   updateSet,
   ruleSave,
@@ -97,6 +108,15 @@ export {
   cardSet,
   cardRemove,
   homeMarkSeen,
+  cardUpdate,
+  tabTemplateSave,
+  tabTemplateRemove,
+  tabApply,
+  tabRemove,
+  tabUpdate,
+  taskRetime,
+  tabCopyFrom,
+  tabKeep,
   ruleSettingSet,
   updateSet,
   ruleSave,
@@ -116,7 +136,7 @@ export type { TaskAssignInput, AssignAction } from "./task-assign";
 export type { ProjectSaveInput, SectionSaveInput } from "./projects";
 export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } from "./tags";
-export type { TemplateSaveInput } from "./cards";
+export type { TemplateSaveInput, TabTemplateSaveInput, TabVia } from "./cards";
 export type { ProposalMoveInput, ProposalMoveGroupInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput } from "./home";
 export type { WizardApplyInput } from "./wizard";

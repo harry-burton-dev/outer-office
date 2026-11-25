@@ -155,9 +155,29 @@ const config = {
       fields: { name: str, shape: str, fields: "text", order: num },
     },
     // A card on a meeting: one template's form, filled in. values is JSON { fieldId: value }.
+    // Version 2 (OUT-88): tab, the tab it came with ("" for a card added on its
+    // own), and fields, a copy of its template's fields taken when it was added,
+    // so later template edits don't change it ("" for older cards: use the template's).
     cards: {
+      version: 2,
+      fields: { event: str, template: str, values: "text", order: num, tab: str, fields: "text" },
+    },
+    // Tab templates (OUT-88): a name, a shape and card templates in order
+    // (cards, a comma list of template ids). Applying one to a meeting adds a
+    // tab with those cards. Editing one bumps version; tabs keep their copy.
+    // triggerKind is none, tag or category, and trigger that tag's or
+    // category's id. tasks is JSON [{ title, daysBefore, owner }].
+    tabTemplates: {
       version: 1,
-      fields: { event: str, template: str, values: "text", order: num },
+      fields: { name: str, shape: str, cards: str, triggerKind: str, trigger: str, tasks: "text", order: num, version: num },
+    },
+    // A tab on a meeting, id tx.id("tab", event, tabTemplate): at most one per
+    // meeting per tab template. version is the template's when it was applied
+    // or last updated; via is how it came (hand, tag, category or series).
+    // orphaned is when its trigger was removed while it had content ("" otherwise).
+    tabs: {
+      version: 1,
+      fields: { event: str, tabTemplate: str, version: num, appliedAt: str, appliedBy: str, via: str, orphaned: str },
     },
     projects: {
       version: 1,
@@ -168,7 +188,7 @@ const config = {
       fields: { project: str, name: str, order: num },
     },
     tasks: {
-      version: 2,
+      version: 3,
       fields: {
         title: str, notes: "text", project: str, section: str, order: num, priority: num,
         due: str, deadline: askStr, done: bool, doneAt: str, doneBy: str,
@@ -176,6 +196,9 @@ const config = {
         createdAt: str, createdBy: str,
         // Version 2: tags, comma-separated tag ids (OUT-76).
         tags: str,
+        // Version 3 (OUT-88): tab, the tab that created it ("" otherwise), and
+        // offsetDays, how many days before its engagement it falls due.
+        tab: str, offsetDays: num,
       },
     },
     log: {
@@ -224,7 +247,11 @@ const config = {
       }),
       2: (record) => ({ ...record, group: record.group ?? "", superseded: record.superseded ?? "" }),
     },
-    tasks: { 1: (record) => ({ ...record, tags: record.tags ?? "" }) },
+    tasks: {
+      1: (record) => ({ ...record, tags: record.tags ?? "" }),
+      2: (record) => ({ ...record, tab: record.tab ?? "", offsetDays: record.offsetDays ?? 0 }),
+    },
+    cards: { 1: (record) => ({ ...record, tab: record.tab ?? "", fields: record.fields ?? "" }) },
     people: { 1: (record) => ({ ...record, watchOff: record.watchOff ?? "" }) },
     imports: { 1: (record) => ({ ...record, source: record.source ?? "" }) },
     events: {

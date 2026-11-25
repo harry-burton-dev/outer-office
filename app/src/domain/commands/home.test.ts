@@ -43,7 +43,7 @@ function home(d: Device, principal: string, now = LATEST) {
     user: d.user, now, timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", principals: [{ id: principal }],
     log: rows(d, "log"), tasks: rows(d, "tasks"), events: rows(d, "events"), overlays: rows(d, "overlays"), seen: rows(d, "seen"),
     updateState: rows(d, "updateState"), settings: settingsFor(d.user, rows(d, "ruleSettings"), undefined),
-    sync: new Map(),
+    sync: new Map(), readiness: new Map(),
   });
 }
 
