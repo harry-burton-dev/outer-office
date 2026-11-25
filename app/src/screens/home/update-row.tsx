@@ -19,7 +19,7 @@ const SNOOZES = [
   { label: "For a week", ms: 7 * 24 * HOUR_MS },
 ] as const;
 
-const SYNC_RULES = new Set(["sync-late", "sync-held-back", "sync-applied"]);
+const SYNC_RULES = new Set(["sync-health", "sync-applied"]);
 
 export function useSubjects(): { event(id: string): string; task(id: string): string } {
   const events = useRecords("events", { includeDeleted: true });
@@ -40,8 +40,9 @@ export function updateText(u: Update, subjects: ReturnType<typeof useSubjects>, 
     case "task-offered": return { what: "Offered to you", about, detail: "" };
     case "prep-due": return { what: "Prep needed", about, detail: when(u.at) };
     case "gone-no-reason": return { what: "Gone from Outlook with office data", about, detail: "archive it with a reason" };
-    case "sync-late": return { what: "Diary sync is late", about: "", detail: u.at ? `last ${when(u.at)}` : "no sync yet" };
-    case "sync-held-back": return { what: "Diary sync held back", about: "", detail: u.note ?? "" };
+    case "sync-health":
+      if (u.kinds.includes("refused")) return { what: "Diary file can't be used", about: "", detail: u.note ?? "" };
+      return { what: "Diary sync is late", about: "", detail: u.at ? `last file ${when(u.at)}` : "" };
     default: break;
   }
   if (u.key.startsWith("run:")) return { what: u.note || "Sync", about: "", detail: u.members.length > 0 ? `${u.members.length} meetings` : "" };

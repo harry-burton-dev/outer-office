@@ -42,7 +42,9 @@ describe("diary sync", () => {
     expect(syncNotes(app)).toEqual(["Power Automate sync: 23 added, 0 changed, 0 gone, 0 returned"]);
     await app.tick();
     expect([...files.files.keys()]).toEqual([]);
-    expect(screen.getByRole("button", { name: "Needs action 0" })).toBeTruthy();
+    // Applied, but the file is from October: late, as the Automate page says.
+    fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
+    expect((await screen.findByTestId("update")).textContent).toMatch(/^Diary sync is late/);
   });
 
   test("the next run applies moved, added and gone events", async () => {
@@ -141,9 +143,8 @@ describe("diary sync", () => {
     const files = inbox();
     const app = await renderApp({ seed: (s) => { seed(true)(s); s.viewer(); }, plainFiles: files, children: <AppFrame /> });
     await app.tick();
-    // The newest file is weeks older than now, so the sync is late (OUT-86); nothing is held back.
-    fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
-    expect((await screen.findByTestId("update")).textContent).toMatch(/^Diary sync is late/);
+    // The file waits for someone who can apply it: the Automate page's "Waiting to apply", not an alert.
+    expect(screen.getByRole("button", { name: "Needs action 0" })).toBeTruthy();
     expect(rows(app.device, "events")).toHaveLength(0);
     expect(files.files.has(NEWEST)).toBe(true);
   });

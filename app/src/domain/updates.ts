@@ -11,6 +11,7 @@ import type { RowOf } from "@trellis/framework";
 import { todayIn } from "./dates";
 import { FIRST_LOOK_DAYS, ME } from "./home";
 import { isDueToday, isOverdue } from "./selectors";
+import type { PrincipalHealth } from "../automate/flows";
 import { RULES, ruleById, type ChangeContext, type Lane, type RuleSetting, type Surface, SURFACES } from "./rules";
 
 type LogRow = RowOf<"log">;
@@ -46,19 +47,16 @@ export interface UpdatesInput {
   updateState: readonly UpdateStateRow[];
   /** settingsFor(user, …). */
   settings: ReadonlyMap<string, RuleSetting>;
-  sync: {
-    /** The office's Power Automate setting; sync-late only fires when it is on. */
-    on: boolean;
-    /** The newest sync each principal is known to have had, ISO UTC. */
-    last: ReadonlyMap<string, string>;
-    /** Why a principal's newest sync was held back. */
-    heldBack: ReadonlyMap<string, string>;
-  };
+  /** Each principal's diary sync health, by principal id, from principalHealth (OUT-91). */
+  sync: ReadonlyMap<string, SyncHealth>;
   /** Rules users made (D4); only the user's own, switched on, count. */
   ownRules?: readonly RuleRow[];
   /** Cover in force for the user: they also get the absent user's needs-you updates for that principal. */
   covering?: readonly Covering[];
 }
+
+/** What the sync-health rule reads of a principal's diary sync. */
+export type SyncHealth = Pick<PrincipalHealth, "state" | "reason" | "lastRunAt">;
 
 export interface Covering {
   absent: string;
@@ -383,18 +381,11 @@ function needsUpdates(ctx: Ctx, settings: ReadonlyMap<string, RuleSetting>, user
       add("gone-no-reason", e.principal ?? "", e.id, e.start ?? "", { event: e.id });
     }
   }
-  if (sync.on && on("sync-late")) {
+  if (on("sync-health")) {
     for (const p of input.principals) {
-      // A principal that has never synced isn't late: its sync isn't set up yet.
-      const last = sync.last.get(p.id);
-      if (!last || Date.parse(now) - Date.parse(last) < amount("sync-late") * HOUR_MS) continue;
-      add("sync-late", p.id, p.id, last);
-    }
-  }
-  if (on("sync-held-back")) {
-    for (const p of input.principals) {
-      const reason = sync.heldBack.get(p.id);
-      if (reason !== undefined) add("sync-held-back", p.id, p.id, "", { note: reason });
+      const h = sync.get(p.id);
+      if (h?.state === "late") add("sync-health", p.id, p.id, h.lastRunAt ?? "", { kinds: ["late"] });
+      else if (h?.state === "refused") add("sync-health", p.id, p.id, h.lastRunAt ?? "", { kinds: ["refused"], note: h.reason ?? "" });
     }
   }
   return out;

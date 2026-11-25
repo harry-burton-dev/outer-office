@@ -6,6 +6,7 @@ import { settingsFor, type RuleSetting, type Surface } from "@/domain/rules";
 import { updatesFor, type Update, type UpdateGroup, type UpdatesInput } from "@/domain/updates";
 import { coverInForce } from "@/domain/coverage";
 import { useDiaryInbox } from "@/automate/diary-inbox-state";
+import { DIARY_SYNC_FLOW, principalHealth } from "@/automate/flows";
 import { useApp } from "./app-state";
 import { useOffice } from "./frame-data";
 import { useActivePrincipals } from "./principals";
@@ -43,17 +44,22 @@ export function useUpdates(): Updates {
   const imports = useRecords("imports");
   const ownRules = useRecords("rules");
   const cover = useRecords("cover");
+  const flowRuns = useRecords("flowRuns");
   const { entries } = useDiaryInbox();
   return useMemo(() => {
     const idOfCode = new Map(principals.map((p) => [p.code ?? "", p.id]));
     const pending = new Map<string, string>();
-    const heldBack = new Map<string, string>();
     for (const e of entries) {
       const id = idOfCode.get(e.ok ? e.update.principal : e.principal);
-      if (!id) continue;
-      if (e.ok) pending.set(id, e.update.generatedAt);
-      else if (!isViewer) heldBack.set(id, e.reason);
+      if (id && e.ok) pending.set(id, e.update.generatedAt);
     }
+    // The same health the Automate page shows (OUT-91).
+    const runs = flowRuns.filter((r) => !r._deleted && r.flow === DIARY_SYNC_FLOW.id);
+    const sync = new Map(principals.map((p) => [p.id, principalHealth({
+      flow: DIARY_SYNC_FLOW, on: office?.automate === true, code: p.code ?? "", now, canApply: !isViewer,
+      run: runs.find((r) => r.principal === p.code),
+      entry: entries.find((e) => (e.ok ? e.update.principal : e.principal) === p.code) ?? null,
+    })]));
     const lastSync = lastSyncOf(imports, pending);
     const settingsOf = (user: string) => settingsFor(user, ruleSettings, people.find((p) => !p._deleted && p.userId === user)?.watchOff);
     const settings = settingsOf(userId);
@@ -63,10 +69,10 @@ export function useUpdates(): Updates {
     const input: UpdatesInput = {
       user: userId, now, timezone, dayStart: office?.dayStart || "08:00", dayEnd: office?.dayEnd || "18:00",
       principals, log, tasks, events, overlays, seen, updateState, settings, ownRules, covering,
-      sync: { on: office?.automate === true, last: lastSync, heldBack },
+      sync,
     };
     return { groups: updatesFor(input), input, settings, lastSync };
-  }, [userId, now, timezone, isViewer, office, principals, log, tasks, events, overlays, seen, updateState, ruleSettings, people, imports, entries, ownRules, cover]);
+  }, [userId, now, timezone, isViewer, office, principals, log, tasks, events, overlays, seen, updateState, ruleSettings, people, imports, entries, ownRules, cover, flowRuns]);
 }
 
 /** Whether an update shows on a surface, by the user's setting for each rule it matched. */

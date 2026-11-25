@@ -67,8 +67,8 @@ export function HomeScreen() {
   const rulesOn = RULES.filter((r) => settings.get(r.id)?.on).length;
   const watchingOf = (scope: string, code: string, group: UpdateGroup) => {
     const last = lastSync.get(scope);
-    const late = group.needs.some((u) => u.cause === "sync-late" || u.cause === "sync-held-back");
-    const sync = office?.automate ? ` · last sync ${last ? formatTime(last, timezone) : "never"}${late ? " (late or held back)" : ""}` : "";
+    const late = group.needs.some((u) => u.cause === "sync-health");
+    const sync = office?.automate ? ` · last sync ${last ? formatTime(last, timezone) : "never"}${late ? " (late or can't be used)" : ""}` : "";
     return { line: `Watching ${code}'s diary${sync} · ${rulesOn} rules on`, warning: late };
   };
   const total = groups.reduce((n, g) => n + g.needs.length + g.info.length, 0);
