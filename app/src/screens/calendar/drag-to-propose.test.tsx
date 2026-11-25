@@ -155,3 +155,15 @@ test("an assistant takes a viewer's suggestion from the right-click menu, or dis
   fireEvent.click(within(screen.getByText("Suggested: set it quiet").closest<HTMLElement>("[data-suggestion]")!).getByText("Dismiss it"));
   expect(rows(app, "suggestions").map((r) => r.state).sort()).toEqual(["dismissed", "taken"]);
 });
+
+test("moving with the keyboard says when the new time would clash, and with what (8.1)", async () => {
+  await diary((s, a) => {
+    importEvents(s, MONDAY_NOW, a, [syntheticEvent("a2", { subject: "Press call", start: "2026-11-24T15:30:00Z", end: "2026-11-24T16:00:00Z" })]);
+  });
+  keys("Budget review", "ArrowDown");
+  expect(document.querySelector("[data-key-move]")?.textContent).not.toMatch(/Clash/);
+  keys("Budget review", "ArrowDown", "ArrowDown", "ArrowDown");
+  expect(document.querySelector("[data-key-move]")?.textContent).toMatch(/Moving Budget review to Tue 24 Nov, 15:00 to 16:00\. Clash with Press call\. Enter proposes it/);
+  keys("Budget review", "ArrowDown", "ArrowDown", "ArrowDown", "ArrowDown");
+  expect(document.querySelector("[data-key-move]")?.textContent).toMatch(/16:00 to 17:00\. Enter proposes it/);
+});
