@@ -192,9 +192,8 @@ async function tasks(A, B, days) {
   const accepted = await readUntil(A, (u) => app.taskShows(u, TASK), (v) => v.assignment === `Accepted by ${BLAIR}, assigned by ${ALEX}`);
   check("5. A sees the task accepted by B", accepted, json(await app.taskShows(A, TASK)));
   for (const u of [A, B]) {
-    const lists = await app.needsActionShows(u);
-    const dueToday = lists.find((s) => s.title === "Due today")?.rows ?? [];
-    check(`5. ${u.label}: Needs action for PRINCIPAL-A lists the task as due today`, dueToday.some((r) => r.startsWith(TASK)), json(lists));
+    const rows = await app.needsActionShows(u);
+    check(`5. ${u.label}: Needs action for PRINCIPAL-A lists the task as due today`, rows.some((r) => r.startsWith(`Due today ${TASK}`)), json(rows));
   }
   await A.page.getByRole("button", { name: /^Needs action/ }).click();
   await a11y.scan(A.page, "Needs action");
@@ -282,7 +281,8 @@ async function compare(A, B) {
     await app.go(u, "Office work");
     const project = await app.taskTitles(u);
     const task = await app.taskShows(u, TASK);
-    const needs = await app.needsActionShows(u);
+    // Each row's text up to its buttons: who dealt with it is said to the other user only.
+    const needs = (await app.needsActionShows(u)).map((r) => r.replace(/ Open .*$/, ""));
     return { events, engagement, project, task, needs };
   };
   await read(A);

@@ -22,8 +22,8 @@
  {"id":"M21","what":"CSV join: a stored event already in the file can be taken by another row","file":"app/src/import/parse-csv.ts","find":"    if (fileKeys.has(eventKey(event))) continue;\n","replace":""},
  {"id":"M22","what":"CSV join: the matched event's modified time is not carried over","file":"app/src/import/parse-csv.ts","find":"recurrenceId: match.recurrenceId, sourceModified: match.sourceModified, kind","replace":"recurrenceId: match.recurrenceId, kind"},
  {"id":"M23","what":"CSV join: subject match becomes case-sensitive","file":"app/src/import/parse-csv.ts","find":"${e.subject.trim().toLowerCase()}","replace":"${e.subject}"},
- {"id":"M24","what":"Home shows the user's own changes","file":"app/src/domain/home.ts","find":"if (row._deleted || row.by === user) continue;","replace":"if (row._deleted) continue;"},
- {"id":"M25","what":"Home: a row at exactly the seen time shows again","file":"app/src/domain/home.ts","find":"if ((row.at ?? \"\") > since)","replace":"if ((row.at ?? \"\") >= since)"},
+ {"id":"M24","what":"Home shows the user's own changes","file":"app/src/domain/updates.ts","find":"r.by !== user || syncRuns.has(runOf(r))","replace":"true"},
+ {"id":"M25","what":"Home: a row at exactly the seen time shows again","file":"app/src/domain/updates.ts","find":"group.rows.filter((r) => (r.at ?? \"\") > seenAt)","replace":"group.rows.filter((r) => (r.at ?? \"\") >= seenAt)"},
  {"id":"M26","what":"Stats count archived engagements","file":"app/src/domain/stats.ts","find":"archived.has(event.id) || !event.principal","replace":"!event.principal"},
  {"id":"M27","what":"Stats: prep finished exactly at the start counts late","file":"app/src/domain/stats.ts","find":"Date.parse(last) > Date.parse(event.start ?? \"\")","replace":"Date.parse(last) >= Date.parse(event.start ?? \"\")"},
  {"id":"M28","what":"Stats: month range includes the first instant of next month","file":"app/src/domain/stats.ts","find":"return t >= from && t < to;","replace":"return t >= from && t <= to;"}

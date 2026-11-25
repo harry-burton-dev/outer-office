@@ -42,7 +42,9 @@ describe("diary sync", () => {
     expect(syncNotes(app)).toEqual(["Power Automate sync: 23 added, 0 changed, 0 gone, 0 returned"]);
     await app.tick();
     expect([...files.files.keys()]).toEqual([]);
-    expect(screen.getByRole("button", { name: "Needs action 0" })).toBeTruthy();
+    // Applied, but the file is from October: late, as the Automate page says.
+    fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
+    expect((await screen.findByTestId("update")).textContent).toMatch(/^Diary sync is late/);
   });
 
   test("the next run applies moved, added and gone events", async () => {
@@ -99,7 +101,7 @@ describe("diary sync", () => {
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
     await app.tick();
     fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
-    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Diary update can't be used" }));
+    fireEvent.click(within(await screen.findByTestId("update")).getByRole("button", { name: "Open" }));
     expect(screen.getByRole("alert").textContent).toContain("may be cut off");
     expect(rows(app.device, "events")).toHaveLength(0);
     expect(files.files.has(NEWEST)).toBe(true);
@@ -116,7 +118,7 @@ describe("diary sync", () => {
     expect(syncNotes(app)).toHaveLength(1);
     expect(files.files.has(HELD)).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
-    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Diary update can't be used" }));
+    fireEvent.click(within(await screen.findByTestId("update")).getByRole("button", { name: "Open" }));
     expect(screen.getByRole("alert").textContent).toMatch(/would mark \d+ of \d+ events gone, so it was held back/);
   });
 
@@ -125,7 +127,7 @@ describe("diary sync", () => {
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
     await app.tick();
     fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
-    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Diary update can't be used" }));
+    fireEvent.click(within(await screen.findByTestId("update")).getByRole("button", { name: "Open" }));
     expect(screen.getByRole("alert").textContent).toBe("The latest diary update can't be used: it holds an error from Outlook: Access is denied.");
   });
 
@@ -141,6 +143,7 @@ describe("diary sync", () => {
     const files = inbox();
     const app = await renderApp({ seed: (s) => { seed(true)(s); s.viewer(); }, plainFiles: files, children: <AppFrame /> });
     await app.tick();
+    // The file waits for someone who can apply it: the Automate page's "Waiting to apply", not an alert.
     expect(screen.getByRole("button", { name: "Needs action 0" })).toBeTruthy();
     expect(rows(app.device, "events")).toHaveLength(0);
     expect(files.files.has(NEWEST)).toBe(true);

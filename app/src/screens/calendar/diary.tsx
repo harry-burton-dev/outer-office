@@ -20,7 +20,7 @@ import { TagMenu } from "@/tags/tag-menu";
 import { useRun } from "../tasks/use-run";
 import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, newId, proposalIdOf, titleOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
 import { CLASH_EDGE, CLASH_LABELS, EventFaceView, type CardShape } from "./event-face";
-import { cardsOn, fieldsOf, isComplete, progressOf, valuesOf } from "@/domain/cards";
+import { cardFieldsOf, cardsOn, isComplete, progressOf, valuesOf } from "@/domain/cards";
 import { LayerSwitch } from "./layer-switch";
 import { LensMenu } from "./lens-menu";
 import { MoveDialog, proposedRows, type MoveTarget } from "./move-dialog";
@@ -93,7 +93,7 @@ export function Diary({ principalId }: { principalId: string }) {
     const byId = new Map(templates.filter((t) => !t._deleted).map((t) => [t.id, t]));
     return (eventId: string): CardShape[] => cardsOn(cards, eventId).map((c) => {
       const t = byId.get(c.template ?? "");
-      return { id: c.id, shape: t?.shape, complete: isComplete(progressOf(fieldsOf(t?.fields), valuesOf(c.values))) };
+      return { id: c.id, shape: t?.shape, complete: isComplete(progressOf(cardFieldsOf(c, t), valuesOf(c.values))) };
     });
   }, [cards, templates]);
   const [view, setView] = useState<DiaryView>("week");

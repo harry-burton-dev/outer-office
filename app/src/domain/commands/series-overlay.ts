@@ -5,6 +5,7 @@
 import { defineCommand, type Tx } from "@trellis/framework";
 import { tagIdsOf } from "../tags";
 import { overlayId } from "./overlay";
+import { applyTriggeredTabs, releaseTriggeredTabs } from "./tab-triggers";
 import { defined, optionalBoolean, optionalNumber, requireNow, requireText, writeLog } from "./shared";
 
 export interface SeriesOverlaySetInput {
@@ -32,9 +33,13 @@ export const seriesOverlayId = (tx: Tx, principal: string, seriesId: string): st
  * Moves one occurrence's overlay from the series' old values to its new ones.
  * Tags the series dropped come off and tags it gained go on; the occurrence's
  * own other tags stay. Quiet and priority follow the series when the series
- * changed them. Returns true when the overlay changed.
+ * changed them. Tags gained or lost apply or release the tab templates they
+ * trigger (OUT-88). Returns true when the overlay changed.
  */
-export function applySeriesValues(tx: Tx, eventId: string, before: SeriesValues, after: SeriesValues): boolean {
+export function applySeriesValues(
+  tx: Tx, now: string, event: { id: string; start?: string; principal?: string }, before: SeriesValues, after: SeriesValues,
+): boolean {
+  const eventId = event.id;
   const id = overlayId(tx, eventId);
   const current = tx.get("overlays", id);
   const live = current && !current._deleted ? current : undefined;
@@ -47,6 +52,9 @@ export function applySeriesValues(tx: Tx, eventId: string, before: SeriesValues,
   if (!live && tags === "" && !quiet && priority === 4) return false;
   if (current?._deleted) tx.restore("overlays", id);
   tx.put("overlays", id, live ? { tags, quiet, priority } : { prep: "none", flagged: false, parent: "", event: eventId, tags, quiet, priority });
+  const [had, has] = [own, tagIdsOf(tags)];
+  applyTriggeredTabs(tx, now, event, "tag", has.filter((t) => !had.includes(t)), "series");
+  releaseTriggeredTabs(tx, now, event, "tag", had.filter((t) => !has.includes(t)));
   return true;
 }
 
@@ -84,7 +92,7 @@ export const seriesOverlaySet = defineCommand("seriesOverlay.set", (tx: Tx, inpu
   if (current?._deleted) tx.restore("seriesOverlays", id);
   tx.put("seriesOverlays", id, live ? fields : { ...after, series: record });
   const future = tx.list("events").filter((e) => e.principal === principal && e.seriesId === seriesId && e.gone !== true && (e.start ?? "") >= now);
-  const changed = future.filter((e) => applySeriesValues(tx, e.id, before, after)).length;
+  const changed = future.filter((e) => applySeriesValues(tx, now, e, before, after)).length;
   const what = [
     after.tags !== before.tags && "tags", after.quiet !== before.quiet && (after.quiet ? "quiet" : "not quiet"),
     after.priority !== before.priority && `priority ${after.priority === 4 ? "none" : `P${after.priority}`}`,

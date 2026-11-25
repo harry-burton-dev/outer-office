@@ -1,8 +1,11 @@
 // @vitest-environment node
 import { describe, expect, test } from "vitest";
 import type { ImportDiff, ImportedEvent } from "../../import/types";
-import { homeChanges, ME, seenId } from "../home";
-import { homeMarkSeen, homeSetWatch } from "./home";
+import { ME, seenId } from "../home";
+import { settingsFor } from "../rules";
+import { updatesFor, type Update } from "../updates";
+import { ruleSettingSet } from "./alerts";
+import { homeMarkSeen } from "./home";
 import { importApply } from "./import";
 import { principalSave } from "./office";
 import { taskAssign } from "./task-assign";
@@ -36,15 +39,20 @@ async function office() {
 }
 
 function home(d: Device, principal: string, now = LATEST) {
-  const person = byId(d, "people", idOf(d, "person", d.user));
-  return homeChanges({
-    user: d.user, log: rows(d, "log"), tasks: rows(d, "tasks"), seen: rows(d, "seen"), watchOff: person?.watchOff,
-    principals: [{ id: principal }], now,
+  return updatesFor({
+    user: d.user, now, timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00", principals: [{ id: principal }],
+    log: rows(d, "log"), tasks: rows(d, "tasks"), events: rows(d, "events"), overlays: rows(d, "overlays"), seen: rows(d, "seen"),
+    updateState: rows(d, "updateState"), settings: settingsFor(d.user, rows(d, "ruleSettings"), undefined),
+    sync: new Map(), readiness: new Map(),
   });
 }
 
-const kinds = (d: Device, principal: string, scope: string) =>
-  home(d, principal).find((g) => g.scope === scope)?.rows.map((r) => r.kind).sort();
+/** Each update's kinds, or its rule when it has none; a sync run's or series' engagements one by one. */
+const flat = (u: Update): string[] => (u.members.length > 0 ? u.members.flatMap(flat) : u.kinds.length > 0 ? u.kinds : [u.rules[0]]);
+const kinds = (d: Device, principal: string, scope: string, now = LATEST) => {
+  const g = home(d, principal, now).find((x) => x.scope === scope);
+  return [...(g?.needs ?? []), ...(g?.info ?? [])].flatMap(flat).sort();
+};
 
 describe("Home after an import", () => {
   test("another user sees the moved, added and gone meetings and the task offered to them, until they mark them seen", async () => {
@@ -62,12 +70,15 @@ describe("Home after an import", () => {
     ok(a, taskAssign, { now: LATER, id: task, action: "assign", assignee: "user-b" });
     await sync();
 
-    expect(kinds(b, principal, principal)).toEqual(["added", "gone", "moved"]);
-    expect(kinds(b, principal, ME)).toEqual(["assigned"]);
+    // gone is off by default (v0.3 brief 5.3); the offered task needs b until b answers it.
+    expect(kinds(b, principal, principal)).toEqual(["added", "moved"]);
+    expect(kinds(b, principal, ME)).toEqual(["task-offered"]);
 
     ok(b, homeMarkSeen, { now: LATEST, scope: principal });
     ok(b, homeMarkSeen, { now: LATEST, scope: ME });
     expect(kinds(b, principal, principal)).toEqual([]);
+    expect(kinds(b, principal, ME)).toEqual(["task-offered"]);
+    ok(b, taskAssign, { now: LATEST, id: task, action: "accept" });
     expect(kinds(b, principal, ME)).toEqual([]);
   });
 
@@ -79,15 +90,16 @@ describe("Home after an import", () => {
   test("with nothing marked seen, Home shows the last seven days", async () => {
     const { b, principal } = await office();
     expect(kinds(b, principal, principal)).toEqual(["added", "added"]);
-    expect(home(b, principal, "2026-12-01T09:00:00.000Z")[0].rows).toEqual([]);
+    expect(kinds(b, principal, principal, "2026-12-01T09:00:00.000Z")).toEqual([]);
   });
 
-  test("a rule the user turned off hides its rows; an import row shows only when turned on", async () => {
+  test("a rule the user turned off hides its rows; the sync run's own update stays until that is off too", async () => {
     const { b, principal } = await office();
-    const all = ["event-moved", "event-changed", "event-gone", "event-returned", "import-applied"];
-    ok(b, homeSetWatch, { now: NOW, on: all });
-    expect(kinds(b, principal, principal)).toEqual(["applied"]);
-    expect(byId(b, "people", idOf(b, "person", "user-b"))?.watchOff).toContain("event-added");
+    ok(b, ruleSettingSet, { now: NOW, rule: "added", on: false });
+    ok(b, ruleSettingSet, { now: NOW, rule: "short-notice", on: false });
+    expect(kinds(b, principal, principal)).toEqual(["sync-applied"]);
+    ok(b, ruleSettingSet, { now: NOW, rule: "sync-applied", on: false });
+    expect(kinds(b, principal, principal)).toEqual([]);
   });
 
   test("a task offered to someone else is not on your Home", async () => {
@@ -106,6 +118,7 @@ describe("Home after an import", () => {
     ok(b, taskAssign, { now: LATER, id: task, action: "decline" });
     await sync();
     expect(kinds(a, principal, ME)).toEqual(["declined"]);
+    expect(kinds(b, principal, ME)).toEqual([]);
   });
 });
 
@@ -135,20 +148,5 @@ describe("home.markSeen", () => {
     const before = snapshot(b);
     expect(fails(b, homeMarkSeen, input)).toContain(message);
     expect(snapshot(b)).toBe(before);
-  });
-});
-
-describe("home.setWatch", () => {
-  test("fails on an unknown rule and writes nothing", async () => {
-    const { b } = await office();
-    const before = snapshot(b);
-    expect(fails(b, homeSetWatch, { now: NOW, on: ["event-added", "everything"] })).toContain("not a watch rule");
-    expect(snapshot(b)).toBe(before);
-  });
-
-  test("all rules on is stored as none, so the default-off import rule stays on", async () => {
-    const { b } = await office();
-    ok(b, homeSetWatch, { now: NOW, on: ["event-added", "event-moved", "event-changed", "event-gone", "event-returned", "prep-changed", "flag-changed", "proposal-made", "proposal-withdrawn", "proposal-settled", "task-offered", "task-answered", "task-recalled", "task-created", "task-completed", "import-applied"] });
-    expect(byId(b, "people", idOf(b, "person", "user-b"))?.watchOff).toBe("none");
   });
 });

@@ -4,6 +4,7 @@ import { defineCommand, type Tx } from "@trellis/framework";
 import { TAG_COLOURS, tagIdsOf } from "../tags";
 import { overlayId } from "./overlay";
 import { requireNow, requireText, writeLog } from "./shared";
+import { applyTriggeredTabs, releaseTriggeredTabs } from "./tab-triggers";
 
 export interface TagSaveInput {
   now: string;
@@ -105,6 +106,11 @@ export const tagsSet = defineCommand("tags.set", (tx: Tx, input: TagsSetInput) =
   if (current?._deleted) tx.restore("overlays", oid);
   tx.put("overlays", oid, current ? { tags } : { event: id, prep: "none", flagged: false, tags });
   logTags(tx, now, current?._deleted ? "" : current?.tags, tags, { area: "overlay", principal: event.principal ?? "", event: id });
+  // Tags trigger tab templates (OUT-88).
+  const before = current && !current._deleted ? tagIdsOf(current.tags) : [];
+  const after = tags === "" ? [] : tags.split(",");
+  applyTriggeredTabs(tx, now, event, "tag", after.filter((t) => !before.includes(t)), "tag");
+  releaseTriggeredTabs(tx, now, event, "tag", before.filter((t) => !after.includes(t)));
 });
 
 /** Sets an Outlook category's colour or order. Its name comes from Outlook, so it can't be changed here. */

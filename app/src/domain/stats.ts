@@ -1,7 +1,9 @@
 // Stats (OUT-69): simple counts for the office over a month, per principal.
-// Pure reads over events, overlays, cards, templates and the log.
+// Pure reads over events, overlays, tabs, cards, templates and the log.
+// Prep reads tab readiness (OUT-88).
 import type { RowOf } from "@trellis/framework";
-import { cardsOn, fieldsOf, isComplete, progressOf, valuesOf, type Card, type Template } from "./cards";
+import type { Card, Tab, Template } from "./cards";
+import { readinessByEvent, type Readiness } from "./readiness";
 import { instantIn } from "./dates";
 import type { Event, Overlay } from "./selectors";
 
@@ -15,6 +17,7 @@ export interface StatsInput {
   now: string;
   events: readonly Event[];
   overlays: readonly Overlay[];
+  tabs: readonly Tab[];
   cards: readonly Card[];
   templates: readonly Template[];
   log: readonly LogRow[];
@@ -23,11 +26,11 @@ export interface StatsInput {
 export interface PrincipalStats {
   /** Engagements starting in the month: not gone, not archived, not all-day. */
   engagements: number;
-  /** Engagements that have started and carry at least one card. */
+  /** Engagements that have started and carry a required card on a tab. */
   withCards: number;
-  /** Of those, every card complete, and not last completed after the start. */
+  /** Of those, ready (every required card on its tabs complete), and not last completed after the start. */
   prepOnTime: number;
-  /** Of those, every card complete, but the last one completed after the start. */
+  /** Of those, ready, but the last card completed after the start. */
   prepLate: number;
   /** Times an engagement moved in Outlook during the month, from the log. */
   moves: number;
@@ -54,11 +57,10 @@ const inRange = (iso: string | undefined, from: number, to: number) => {
 
 type Prep = "none" | "on-time" | "late" | "not-ready";
 
-function prepOf(event: Event, cards: readonly Card[], templates: ReadonlyMap<string, Template>, readyAt: ReadonlyMap<string, string>): Prep {
-  const on = cardsOn(cards, event.id);
-  if (on.length === 0) return "none";
-  const complete = on.every((c) => isComplete(progressOf(fieldsOf(templates.get(c.template ?? "")?.fields), valuesOf(c.values))));
-  if (!complete) return "not-ready";
+function prepOf(event: Event, readiness: ReadonlyMap<string, Readiness>, readyAt: ReadonlyMap<string, string>): Prep {
+  const r = readiness.get(event.id);
+  if (r === undefined || r.required === 0) return "none";
+  if (!r.ready) return "not-ready";
   const last = readyAt.get(event.id);
   return last !== undefined && Date.parse(last) > Date.parse(event.start ?? "") ? "late" : "on-time";
 }
@@ -68,7 +70,7 @@ export function officeStats(input: StatsInput): Map<string, PrincipalStats> {
   const { from, to } = monthRange(input.month, input.timezone);
   const [start, end, now] = [Date.parse(from), Date.parse(to), Date.parse(input.now)];
   const archived = new Set(input.overlays.filter((o) => !o._deleted && (o.archived ?? "") !== "").map((o) => o.event ?? ""));
-  const templates = new Map(input.templates.map((t) => [t.id, t]));
+  const readiness = readinessByEvent(input.tabs, input.cards, input.templates);
   const readyAt = new Map<string, string>();
   for (const row of input.log) {
     if (row._deleted || row.kind !== "card-ready" || !row.event || !row.at) continue;
@@ -87,7 +89,7 @@ export function officeStats(input: StatsInput): Map<string, PrincipalStats> {
     const row = of(event.principal);
     row.engagements += 1;
     if (Date.parse(event.start ?? "") > now) continue;
-    const prep = prepOf(event, input.cards, templates, readyAt);
+    const prep = prepOf(event, readiness, readyAt);
     if (prep === "none") continue;
     row.withCards += 1;
     if (prep === "on-time") row.prepOnTime += 1;
