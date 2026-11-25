@@ -116,8 +116,9 @@ export function Diary({ principalId }: { principalId: string }) {
 
   const data = useMemo(() => {
     const lens = lensById(lensId);
-    return diaryData(events, overlays, principalId, tags, lens ? { lens, now: new Date(now) } : undefined, { layer, proposals, liveAlpha }, timezone);
-  }, [events, overlays, principalId, tags, lensId, now, layer, proposals, liveAlpha, timezone]);
+    const suggested = new Set(suggestions.filter((x) => !x._deleted && x.state === "open").map((x) => x.event ?? ""));
+    return diaryData(events, overlays, principalId, tags, lens ? { lens, now: new Date(now) } : undefined, { layer, proposals, liveAlpha, suggested }, timezone);
+  }, [events, overlays, principalId, tags, lensId, now, layer, proposals, liveAlpha, timezone, suggestions]);
 
   // The day summary reads the live diary, whichever layer is shown (5.4).
   const liveClashes = useMemo(() => clashes(events.filter((e) => e.principal === principalId), overlays, timezone), [events, overlays, principalId, timezone]);

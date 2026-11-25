@@ -57,6 +57,14 @@ describe("clashes, quiet, priority and links on the diary (OUT-84)", () => {
     expect(data.faces.get("c")?.clash).toEqual({ severity: "soft", with: ["b"] });
   });
 
+  test("an engagement with an open suggestion is marked Suggested, first after its layer mark (D15)", () => {
+    const events = [busy("a", "09:00", "10:00"), busy("b", "11:00", "12:00", { masked: true })];
+    const data = diaryData(events, [ov("a", { flagged: true })], "p1", [], undefined, { layer: "live", proposals: [], suggested: new Set(["a", "b"]) });
+    expect(data.faces.get("a")?.marks).toEqual(["Suggested", "Flagged"]);
+    expect(data.faces.get("b")?.marks).toEqual([]);
+    expect(diaryData(events, [], "p1").faces.get("a")?.marks).toEqual([]);
+  });
+
   test("a quiet event shows only its Quiet mark: no clash, flag or priority", () => {
     const data = diaryData([busy("a", "09:00", "10:00", { moves: 1 }), busy("b", "09:30", "10:30")], [ov("a", { quiet: true, flagged: true, priority: 1 })], "p1");
     expect(data.faces.get("a")).toMatchObject({ marks: ["Quiet"] });
