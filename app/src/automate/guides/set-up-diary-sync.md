@@ -68,7 +68,7 @@ You need:
    **E.** Paste:
 
    ```text
-   &$top=999&$select=id,iCalUId,type,seriesMasterId,originalStart,start,end,isAllDay,isCancelled,subject,location,locations,organizer,categories,showAs,sensitivity,importance,createdDateTime,lastModifiedDateTime,attendees,responseStatus,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,hasAttachments,webLink,isOrganizer,responseRequested,allowNewTimeProposals,body
+   &$top=999&$select=id,iCalUId,type,seriesMasterId,originalStart,start,end,isAllDay,isCancelled,subject,location,locations,organizer,categories,showAs,sensitivity,importance,createdDateTime,lastModifiedDateTime,attendees,responseStatus,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,hasAttachments,webLink,isOrganizer,responseRequested,allowNewTimeProposals,body&$orderby=start/dateTime
    ```
 
    When you've finished, the box reads: piece A, a purple `startOfDay(...)` token, `&endDateTime=`, a second purple token, then piece E. There are no spaces anywhere.
@@ -124,7 +124,8 @@ If something is wrong, the app says so in **Needs action** → **Diary update ca
 | **Send an HTTP request** fails with `400` and mentions the URI | A piece of the URI is wrong, or has a space in it | Compare the box with step 4.5. The two expressions must be purple tokens, not typed text. |
 | The action refuses the URI as not supported | The URI doesn't start with `/users/…/calendar/` or `/me/calendar/` | Use the URI in step 4.5 exactly. The connector only accepts addresses that start this way. |
 | **Create file** fails: folder not found | The folder isn't there, or the path was typed by hand | Make the folder (step 1), then pick it again with the folder icon. |
-| The app says *Outlook sent only the first page* | The URI lost `$top=999` | Put piece E back exactly as given. |
+| The Automate page says *Part of the diary* | Outlook split its answer into pages, even with `$top=999`. The flow saves only the first page, so the app updates only the days it covers | Check that piece E ends with `&$orderby=start/dateTime`. If it does and this keeps happening, the diary is too big for one page: tell the office's developer. |
+| The app says *Outlook sent the diary in pages … not in date order* | Piece E has no `&$orderby=start/dateTime` | Put piece E back exactly as given. |
 | The app says *an event has no …. Check the $select* | The `$select` list in piece E was changed | Put piece E back exactly as given. |
 | The app says *it would mark N of M events gone, so it was held back* | The file is missing most of the diary, often because it was the wrong calendar | Check the email address in the URI. If the meetings really were deleted, import an `.ics` file and confirm. |
 | No file appears, but the flow ran | OneDrive hasn't synced it to your computer yet | Wait a few minutes. Check that `automate` is set to **Always keep on this device**. |

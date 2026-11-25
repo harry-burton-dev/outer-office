@@ -96,13 +96,15 @@ describe("diary sync", () => {
   });
 
   test("a payload the adapter refuses shows why, and nothing is applied", async () => {
-    const firstPage = { ...graphResponse(), "@odata.nextLink": "https://graph.microsoft.com/v1.0/next" };
+    const raw = graphResponse();
+    const reversed = [...(raw.value as { start: { dateTime: string } }[])].sort((a, b) => b.start.dateTime.localeCompare(a.start.dateTime));
+    const firstPage = { ...raw, value: reversed, "@odata.nextLink": "https://graph.microsoft.com/v1.0/next" };
     const files = memoryPlainFiles("automate", { [NEWEST]: JSON.stringify(firstPage) });
     const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
     await app.tick();
     fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
     fireEvent.click(within(await screen.findByTestId("update")).getByRole("button", { name: "Open" }));
-    expect(screen.getByRole("alert").textContent).toContain("may be cut off");
+    expect(screen.getByRole("alert").textContent).toContain("not in date order");
     expect(rows(app.device, "events")).toHaveLength(0);
     expect(files.files.has(NEWEST)).toBe(true);
   });

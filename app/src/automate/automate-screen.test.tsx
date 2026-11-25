@@ -85,3 +85,25 @@ test("ages read in minutes, hours, then days", () => {
   expect(ago("2026-11-24T09:00:00.000Z", now)).toBe("3 h ago");
   expect(ago("2026-11-21T12:00:00.000Z", now)).toBe("3 days ago");
 });
+
+describe("a diary Outlook sent in pages (OUT-92)", () => {
+  test("the first page is applied up to its last days, later events aren't marked gone, and the page says so", async () => {
+    const files = memoryPlainFiles("automate", { [FIRST]: graphFile() });
+    const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
+    await app.tick();
+    const before = rows(app.device, "events").length;
+    const raw = JSON.parse(graphFile()) as { value: { start: { dateTime: string } }[] };
+    const ordered = [...raw.value].sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));
+    const firstPage = ordered.slice(0, Math.ceil(ordered.length / 2));
+    await files.write(`${A}/20261019T213000Z.json`, JSON.stringify({ ...raw, value: firstPage, "@odata.nextLink": "https://graph.microsoft.com/v1.0/next" }));
+    await app.tick();
+    await app.tick();
+    expect(rows(app.device, "events").filter((e) => e.gone === true)).toEqual([]);
+    expect(rows(app.device, "events")).toHaveLength(before);
+    expect(rows(app.device, "flowRuns")[0]).toMatchObject({ outcome: "unchanged", reason: expect.stringContaining("Outlook sent the diary in pages") });
+    expect(files.files.size).toBe(0);
+    openAutomate();
+    const a = rowOf("PRINCIPAL-A");
+    expect(a.textContent).toContain("only the days before");
+  });
+});

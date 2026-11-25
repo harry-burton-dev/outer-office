@@ -49,7 +49,8 @@ export const DIARY_SYNC_FLOW: FlowDefinition = {
     "Reads each meeting's body as plain text, with its links and responses. If the flow's Prefer header is missing, the app turns an HTML body into text itself.",
     "Masks or drops private and confidential meetings, as the office chose. Their real subject never reaches the diary, and they keep no body, links or people.",
     "Applies the changes to the diary and logs them. A run that changes nothing leaves no log entry, but still counts here.",
-    "Refuses the whole file, and says why, when it holds an Outlook error, only the first page, a missing field, or would mark most of the diary gone.",
+    "When Outlook sends the diary in pages, the file holds only the first one. The app then updates only the days that page covers, and says so here.",
+    "Refuses the whole file, and says why, when it holds an Outlook error, a missing field, or would mark most of the diary gone.",
     "Deletes the file it applied and every older one.",
   ],
   folderOf: (code) => `automate/${DIARY_INBOX}/${code}`,
@@ -60,7 +61,7 @@ export const DIARY_SYNC_FLOW: FlowDefinition = {
 /** Every flow, in the order the Automate page shows them. */
 export const FLOWS: readonly FlowDefinition[] = [DIARY_SYNC_FLOW];
 
-export type FlowState = "off" | "never" | "arrived" | "waiting" | "ok" | "late" | "refused";
+export type FlowState = "off" | "never" | "arrived" | "waiting" | "ok" | "partial" | "late" | "refused";
 
 export interface PrincipalHealth {
   code: string;
@@ -106,7 +107,8 @@ export function principalHealth({ flow, on, code, run, entry, now, canApply }: H
   if (!last) return { ...base, state: "never" };
   if (last.outcome === "refused") return { ...base, state: "refused", reason: last.reason || null };
   const age = last.fileAt ? Date.parse(now) - Date.parse(last.fileAt) : Infinity;
-  return { ...base, state: age > flow.lateAfterMinutes * MINUTE_MS ? "late" : "ok" };
+  if (age > flow.lateAfterMinutes * MINUTE_MS) return { ...base, state: "late" };
+  return last.reason ? { ...base, state: "partial", reason: last.reason } : { ...base, state: "ok" };
 }
 
 /** What each state is called on the page. */
@@ -116,6 +118,7 @@ export const STATE_LABEL: Readonly<Record<FlowState, string>> = {
   arrived: "Applying",
   waiting: "Waiting to apply",
   ok: "On time",
+  partial: "Part of the diary",
   late: "Late",
   refused: "Can't be used",
 };
@@ -127,6 +130,7 @@ export const STATE_HELP: Readonly<Record<FlowState, string>> = {
   arrived: "A new file has arrived and the app is applying it.",
   waiting: "A new file has arrived. Someone who can import applies it when they next open the app.",
   ok: "The last file arrived on time.",
+  partial: "The last file arrived on time, but Outlook sent it in pages, so only its first days were updated.",
   late: "No file has arrived for a while. Check the flow's run history in Power Automate.",
   refused: "The newest file can't be used. The reason is shown. The next good file replaces it.",
 };
