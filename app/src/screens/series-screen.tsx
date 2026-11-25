@@ -1,6 +1,7 @@
 // Series (OUT-87): the chosen principal's recurring meetings, each with its
 // next occurrence, count, exceptions, health, hours a month and end date.
-// A series opens to its occurrences; each occurrence opens the engagement.
+// A series opens to its tags, priority and Quiet (D8) and its occurrences;
+// each occurrence opens the engagement.
 import { useMemo, useState } from "react";
 import { useRecords } from "@trellis/framework";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -10,6 +11,7 @@ import { useApp } from "@/app/app-state";
 import { EmptyState, PageHeader } from "@/app/ui";
 import { clashes } from "@/domain/clashes";
 import { formatDay, formatTime } from "@/domain/dates";
+import { SeriesSettings } from "./series/series-settings";
 import { healthText, seriesFor, standingClashes, type OccurrenceState, type Series, type StandingClash } from "@/domain/series";
 
 const DESCRIPTION =
@@ -80,6 +82,7 @@ function SeriesRow({ series, open, onToggle }: { series: Series; open: boolean; 
       {open && (
         <TableRow>
           <TableCell colSpan={8}>
+            <SeriesSettings series={series} />
             <Occurrences series={series} />
           </TableCell>
         </TableRow>
