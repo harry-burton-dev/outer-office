@@ -10,7 +10,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, Con
 import { Dialog } from "@/components/ui/dialog";
 import { useApp } from "@/app/app-state";
 import { useOffice } from "@/app/frame-data";
-import { formatDay, formatTime, instantIn } from "@/domain/dates";
+import { addDays, formatDay, formatTime, instantIn } from "@/domain/dates";
 import { wizardClashes } from "@/domain/clash-wizard";
 import { commands } from "@/domain/commands";
 import { ARCHIVE_REASONS } from "@/domain/commands/overlay";
@@ -118,7 +118,7 @@ export function Diary({ principalId }: { principalId: string }) {
       date: day, zone: timezone, principal: principalId, events, overlays, clashes: liveClashes,
       dayStart: office?.dayStart || DEFAULT_DAY_START, dayEnd: office?.dayEnd || DEFAULT_DAY_END,
       longRunHours: office?.longRunHours, placeChangeMinutes: office?.placeChangeMinutes,
-    })} />
+    })} onClashes={() => setDialog({ kind: "wizard", from: instantIn(day, "00:00", timezone), to: instantIn(addDays(day, 1), "00:00", timezone) })} />
   );
 
   const overlayOf = (id: string) => overlays.find((o) => !o._deleted && o.event === id);
