@@ -197,6 +197,9 @@ describe("import.apply: bad input", () => {
     [{ diff: diff({ added: [event("e1"), event("", {})] }) }, "no UID"],
     [{ diff: diff({ added: [event("e1", { start: "tomorrow" })] }) }, "bad start or end"],
     [{ now: "not a time" }, "current time"],
+    [{ diff: diff({ added: [event("e1"), null as unknown as ImportedEvent] }) }, "an event is missing"],
+    [{ diff: diff({ added: [event("e1")], gone: [{ ...event(""), id: "x", principal: "p", gone: false, moves: 0 }] }) }, "mark gone has no UID"],
+    [{ diff: diff({ added: [event("e1")], rekeys: [{ seriesId: "s", subject: "Weekly", ambiguous: false, pairs: [{ from: { ...event("old"), id: "x", principal: "p", gone: false, moves: 0 }, to: event("e1") }] }] }) }, "isn't in the import"],
   ])("fails and writes nothing (%#)", async (over, message) => {
     const { a, principal } = await withPrincipal();
     const before = snapshot(a);

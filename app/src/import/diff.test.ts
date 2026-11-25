@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import { diffImport, marksMostGone } from "./diff";
 import { parseIcs, type ParseResult } from "./parse-ics";
 import { calendar, MAIN_EVENTS, MAIN_FIXTURE, MAIN_WINDOW, UID } from "./fixtures/outlook-ics";
-import type { ImportedEvent, StoredEvent } from "./types";
+import type { ImportDiff, ImportedEvent, StoredEvent } from "./types";
 
 const event = (overrides: Partial<ImportedEvent> = {}): ImportedEvent => ({
   uid: "u1", recurrenceId: "", start: "2026-10-20T09:00:00.000Z", end: "2026-10-20T10:00:00.000Z", allDay: false,
@@ -164,5 +164,39 @@ describe("marksMostGone", () => {
 
   test("fewer than three gone never does", () => {
     expect(marksMostGone(diffImport(many(2), parsed([])))).toBe(false);
+  });
+
+  // Built by hand, so each count the guard reads can be set on its own.
+  const diffOf = (counts: { gone: number; changed?: number; filled?: number; unchanged?: number }, rekeys?: ImportDiff["rekeys"]): ImportDiff => {
+    const list = many(counts.gone + (counts.changed ?? 0) + (counts.filled ?? 0));
+    const changes = (from: number, n: number) => list.slice(from, from + n).map((e) => ({ before: e, after: event({ uid: e.uid }), fields: [], moved: false }));
+    return {
+      ...diffImport([], parsed([])),
+      gone: list.slice(0, counts.gone),
+      changed: changes(counts.gone, counts.changed ?? 0),
+      ...(counts.filled !== undefined && { filled: changes(counts.gone + (counts.changed ?? 0), counts.filled) }),
+      unchanged: counts.unchanged ?? 0,
+      ...(rekeys && { rekeys }),
+    };
+  };
+  const rekey = (pairs: number, ambiguous: boolean) =>
+    [{ seriesId: "s", subject: "Weekly", ambiguous, pairs: many(pairs).map((from) => ({ from, to: event({ uid: from.uid }) })) }];
+
+  test("occurrences a trusted series re-key moves aren't lost", () => {
+    // 6 of 10 gone is most, but 3 of them only moved to new keys: 3 of 10 is not.
+    expect(marksMostGone(diffOf({ gone: 6, unchanged: 4 }, rekey(3, false)))).toBe(false);
+    // 8 of 10 gone, 1 moved: 7 of 10 still is.
+    expect(marksMostGone(diffOf({ gone: 8, unchanged: 2 }, rekey(1, false)))).toBe(true);
+  });
+
+  test("an ambiguous re-key's occurrences still count as gone", () => {
+    expect(marksMostGone(diffOf({ gone: 6, unchanged: 4 }, rekey(3, true)))).toBe(true);
+  });
+
+  test("changed and filled events count as in the diary", () => {
+    // 4 gone of 4 + 3 changed + 2 filled = 9: not most.
+    expect(marksMostGone(diffOf({ gone: 4, changed: 3, filled: 2 }))).toBe(false);
+    // A diff without a filled list counts none.
+    expect(marksMostGone(diffOf({ gone: 4, changed: 4 }))).toBe(false);
   });
 });
