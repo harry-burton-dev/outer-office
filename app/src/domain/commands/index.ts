@@ -12,11 +12,11 @@ import { ackPrivacy, setMode } from "./people";
 import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, cardUpdate, tabApply, tabCopyFrom, tabRemove, tabUpdate, tabTemplateRemove, tabTemplateSave, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalMoveGroup, proposalNew, proposalWithdraw } from "./proposals";
-import { homeMarkSeen, homeSetWatch } from "./home";
+import { homeMarkSeen } from "./home";
 import { wizardApply } from "./wizard";
 import { suggestionDismiss, suggestionFromWizard, suggestionMake, suggestionTake } from "./suggestions";
 import { automateRecordRun } from "./automate";
-import { ruleSettingSet, updateSet } from "./alerts";
+import { coverRemove, coverSave, ruleRemove, ruleSave, ruleSettingSet, updateSet } from "./alerts";
 import { taskRetime } from "./tab-tasks";
 import { tabKeep } from "./tab-triggers";
 
@@ -53,7 +53,6 @@ export const commands = {
   cardSet,
   cardRemove,
   homeMarkSeen,
-  homeSetWatch,
   cardUpdate,
   tabTemplateSave,
   tabTemplateRemove,
@@ -65,6 +64,10 @@ export const commands = {
   tabKeep,
   ruleSettingSet,
   updateSet,
+  ruleSave,
+  ruleRemove,
+  coverSave,
+  coverRemove,
   automateRecordRun,
   wizardApply,
   suggestionMake,
@@ -105,7 +108,6 @@ export {
   cardSet,
   cardRemove,
   homeMarkSeen,
-  homeSetWatch,
   cardUpdate,
   tabTemplateSave,
   tabTemplateRemove,
@@ -117,6 +119,10 @@ export {
   tabKeep,
   ruleSettingSet,
   updateSet,
+  ruleSave,
+  ruleRemove,
+  coverSave,
+  coverRemove,
   automateRecordRun,
 };
 export { wizardApply } from "./wizard";
@@ -132,10 +138,10 @@ export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } from "./tags";
 export type { TemplateSaveInput, TabTemplateSaveInput, TabVia } from "./cards";
 export type { ProposalMoveInput, ProposalMoveGroupInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
-export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
+export type { HomeMarkSeenInput } from "./home";
 export type { WizardApplyInput } from "./wizard";
 export type { SuggestionMakeInput, SuggestionKind } from "./suggestions";
 export type { FlowRunInput, FlowOutcome } from "./automate";
-export type { RuleSettingSetInput, UpdateSetInput, UpdateAction } from "./alerts";
+export type { RuleSettingSetInput, UpdateSetInput, UpdateAction, RuleSaveInput, CoverSaveInput } from "./alerts";
 export { OFFICE_ID } from "./office";
 export { INBOX_NAME } from "./projects";

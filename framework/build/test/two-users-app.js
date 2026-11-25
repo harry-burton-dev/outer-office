@@ -190,16 +190,14 @@ export async function setDeadline(u, title, date) {
   await closeDialog(u);
 }
 
-/** The Needs action drawer's sections, as titles and their rows' text. Closes it again. */
+/** The Needs action drawer's update rows, as text. Closes it again. */
 export async function needsActionShows(u) {
   await u.page.getByRole("button", { name: /^Needs action/ }).click();
   const panel = dialog(u);
   await panel.getByRole("heading", { name: "Needs action" }).waitFor();
-  const sections = await panel.locator("section").evaluateAll((all) =>
-    all.map((s) => ({ title: s.querySelector("h3")?.textContent ?? "", rows: [...s.querySelectorAll("li")].map((li) => li.innerText.replace(/\s+/g, " ").trim()) })),
-  );
+  const rows = await panel.locator('[data-testid="update"]').evaluateAll((all) => all.map((li) => li.innerText.replace(/\s+/g, " ").trim()));
   await closeDialog(u);
-  return sections;
+  return rows;
 }
 
 /** The conflict prompt's count ("" when there is none). */

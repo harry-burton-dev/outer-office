@@ -44,6 +44,18 @@ const config = {
       version: 1,
       fields: { userId: str, key: str, state: str, until: str, at: str },
     },
+    // A rule a user made for themselves (D4): a built-in condition with params
+    // (JSON { principal: id or "all", amount }), its surfaces and lane (OUT-86).
+    rules: {
+      version: 1,
+      fields: { owner: str, name: str, condition: str, params: "text", surfaces: str, lane: str, on: bool },
+    },
+    // Cover (OUT-86): while start <= now < end, the cover user also gets the
+    // absent user's needs-you updates for the principal. Dates are ISO UTC.
+    cover: {
+      version: 1,
+      fields: { principal: str, absent: str, cover: str, start: str, end: str },
+    },
     events: {
       version: 3,
       fields: {

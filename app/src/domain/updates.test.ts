@@ -3,7 +3,7 @@ import { describe, expect, test } from "vitest";
 import type { RowOf } from "@trellis/framework";
 import { ME } from "./home";
 import { RULES, settingsFor } from "./rules";
-import { updatesFor, type UpdatesInput } from "./updates";
+import { previewRule, updatesFor, type SyncHealth, type UpdatesInput } from "./updates";
 
 type Log = RowOf<"log">;
 type Ev = RowOf<"events">;
@@ -22,11 +22,14 @@ function input(over: Partial<UpdatesInput> = {}): UpdatesInput {
   return {
     user: "user-a", now: NOW, timezone: "Europe/London", dayStart: "08:00", dayEnd: "18:00",
     principals: [{ id: "p-a" }], log: [], tasks: [], events: [], overlays: [], seen: [], updateState: [],
-    settings: settingsFor("user-a", [], undefined), sync: { on: false, last: new Map(), heldBack: new Map() },
+    settings: settingsFor("user-a", [], undefined), sync: new Map(), readiness: new Map(),
     ...over,
   };
 }
 const group = (i: UpdatesInput, scope = "p-a") => updatesFor(i).find((g) => g.scope === scope)!;
+/** Tab readiness (OUT-88): these engagements have required cards not yet complete; others are ready. */
+const notReady = (...ids: string[]) => new Map(ids.map((id) => [id, { required: 1, done: 0, ready: false }]));
+const ready = (...ids: string[]) => new Map(ids.map((id) => [id, { required: 1, done: 1, ready: true }]));
 
 describe("settingsFor", () => {
   test("defaults: every rule on except gone and out-of-hours", () => {
@@ -34,7 +37,7 @@ describe("settingsFor", () => {
     expect(RULES.filter((r) => !s.get(r.id)?.on).map((r) => r.id).sort()).toEqual(["gone", "out-of-hours"]);
     expect(s.get("prep-due")?.amount).toBe(24);
     expect(s.get("short-notice")?.amount).toBe(72);
-    expect(s.get("sync-late")?.surfaces).toEqual(["home", "needs", "badge"]);
+    expect(s.get("sync-health")?.surfaces).toEqual(["home", "needs", "badge"]);
     expect(s.get("added")?.surfaces).toEqual(["home"]);
   });
 
@@ -198,12 +201,12 @@ describe("needs you", () => {
         { ...meta("mine"), assignee: "user-a", assignedBy: "user-a", assignment: "accepted", done: false } as RowOf<"tasks">,
       ],
       events: [ev("soon", { start: "2026-11-25T09:00:00Z" }), ev("far", { start: "2026-11-27T09:00:00Z" }), ev("gone", { gone: true })],
-      overlays: [overlay("soon", { prep: "needed" }), overlay("far", { prep: "needed" }), overlay("gone", { notes: "Keep" })],
-      sync: { on: true, last: new Map([["p-a", T(30)]]), heldBack: new Map([["p-a", "it would mark 9 of 10 events gone"]]) },
+      overlays: [overlay("gone", { notes: "Keep" })], readiness: notReady("soon", "far"),
+      sync: new Map([["p-a", { state: "refused", reason: "it would mark 9 of 10 events gone", lastRunAt: T(30) }]]),
     });
     const groups = updatesFor(i);
     expect(groups.find((g) => g.scope === "p-a")!.needs.map((u) => u.key).sort()).toEqual([
-      "gone-no-reason|gone", "prep-due|soon", "sync-held-back|p-a", "sync-late|p-a", "task-overdue|late",
+      "gone-no-reason|gone", "prep-due|soon", "sync-health|p-a", "task-overdue|late",
     ]);
     expect(groups.find((g) => g.scope === ME)!.needs.map((u) => u.key)).toEqual(["task-offered|offer"]);
   });
@@ -212,18 +215,23 @@ describe("needs you", () => {
     const i = input({
       tasks: [{ ...meta("offer"), assignee: "user-a", assignedBy: "user-b", assignment: "accepted", done: false } as RowOf<"tasks">],
       events: [ev("soon", { start: "2026-11-25T09:00:00Z" }), ev("gone", { gone: true })],
-      overlays: [overlay("soon", { prep: "done" }), overlay("gone", { notes: "Keep", archived: T(1), archiveReason: "cancelled" })],
-      sync: { on: true, last: new Map([["p-a", T(1)]]), heldBack: new Map() },
+      overlays: [overlay("gone", { notes: "Keep", archived: T(1), archiveReason: "cancelled" })], readiness: ready("soon"),
+      sync: new Map([["p-a", { state: "ok", reason: null, lastRunAt: T(1) }]]),
     });
     expect(updatesFor(i).flatMap((g) => g.needs)).toEqual([]);
   });
 
-  test("snoozed until a time; dismissing state is ignored; sync-late needs the sync on", () => {
-    const sync = { on: true, last: new Map<string, string>(), heldBack: new Map<string, string>() };
-    expect(group(input({ sync })).needs.map((u) => u.key)).toEqual(["sync-late|p-a"]);
-    expect(group(input({ sync, updateState: [state("sync-late|p-a", "snoozed", { until: T(-1) })] })).needs).toEqual([]);
-    expect(group(input({ sync, updateState: [state("sync-late|p-a", "dismissed")] })).needs).toHaveLength(1);
-    expect(group(input({ sync: { ...sync, on: false } })).needs).toEqual([]);
+  test("snoozed until a time; dismissing state is ignored; sync-health posts for late and refused only", () => {
+    const health = (state: SyncHealth["state"], reason: string | null = null) => new Map([["p-a", { state, reason, lastRunAt: T(2) }]]);
+    const sync = health("late");
+    const late = group(input({ sync })).needs;
+    expect(late.map((u) => [u.key, u.kinds, u.at])).toEqual([["sync-health|p-a", ["late"], T(2)]]);
+    const refused = group(input({ sync: health("refused", "the file is for another principal") })).needs;
+    expect(refused.map((u) => [u.kinds, u.note])).toEqual([[["refused"], "the file is for another principal"]]);
+    for (const quiet of ["ok", "off", "never", "arrived", "waiting"] as const) expect(group(input({ sync: health(quiet) })).needs, quiet).toEqual([]);
+    expect(group(input({ sync: new Map([["p-b", { state: "late", reason: null, lastRunAt: T(2) }]]) })).needs, "another principal's health").toEqual([]);
+    expect(group(input({ sync, updateState: [state("sync-health|p-a", "snoozed", { until: T(-1) })] })).needs).toEqual([]);
+    expect(group(input({ sync, updateState: [state("sync-health|p-a", "dismissed")] })).needs).toHaveLength(1);
   });
 });
 
@@ -308,22 +316,129 @@ describe("each built-in state rule", () => {
       { ...meta("b"), principal: "p-b", due: "2026-11-20", done: false },
       { ...meta("none"), due: "2026-11-20", done: false },
       { ...meta("done"), principal: "p-a", due: "2026-11-20", done: true },
+      { ...meta("today"), principal: "p-a", deadline: "2026-11-24", done: false },
+      { ...meta("later"), principal: "p-a", due: "2026-11-25", done: false },
     ] as RowOf<"tasks">[];
-    expect(group(input({ tasks })).needs.map((u) => u.key)).toEqual(["task-overdue|a"]);
+    expect(group(input({ tasks })).needs.map((u) => u.key)).toEqual(["task-overdue|a", "task-overdue|today"]);
   });
 
-  test("prep-due and sync-late follow their amounts", () => {
+  test("prep-due follows its amount", () => {
     const tuned = settingsFor("user-a", [
       { ...meta("p"), userId: "user-a", rule: "prep-due", amount: 2 },
-      { ...meta("s"), userId: "user-a", rule: "sync-late", amount: 2 },
     ] as RowOf<"ruleSettings">[], undefined);
     const i = input({
       settings: tuned,
       events: [ev("in", { start: "2026-11-24T13:00:00.000Z" }), ev("out", { start: "2026-11-24T15:00:00.000Z" })],
-      overlays: ["in", "out"].map((e) => ({ ...meta(`o-${e}`), event: e, prep: "needed" }) as RowOf<"overlays">),
-      sync: { on: true, last: new Map([["p-a", T(3)]]), heldBack: new Map() },
+      readiness: notReady("in", "out"),
     });
-    expect(group(i).needs.map((u) => u.key).sort()).toEqual(["prep-due|in", "sync-late|p-a"]);
+    expect(group(i).needs.map((u) => u.key).sort()).toEqual(["prep-due|in"]);
   });
 });
 
+describe("needs you, carried over from Needs action", () => {
+  const ov = (event: string, over: Partial<RowOf<"overlays">> = {}) => ({ ...meta(`o-${event}`), event, prep: "none", flagged: false, ...over }) as RowOf<"overlays">;
+  const at = "2026-11-22T09:00:00.000Z";
+
+  test("prep-due lists meetings in the next 24 hours whose tabs aren't ready", () => {
+    const events = [
+      ev("soon", { start: "2026-11-22T15:00:00Z" }), ev("tomorrow-late", { start: "2026-11-23T10:00:00Z" }),
+      ev("started", { start: "2026-11-22T08:00:00Z" }), ev("ready", { start: "2026-11-22T15:00:00Z" }),
+      ev("no-overlay", { start: "2026-11-22T15:00:00Z" }), ev("other", { start: "2026-11-22T15:00:00Z", principal: "p-b" }),
+    ];
+    const readiness = new Map([...notReady("soon", "tomorrow-late", "started", "other"), ...ready("ready")]);
+    // overlay.prep is retired: "needed" there no longer counts.
+    const overlays = [ov("no-overlay", { prep: "needed" })];
+    expect(group(input({ now: at, events, overlays, readiness })).needs.map((u) => u.key)).toEqual(["prep-due|soon"]);
+  });
+
+  test("gone-no-reason lists gone meetings that carry office data or a linked task", () => {
+    const events = ["notes", "outcome", "flag", "prep", "task", "bare", "live"].map((id) => ev(id, { gone: id !== "live" }));
+    const overlays = [
+      ov("notes", { notes: "Some notes" }), ov("outcome", { outcome: "Agreed" }), ov("flag", { flagged: true }),
+      ov("prep", { prep: "in-hand" }), ov("bare"), ov("live", { notes: "Kept" }),
+    ];
+    const tasks = [{ ...meta("linked"), event: "task", done: false } as RowOf<"tasks">];
+    expect(group(input({ events, overlays, tasks })).needs.map((u) => u.key).sort()).toEqual(
+      ["flag", "notes", "outcome", "prep", "task"].map((id) => `gone-no-reason|${id}`),
+    );
+  });
+
+  test("does not throw on overlays and tasks whose meeting has not arrived", () => {
+    const tasks = [{ ...meta("t"), event: "missing", principal: "p-a", done: false } as RowOf<"tasks">];
+    const overlays = [ov("missing", { prep: "needed" })];
+    const events = [ev("e", { gone: true, start: undefined })];
+    expect(group(input({ tasks, overlays, events })).needs).toEqual([]);
+  });
+
+  test("a change at exactly the seen time does not show again", () => {
+    const rows = [log({ at: T(2), kind: "moved", event: "e1", from: "A", to: "B" })];
+    const seen = [{ ...meta("s"), userId: "user-a", scope: "p-a", at: T(2) }] as RowOf<"seen">[];
+    expect(group(input({ log: rows, seen })).info).toEqual([]);
+  });
+});
+
+
+describe("own rules, cover and the preview", () => {
+  const own = (over: Partial<RowOf<"rules">>) =>
+    ({ ...meta(`r-${++n}`), owner: "user-a", name: "Mine", condition: "moved", params: "{}", surfaces: "home", lane: "info", on: true, ...over }) as RowOf<"rules">;
+  const allOff = settingsFor("user-a", RULES.map((r) => ({ ...meta(`off-${r.id}`), userId: "user-a", rule: r.id, on: false }) as RowOf<"ruleSettings">), undefined);
+
+  test("a change rule for one principal posts only that principal's rows, with its own surfaces", () => {
+    const rows = [log({ at: T(1), kind: "moved", event: "a", from: "A", to: "B" }), log({ at: T(1), principal: "p-b", kind: "moved", event: "b", from: "A", to: "B" })];
+    const rule = own({ params: JSON.stringify({ principal: "p-b" }), surfaces: "home,badge" });
+    const groups = updatesFor(input({ log: rows, settings: allOff, ownRules: [rule, own({ owner: "user-c" })], principals: [{ id: "p-a" }, { id: "p-b" }] }));
+    expect(groups.find((g) => g.scope === "p-a")!.info).toEqual([]);
+    expect(groups.find((g) => g.scope === "p-b")!.info[0]).toMatchObject({ key: "e:b", rules: [`own:${rule.id}`], surfaces: ["home", "badge"] });
+  });
+
+  test("a change rule in the needs-you lane keeps its own update until marked done", () => {
+    const rule = own({ lane: "needs" });
+    const rows = [log({ at: T(1), kind: "moved", event: "a", from: "A", to: "B" })];
+    const key = `own:${rule.id}|e:a`;
+    const i = input({ log: rows, ownRules: [rule] });
+    expect(group(i).needs.map((u) => u.key)).toEqual([key]);
+    expect(group(i).info.map((u) => u.key)).toEqual(["e:a"]);
+    expect(group({ ...i, updateState: [state(key, "seen", { at: T(1) })] }).needs).toEqual([]);
+  });
+
+  test("a state rule with an amount and a principal adds to the built-in one, one update per key", () => {
+    const events = [ev("soon", { start: "2026-11-25T09:00:00Z" }), ev("later", { start: "2026-11-26T09:00:00Z" })];
+    const readiness = notReady("soon", "later");
+    const rule = own({ condition: "prep-due", lane: "needs", params: JSON.stringify({ principal: "p-a", amount: 72 }), surfaces: "badge" });
+    const { needs } = group(input({ events, readiness, ownRules: [rule] }));
+    expect(needs.map((u) => [u.key, u.rules, u.surfaces])).toEqual([
+      ["prep-due|soon", ["prep-due", `own:${rule.id}`], ["home", "needs", "badge"]],
+      ["prep-due|later", [`own:${rule.id}`], ["badge"]],
+    ]);
+  });
+
+  test("during cover, the covering user gets the absent user's needs-you updates for that principal, and no others (B29)", () => {
+    const tasks = [
+      { ...meta("a"), principal: "p-a", due: "2026-11-20", done: false },
+      { ...meta("b"), principal: "p-b", due: "2026-11-20", done: false },
+      { ...meta("offer"), assignee: "user-b", assignedBy: "user-c", assignment: "offered", done: false },
+    ] as RowOf<"tasks">[];
+    const absent = settingsFor("user-b", [], undefined);
+    const rows = [log({ at: T(1), by: "user-c", kind: "moved", event: "x", from: "A", to: "B" })];
+    const groups = updatesFor(input({
+      tasks, log: rows, settings: allOff, principals: [{ id: "p-a" }, { id: "p-b" }],
+      covering: [{ absent: "user-b", principal: "p-a", settings: absent }],
+    }));
+    expect(groups.flatMap((g) => g.needs.map((u) => [u.key, u.coveringFor]))).toEqual([["task-overdue|a", "user-b"]]);
+    expect(groups.flatMap((g) => g.info)).toEqual([]);
+  });
+
+  test("the preview lists exactly what one rule would have posted over the last week (B31)", () => {
+    const rows = [
+      log({ at: T(2), kind: "moved", event: "a", from: "A", to: "B" }),
+      log({ at: T(3), kind: "changed", event: "b" }),
+      log({ at: T(8 * 24), kind: "moved", event: "old", from: "A", to: "B" }),
+    ];
+    const seen = [{ ...meta("s"), userId: "user-a", scope: "p-a", at: NOW }] as RowOf<"seen">[];
+    const i = input({ log: rows, seen, updateState: [state("e:a", "dismissed", { at: T(1) })] });
+    expect(previewRule(i, "moved").map((u) => u.key)).toEqual(["e:a"]);
+    expect(previewRule(i, "changed").map((u) => u.key)).toEqual(["e:b"]);
+    const rule = own({ condition: "changed" });
+    expect(previewRule({ ...i, ownRules: [rule] }, `own:${rule.id}`).map((u) => u.key)).toEqual(["e:b"]);
+  });
+});

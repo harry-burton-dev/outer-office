@@ -117,7 +117,7 @@ export const RULES: readonly Rule[] = [
     id: "task-completed", group: "Tasks", label: "A task for the principal is done", lane: "info", scope: "principal",
     match: (row) => is("task", "completed")(row) && (row.principal ?? "") !== "",
   }),
-  state({ id: "task-overdue", group: "Tasks", label: "A task for the principal is overdue", lane: "needs", scope: "principal" }),
+  state({ id: "task-overdue", group: "Tasks", label: "A task for the principal is due today or overdue", lane: "needs", scope: "principal" }),
   state({
     id: "prep-due", group: "Diary", label: "A meeting needs prep soon", lane: "needs", scope: "principal",
     amount: { label: "Within", unit: "hours", default: 24, min: 1, max: 336 },
@@ -125,11 +125,8 @@ export const RULES: readonly Rule[] = [
   state({ id: "gone-no-reason", group: "Diary", label: "A gone meeting with office data has no reason", lane: "needs", scope: "principal" }),
   // One update per sync run, holding the engagements it changed.
   change({ id: "sync-applied", group: "Sync", label: "A sync or import changes the diary", lane: "info", scope: "principal", match: is("import", "applied") }),
-  state({
-    id: "sync-late", group: "Sync", label: "The diary sync is late", lane: "needs", scope: "principal",
-    amount: { label: "After", unit: "hours", default: 24, min: 1, max: 168 },
-  }),
-  state({ id: "sync-held-back", group: "Sync", label: "A diary sync was held back", lane: "needs", scope: "principal" }),
+  // Late or refused as the Automate page says (OUT-91's principalHealth), so the two never disagree.
+  state({ id: "sync-health", group: "Sync", label: "The diary sync is late or a file can't be used", lane: "needs", scope: "principal" }),
 ];
 
 const BY_ID: ReadonlyMap<string, Rule> = new Map(RULES.map((r) => [r.id, r]));

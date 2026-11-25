@@ -1,12 +1,11 @@
-// Needs action, for the chosen principal: overdue and due-today tasks,
-// engagements in the next 24 hours that need prep, and gone engagements with
-// office data. Read-only: the rows open panels. The frame owns the Sheet root.
+// Needs action: the needs-you lane for the chosen principal (OUT-86). One
+// source with Home: useNeedsYou. The frame owns the Sheet root.
 import { useRecord } from "@trellis/framework";
 import { SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useApp } from "@/app/app-state";
-import { needsActionCount, useDiaryForNeedsAction, useNeedsAction } from "@/app/frame-data";
+import { useNeedsYou } from "@/app/updates-data";
 import { EmptyState } from "@/app/ui";
-import { DiaryRow, EventRow, Section, TaskRow } from "./needs-action/rows";
+import { UpdateRow } from "@/screens/home/update-row";
 
 function PrincipalCode() {
   const { principalId } = useApp();
@@ -15,18 +14,14 @@ function PrincipalCode() {
   return code ? <SheetDescription>{code}</SheetDescription> : null;
 }
 
-function Lists() {
-  const lists = useNeedsAction();
-  const diary = useDiaryForNeedsAction();
-  if (needsActionCount(lists) === 0 && !diary) return <EmptyState title="Nothing needs action" />;
+function Lane() {
+  const { isViewer } = useApp();
+  const { updates } = useNeedsYou();
+  if (updates.length === 0) return <EmptyState title="Nothing needs action" />;
   return (
-    <div className="flex flex-col gap-4 overflow-y-auto px-2 pb-4">
-      {diary && <Section title="Diary"><DiaryRow /></Section>}
-      {lists.overdue.length > 0 && <Section title="Overdue">{lists.overdue.map((t) => <TaskRow key={t.id} task={t} overdue />)}</Section>}
-      {lists.dueToday.length > 0 && <Section title="Due today">{lists.dueToday.map((t) => <TaskRow key={t.id} task={t} overdue={false} />)}</Section>}
-      {lists.prepNeeded.length > 0 && <Section title="Prep needed">{lists.prepNeeded.map((e) => <EventRow key={e.id} event={e} withDay={false} />)}</Section>}
-      {lists.goneWithData.length > 0 && <Section title="Gone from Outlook">{lists.goneWithData.map((e) => <EventRow key={e.id} event={e} withDay />)}</Section>}
-    </div>
+    <ul className="flex flex-col overflow-y-auto px-4 pb-4">
+      {updates.map((u) => <UpdateRow key={u.key} update={u} readOnly={isViewer} />)}
+    </ul>
   );
 }
 
@@ -37,7 +32,7 @@ export function NeedsActionPanel() {
         <SheetTitle>Needs action</SheetTitle>
         <PrincipalCode />
       </SheetHeader>
-      <Lists />
+      <Lane />
     </SheetContent>
   );
 }

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, test } from "vitest";
 import {
-  binTasks, eventsForPrincipal, hasAckedPrivacy, inboxTasks, isViewer, needsAction, projectTasks, todayTasks,
+  binTasks, eventsForPrincipal, hasAckedPrivacy, inboxTasks, isViewer, projectTasks, todayTasks,
   type Event, type Overlay, type Person, type Section, type Task,
 } from "./selectors";
 
@@ -13,67 +13,7 @@ const ids = (rows: readonly { id: string }[]) => rows.map((r) => r.id);
 
 const NOW = "2026-11-22T09:00:00Z";
 const TODAY = "2026-11-22";
-const base = { principal: "p-a", tasks: [], events: [], overlays: [], readiness: new Map(), now: NOW, timezone: "Europe/London" };
-
-describe("needsAction: tasks", () => {
-  test("lists the principal's open tasks that are overdue or due today, by due or deadline", () => {
-    const tasks = [
-      task("late", { principal: "p-a", due: "2026-11-20" }),
-      task("deadline-late", { principal: "p-a", deadline: "2026-11-21" }),
-      task("today", { principal: "p-a", due: TODAY }),
-      task("deadline-today", { principal: "p-a", deadline: TODAY }),
-      task("later", { principal: "p-a", due: "2026-11-30" }),
-      task("other-principal", { principal: "p-b", due: TODAY }),
-      task("untagged", { due: TODAY }),
-      task("done", { principal: "p-a", due: TODAY, done: true }),
-      task("removed", { principal: "p-a", due: TODAY, _deleted: true }),
-    ];
-    const result = needsAction({ ...base, tasks });
-    expect(ids(result.overdue)).toEqual(["late", "deadline-late"]);
-    expect(ids(result.dueToday).sort()).toEqual(["deadline-today", "today"]);
-  });
-
-  test("uses today in the office zone, not UTC", () => {
-    const tasks = [task("t", { principal: "p-a", due: "2026-07-02" })];
-    const result = needsAction({ ...base, tasks, now: "2026-07-01T23:30:00Z" });
-    expect(ids(result.dueToday)).toEqual(["t"]);
-  });
-});
-
-describe("needsAction: events", () => {
-  test("lists events in the next 24 hours whose tabs aren't ready", () => {
-    const events = [
-      ev("soon", { start: "2026-11-22T15:00:00Z" }),
-      ev("tomorrow-late", { start: "2026-11-23T10:00:00Z" }),
-      ev("started", { start: "2026-11-22T08:00:00Z" }),
-      ev("ready", { start: "2026-11-22T15:00:00Z" }),
-      ev("no-overlay", { start: "2026-11-22T15:00:00Z" }),
-      ev("other", { start: "2026-11-22T15:00:00Z", principal: "p-b" }),
-    ];
-    const notReady = { required: 1, done: 0, ready: false };
-    const readiness = new Map([["soon", notReady], ["tomorrow-late", notReady], ["started", notReady], ["ready", { required: 1, done: 1, ready: true }], ["other", notReady]]);
-    // overlay.prep is retired: "needed" there no longer counts.
-    const overlays = [overlay("no-overlay", { prep: "needed" })];
-    expect(ids(needsAction({ ...base, events, overlays, readiness }).prepNeeded)).toEqual(["soon"]);
-  });
-
-  test("lists gone events that carry office data or a linked task", () => {
-    const events = ["notes", "outcome", "flag", "prep", "task", "bare", "live"].map((id) => ev(id, { gone: id !== "live" }));
-    const overlays = [
-      overlay("notes", { notes: "Some notes" }), overlay("outcome", { outcome: "Agreed" }), overlay("flag", { flagged: true }),
-      overlay("prep", { prep: "in-hand" }), overlay("bare"), overlay("live", { notes: "Kept" }),
-    ];
-    const tasks = [task("linked", { event: "task" })];
-    expect(ids(needsAction({ ...base, events, overlays, tasks }).goneWithData).sort()).toEqual(["flag", "notes", "outcome", "prep", "task"]);
-  });
-
-  test("does not throw on missing overlays, events or tasks linked to events that have not arrived", () => {
-    const tasks = [task("t", { event: "missing-event", principal: "p-a" })];
-    const overlays = [overlay("missing-event", { prep: "needed" })];
-    const events = [ev("e", { gone: true, start: undefined })];
-    expect(needsAction({ ...base, tasks, overlays, events })).toEqual({ overdue: [], dueToday: [], prepNeeded: [], goneWithData: [] });
-  });
-});
+const base = { principal: "p-a", tasks: [], events: [], overlays: [], now: NOW, timezone: "Europe/London" };
 
 describe("todayTasks", () => {
   test("lists the user's open tasks that are overdue or due today, overdue first", () => {
