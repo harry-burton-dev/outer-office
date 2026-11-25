@@ -18,16 +18,16 @@ import type { NewMeeting } from "@/domain/commands/proposals";
 import { lensById } from "@/domain/lenses";
 import { TagMenu } from "@/tags/tag-menu";
 import { useRun } from "../tasks/use-run";
-import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, proposalIdOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
+import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, newId, proposalIdOf, titleOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
 import { CLASH_EDGE, CLASH_LABELS, EventFaceView, type CardShape } from "./event-face";
 import { cardsOn, fieldsOf, isComplete, progressOf, valuesOf } from "@/domain/cards";
 import { LayerSwitch } from "./layer-switch";
 import { LensMenu } from "./lens-menu";
-import { MoveDialog, type MoveTarget } from "./move-dialog";
+import { MoveDialog, proposedRows, type MoveTarget } from "./move-dialog";
 import { ProposeDialog } from "./propose-dialog";
 import { ClashWizard } from "./clash-wizard";
 import { DaySummaryView } from "./day-summary-view";
-import { clashes } from "@/domain/clashes";
+import { clashes, clashesByEvent } from "@/domain/clashes";
 import { daySummary } from "@/domain/day-summary";
 
 /** What fills a meeting: the right-click target over all of it, a lens's fill, a ghost's dashes or the slider's veil. */
@@ -272,6 +272,23 @@ export function Diary({ principalId }: { principalId: string }) {
     if (moveTo(entryId, start, end)) setLastMove({ entry: pid !== undefined ? entryId : eventIdOf(entryId), title, start, before, children });
   };
 
+  /** What a move of an entry to these instants would clash with, read against the diary as proposed (8.1). */
+  const clashAt = useCallback((entryId: string, start: string, end: string): string | undefined => {
+    const pid = proposalIdOf(entryId);
+    const id = pid !== undefined ? newId(pid) : eventIdOf(entryId);
+    const live = events.filter((e) => !e._deleted && e.principal === principalId);
+    const proposed = proposedRows(proposals.filter((p) => p.principal === principalId), live);
+    const at = new Map(proposed.map((p) => [p.id, p]));
+    const diary = [...live.map((e) => at.get(e.id) ?? e), ...proposed.filter((p) => !eventById.has(p.id))];
+    const self = diary.find((e) => e.id === id);
+    if (!self) return undefined;
+    const others = diary.filter((e) => e.id !== id);
+    const found = clashesByEvent(clashes([{ ...self, start, end }, ...others], overlays, timezone)).get(id);
+    if (!found) return undefined;
+    const names = found.with.map((w) => { const e = others.find((o) => o.id === w); return e ? titleOf(e) : "another engagement"; });
+    return `${CLASH_LABELS[found.severity]} with ${names.join(", ")}`;
+  }, [events, proposals, overlays, timezone, principalId, eventById]);
+
   /** A viewer's drag suggests the move (D15); nothing else changes. */
   const onSuggestMove = (entryId: string, start: string, end: string) => {
     const title = data.faces.get(entryId)?.title ?? "The meeting";
@@ -335,6 +352,7 @@ export function Diary({ principalId }: { principalId: string }) {
         renderEvent={renderEvent}
         onMove={isViewer ? onSuggestMove : onMove}
         canMove={canMove}
+        clashAt={clashAt}
         renderDayHeader={layer === "graveyard" ? undefined : renderDayHeader}
         toolbarExtra={
           <>
