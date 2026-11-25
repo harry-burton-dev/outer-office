@@ -36,7 +36,7 @@ function moveAll(tx: Tx, moves: ReadonlyMap<string, string>): void {
     const event = to(p.event);
     if (event && p.id === proposalId(tx, p.event ?? "")) moveRecord(tx, "proposals", p as Row, proposalId(tx, event), { event });
   }
-  // A tab's id is keyed to its event (OUT-88), so it moves to a new id and its cards follow.
+  // A tab's id is keyed to its event (OUT-88), so it moves to a new id and its cards and tasks follow.
   const tabMoves = new Map<string, string>();
   for (const t of tx.list("tabs")) {
     const event = to(t.event);
@@ -45,11 +45,12 @@ function moveAll(tx: Tx, moves: ReadonlyMap<string, string>): void {
     tabMoves.set(t.id, toId);
     moveRecord(tx, "tabs", t as Row, toId, { event });
   }
-  for (const c of tx.list("cards")) {
-    const [event, tab] = [to(c.event), tabMoves.get(c.tab ?? "")];
-    if (event || tab) tx.put("cards", c.id, { ...(event && { event }), ...(tab && { tab }) });
-  }
-  for (const t of tx.list("tasks")) { const event = to(t.event); if (event) tx.put("tasks", t.id, { event }); }
+  const follow = (r: { event?: string; tab?: string }) => {
+    const [event, tab] = [to(r.event), tabMoves.get(r.tab ?? "")];
+    return event || tab ? { ...(event && { event }), ...(tab && { tab }) } : undefined;
+  };
+  for (const c of tx.list("cards")) { const changes = follow(c); if (changes) tx.put("cards", c.id, changes); }
+  for (const t of tx.list("tasks")) { const changes = follow(t); if (changes) tx.put("tasks", t.id, changes); }
   for (const h of tx.list("eventHistory")) { const event = to(h.event); if (event) tx.put("eventHistory", h.id, { event }); }
 }
 

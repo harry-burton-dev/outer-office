@@ -13,7 +13,7 @@ const ids = (rows: readonly { id: string }[]) => rows.map((r) => r.id);
 
 const NOW = "2026-11-22T09:00:00Z";
 const TODAY = "2026-11-22";
-const base = { principal: "p-a", tasks: [], events: [], overlays: [], now: NOW, timezone: "Europe/London" };
+const base = { principal: "p-a", tasks: [], events: [], overlays: [], readiness: new Map(), now: NOW, timezone: "Europe/London" };
 
 describe("needsAction: tasks", () => {
   test("lists the principal's open tasks that are overdue or due today, by due or deadline", () => {
@@ -41,7 +41,7 @@ describe("needsAction: tasks", () => {
 });
 
 describe("needsAction: events", () => {
-  test("lists events in the next 24 hours whose prep is needed", () => {
+  test("lists events in the next 24 hours whose tabs aren't ready", () => {
     const events = [
       ev("soon", { start: "2026-11-22T15:00:00Z" }),
       ev("tomorrow-late", { start: "2026-11-23T10:00:00Z" }),
@@ -50,8 +50,11 @@ describe("needsAction: events", () => {
       ev("no-overlay", { start: "2026-11-22T15:00:00Z" }),
       ev("other", { start: "2026-11-22T15:00:00Z", principal: "p-b" }),
     ];
-    const overlays = [overlay("soon", { prep: "needed" }), overlay("tomorrow-late", { prep: "needed" }), overlay("started", { prep: "needed" }), overlay("ready", { prep: "ready" }), overlay("other", { prep: "needed" })];
-    expect(ids(needsAction({ ...base, events, overlays }).prepNeeded)).toEqual(["soon"]);
+    const notReady = { required: 1, done: 0, ready: false };
+    const readiness = new Map([["soon", notReady], ["tomorrow-late", notReady], ["started", notReady], ["ready", { required: 1, done: 1, ready: true }], ["other", notReady]]);
+    // overlay.prep is retired: "needed" there no longer counts.
+    const overlays = [overlay("no-overlay", { prep: "needed" })];
+    expect(ids(needsAction({ ...base, events, overlays, readiness }).prepNeeded)).toEqual(["soon"]);
   });
 
   test("lists gone events that carry office data or a linked task", () => {

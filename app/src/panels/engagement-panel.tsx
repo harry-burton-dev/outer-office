@@ -5,13 +5,16 @@
 // follow-ups. Cards replace prep. The frame owns the Sheet root.
 import { useState } from "react";
 import { useCommand, useRecord, useRecords } from "@trellis/framework";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CardForm } from "@/cards/card-form";
 import { ShapeIcon } from "@/cards/shape-icon";
 import { cardsOn, sortedTabTemplates, sortedTemplates, tabIsBehind, tabsOn, type Card, type Tab, type TabTemplate, type Template } from "@/domain/cards";
 import { commands } from "@/domain/commands";
+import { tasksOutOfStep } from "@/domain/tab-tasks";
+import { lastTimeFor } from "@/domain/copy-from";
+import { formatDay } from "@/domain/dates";
 import { SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp } from "@/app/app-state";
@@ -70,13 +73,40 @@ function AddCard({ event, onAdded }: { event: string; onAdded(id: string): void 
   );
 }
 
+/** Offers to fill the tab from the last engagement that had it (OUT-88). */
+function CopyFromLastTime({ tab, templates }: { tab: Tab; templates: readonly Template[] }) {
+  const { now, timezone } = useApp();
+  const copy = useCommand(commands.tabCopyFrom);
+  const events = useRecords("events");
+  const tabs = useRecords("tabs");
+  const cards = useRecords("cards");
+  const source = lastTimeFor({ target: tab, events, tabs, cards, templates });
+  const from = source && events.find((e) => e.id === source.event);
+  if (!source || !from) return null;
+  return (
+    <div className="flex items-center gap-2 rounded-lg border p-2 text-sm">
+      <span className="flex-1">Last time: {titleOf(from)}, {formatDay(from.start ?? "", timezone)}.</span>
+      <Button variant="outline" size="sm" onClick={() => copy({ now, tab: tab.id, from: source.id })}><Copy />Copy from last time</Button>
+    </div>
+  );
+}
+
 function TabBody({ tab, template, cards, templates }: { tab: Tab; template: TabTemplate | undefined; cards: readonly Card[]; templates: readonly Template[] }) {
   const { now, isViewer } = useApp();
   const remove = useCommand(commands.tabRemove);
   const update = useCommand(commands.tabUpdate);
+  const keep = useCommand(commands.tabKeep);
   const behind = tabIsBehind(tab, template, cards, new Map(templates.filter((t) => !t._deleted).map((t) => [t.id, t])));
   return (
     <div className="flex flex-col gap-6">
+      {(tab.orphaned ?? "") !== "" && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border p-2 text-sm" role="status">
+          <span className="flex-1">The tag or category that added this tab has gone. It has notes in it, so it was kept.</span>
+          {!isViewer && <Button variant="outline" size="sm" onClick={() => keep({ now, id: tab.id })}>Keep</Button>}
+          {!isViewer && <Button variant="ghost" size="sm" onClick={() => remove({ now, id: tab.id })}>Remove</Button>}
+        </div>
+      )}
+      {!isViewer && <CopyFromLastTime tab={tab} templates={templates} />}
       {!isViewer && behind && (
         <div className="flex items-center gap-2 rounded-lg border p-2 text-sm">
           <span className="flex-1">This tab's template has changed since it was added.</span>
@@ -88,6 +118,20 @@ function TabBody({ tab, template, cards, templates }: { tab: Tab; template: TabT
         <CardForm key={card.id} card={card} titled template={templates.find((t) => t.id === card.template && !t._deleted)} />
       ))}
       {!isViewer && <Button variant="ghost" size="sm" className="self-start" onClick={() => remove({ now, id: tab.id })}><Trash2 />Remove tab</Button>}
+    </div>
+  );
+}
+
+/** After the engagement moved, offers to move its tab tasks with it (OUT-88). */
+function MoveTasks({ event }: { event: Event }) {
+  const { now, timezone, isViewer } = useApp();
+  const retime = useCommand(commands.taskRetime);
+  const count = tasksOutOfStep(event, useRecords("tasks"), timezone).length;
+  if (isViewer || count === 0 || event.gone === true) return null;
+  return (
+    <div className="flex items-center gap-2 rounded-lg border p-2 text-sm">
+      <span className="flex-1">{count === 1 ? "A task from its tabs isn't timed to this engagement any more." : `${count} tasks from its tabs aren't timed to this engagement any more.`}</span>
+      <Button variant="outline" size="sm" onClick={() => retime({ now, event: event.id })}>{count === 1 ? "Move 1 task with it" : `Move ${count} tasks with it`}</Button>
     </div>
   );
 }
@@ -110,6 +154,7 @@ function EngagementBody({ event }: EngagementBodyProps) {
       </SheetHeader>
       <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-4">
         {event.gone === true && <p className="font-medium">No longer in Outlook.</p>}
+        <MoveTasks event={event} />
         <Tabs value={tab} onValueChange={(next: string) => setTab(next)}>
           <div className="flex flex-wrap items-center gap-2">
             <TabsList className="h-auto flex-wrap">

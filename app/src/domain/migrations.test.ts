@@ -48,3 +48,7 @@ test("a card stored before tabs reads as on no tab, using its template's fields"
 test("a proposal stored before groups reads ungrouped and not superseded", () => {
   expect(config.migrations.proposals[2]({ event: "e1", kind: "move" })).toEqual({ event: "e1", kind: "move", group: "", superseded: "" });
 });
+
+test("a task stored before tabs reads as made by no tab", () => {
+  expect(config.migrations.tasks[2]({ title: "T" })).toEqual({ title: "T", tab: "", offsetDays: 0 });
+});

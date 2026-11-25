@@ -114,3 +114,24 @@ export function tabsOn(tabs: readonly Tab[], eventId: string, tabTemplates: read
   const at = (t: Tab) => order.get(t.tabTemplate ?? "") ?? Number.MAX_SAFE_INTEGER;
   return tabs.filter((t) => !t._deleted && t.event === eventId).sort((a, b) => at(a) - at(b) || a.id.localeCompare(b.id));
 }
+
+/** A task a tab template creates when it is applied: due daysBefore days before the engagement, owned by owner (a user id) or nobody (D16). */
+export interface TemplateTask {
+  title: string;
+  daysBefore: number;
+  owner: string;
+}
+
+const isTemplateTask = (t: unknown): t is TemplateTask =>
+  typeof t === "object" && t !== null && typeof (t as TemplateTask).title === "string" &&
+  Number.isInteger((t as TemplateTask).daysBefore) && typeof (t as TemplateTask).owner === "string";
+
+/** A tab template's tasks, from their stored JSON. Anything unreadable is left out. */
+export function templateTasksOf(json: string | undefined): TemplateTask[] {
+  try {
+    const parsed: unknown = JSON.parse(json || "[]");
+    return Array.isArray(parsed) ? parsed.filter(isTemplateTask) : [];
+  } catch {
+    return [];
+  }
+}

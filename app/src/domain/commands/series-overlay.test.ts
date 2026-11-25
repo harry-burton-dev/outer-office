@@ -6,6 +6,7 @@ import { principalSave } from "./office";
 import { overlaySet } from "./overlay";
 import { seriesOverlaySet } from "./series-overlay";
 import { tagSave, tagsSet } from "./tags";
+import { tabTemplateSave } from "./cards";
 import { byId, fails, idOf, NOW, ok, oneDevice, rows, type Device } from "./testing/world";
 
 // NOW is 2026-11-22T09:00Z. The weekly series has two past and two future occurrences.
@@ -108,5 +109,21 @@ describe("seriesOverlay.set (D8)", () => {
     expect(byId(a, "seriesOverlays", idOf(a, "seriesOverlay", idOf(a, "series", principal, "weekly")))?.tags).toBe(board);
     expect(fails(a, seriesOverlaySet, { now: NOW, principal, seriesId: "nope", quiet: true })).toBe("That series hasn't arrived on this computer yet.");
     expect(fails(a, seriesOverlaySet, { now: NOW, principal, seriesId: "weekly", priority: 5 })).toBe("Priority must be 1, 2, 3 or 4.");
+  });
+});
+
+describe("series tags trigger tabs (OUT-88)", () => {
+  test("a series tag applies the tab it triggers to future occurrences, an import's new one too, and taking it off removes the empty tabs", async () => {
+    const { a, principal, ids, board } = await withSeries();
+    const tabTemplate = ok(a, tabTemplateSave, { now: NOW, name: "Board pack", triggerKind: "tag", trigger: board });
+    const tabsOn = () => rows(a, "tabs").filter((t) => !t._deleted).map((t) => [t.event, t.via]);
+    ok(a, seriesOverlaySet, { now: NOW, principal, seriesId: "weekly", tags: [board] });
+    expect(tabsOn()).toEqual(ids.slice(2).map((e) => [e, "series"]));
+    ok(a, importApply, { now: NOW, principal, file: "g.ics", diff: diff([occurrence("2026-12-13")]) });
+    const added = idOf(a, "event", principal, "weekly", "2026-12-13T10:00:00Z");
+    expect(byId(a, "tabs", idOf(a, "tab", added, tabTemplate))).toMatchObject({ event: added, via: "series" });
+    ok(a, seriesOverlaySet, { now: NOW, principal, seriesId: "weekly", tags: [] });
+    expect(tabsOn()).toEqual([]);
+    expect(rows(a, "log").filter((l) => l.kind === "tab-removed")).toHaveLength(3);
   });
 });

@@ -1,6 +1,8 @@
 // Card templates and the cards on meetings (OUT-62).
 import { defineCommand, type Tx } from "@trellis/framework";
-import { FIELD_TYPES, SHAPES, cardFieldsOf, cardTemplatesOf, fieldsOf, isComplete, progressOf, valuesOf, type TemplateField } from "../cards";
+import { FIELD_TYPES, SHAPES, cardFieldsOf, cardTemplatesOf, fieldsOf, isComplete, progressOf, templateTasksOf, valuesOf, type TemplateField, type TemplateTask } from "../cards";
+import { createTabTasks } from "./tab-tasks";
+import { copyPlan } from "../copy-from";
 import { requireNow, requireText, writeLog } from "./shared";
 
 export interface TemplateSaveInput {
@@ -82,15 +84,19 @@ export const cardSet = defineCommand("card.set", (tx: Tx, input: { now: string; 
   const before = valuesOf(card.values);
   const values = { ...before };
   for (const [key, value] of Object.entries(input.values)) if (typeof value === "string") values[key] = value;
-  tx.put("cards", id, { values: JSON.stringify(values) });
-  // Logged when the card becomes complete, so Stats can tell prep done before the meeting from after (OUT-69).
+  putValues(tx, input.now, card, before, values);
+});
+
+/** Writes a card's values, logging card-ready when it becomes complete, so Stats can tell prep done before the meeting from after (OUT-69). */
+function putValues(tx: Tx, now: string, card: { id: string; event?: string; template?: string; fields?: string }, before: Record<string, string>, values: Record<string, string>): void {
+  tx.put("cards", card.id, { values: JSON.stringify(values) });
   const template = tx.get("templates", card.template ?? "");
   const fields = cardFieldsOf(card, template);
   if (fields.length > 0 && isComplete(progressOf(fields, values)) && !isComplete(progressOf(fields, before))) {
     const event = tx.get("events", card.event ?? "");
-    writeLog(tx, input.now, { area: "overlay", kind: "card-ready", principal: event?.principal ?? "", event: card.event ?? "", note: template?.name ?? "" });
+    writeLog(tx, now, { area: "overlay", kind: "card-ready", principal: event?.principal ?? "", event: card.event ?? "", note: template?.name ?? "" });
   }
-});
+}
 
 /** Takes a card off its meeting. */
 export const cardRemove = defineCommand("card.remove", (tx: Tx, input: { now: string; id: string }) => {
@@ -118,6 +124,31 @@ export interface TabTemplateSaveInput {
   shape?: string;
   /** Card template ids, in order. */
   cards?: readonly string[];
+  /** The tasks applying it creates. */
+  tasks?: readonly TemplateTask[];
+  /** none, or tag or category with trigger that tag's or category's id. */
+  triggerKind?: "none" | "tag" | "category";
+  trigger?: string;
+}
+
+function checkTrigger(tx: Tx, kind: unknown, trigger: unknown): { triggerKind: string; trigger: string } {
+  if (kind === "none") return { triggerKind: "none", trigger: "" };
+  if (kind !== "tag" && kind !== "category") tx.fail("A tab's trigger is a tag, a category or nothing.");
+  const id = requireText(tx, trigger, kind === "tag" ? "The tag" : "The category");
+  const found = tx.get(kind === "tag" ? "tags" : "categories", id);
+  if (!found || found._deleted) tx.fail(kind === "tag" ? "That tag has been removed." : "That category isn't known yet.");
+  return { triggerKind: kind, trigger: id };
+}
+
+function checkTasks(tx: Tx, tasks: unknown): TemplateTask[] {
+  if (!Array.isArray(tasks)) tx.fail("The tasks must be a list.");
+  return tasks.map((t: TemplateTask) => {
+    const title = typeof t?.title === "string" ? t.title.trim() : "";
+    if (title === "") tx.fail("Every task needs a title.");
+    if (!Number.isInteger(t.daysBefore) || t.daysBefore < 0 || t.daysBefore > 365) tx.fail(`${title} needs a whole number of days before, from 0 to 365.`);
+    const owner = typeof t.owner === "string" ? t.owner : "";
+    return { title, daysBefore: t.daysBefore, owner };
+  });
 }
 
 /** Adds a tab template, or renames it, changes its shape or its cards, bumping its version. Returns its id (OUT-88). */
@@ -138,12 +169,12 @@ export const tabTemplateSave = defineCommand("tabTemplate.save", (tx: Tx, input:
     if (input.cards.some((c) => !templates.has(c))) tx.fail("One of those cards' templates has been removed.");
     cards = [...new Set(input.cards)];
   }
+  const tasks = input.tasks === undefined ? templateTasksOf(current?.tasks) : checkTasks(tx, input.tasks);
   const id = current?.id ?? tx.newId();
   const order = current?.order ?? live.reduce((max, t) => Math.max(max, (t.order ?? 0) + 1), 0);
-  tx.put("tabTemplates", id, {
-    name, shape, cards: cards.join(","), order, version: (current?.version ?? 0) + 1,
-    ...(!current && { triggerKind: "none", trigger: "", tasks: "[]" }),
-  });
+  const trigger = input.triggerKind !== undefined ? checkTrigger(tx, input.triggerKind, input.trigger)
+    : { triggerKind: current?.triggerKind || "none", trigger: current?.trigger ?? "" };
+  tx.put("tabTemplates", id, { name, shape, cards: cards.join(","), order, version: (current?.version ?? 0) + 1, tasks: JSON.stringify(tasks), ...trigger });
   return id;
 });
 
@@ -159,8 +190,14 @@ export const tabId = (tx: Tx, event: string, tabTemplate: string): string => tx.
 
 export type TabVia = "hand" | "tag" | "category" | "series";
 
-/** Puts a tab template on an engagement: the tab and a card per card template, with copied fields. An engagement has at most one tab per template, so applying it again returns the tab it has. Shared by tab.apply and the triggers. */
-export function applyTab(tx: Tx, now: string, event: string, tabTemplate: { id: string; cards?: string; version?: number }, via: TabVia): string {
+/** Puts a tab template on an engagement: the tab, a card per card template with copied fields, and its tasks. An engagement has at most one tab per template, so applying it again returns the tab it has. Shared by tab.apply and the triggers. */
+export function applyTab(tx: Tx, now: string, event: { id: string; start?: string; principal?: string }, tabTemplate: { id: string; cards?: string; tasks?: string; version?: number }, via: TabVia): string {
+  const id = putTab(tx, now, event.id, tabTemplate, via);
+  createTabTasks(tx, now, id, event, tabTemplate.tasks);
+  return id;
+}
+
+function putTab(tx: Tx, now: string, event: string, tabTemplate: { id: string; cards?: string; version?: number }, via: TabVia): string {
   const id = tabId(tx, event, tabTemplate.id);
   const current = tx.get("tabs", id);
   if (current && !current._deleted) return id;
@@ -182,7 +219,7 @@ export const tabApply = defineCommand("tab.apply", (tx: Tx, input: { now: string
   if (!found || found._deleted) tx.fail("That engagement hasn't arrived on this computer yet.");
   const template = tx.get("tabTemplates", requireText(tx, input.tabTemplate, "The tab template"));
   if (!template || template._deleted) tx.fail("That tab template has been removed.");
-  return applyTab(tx, input.now, event, template, "hand");
+  return applyTab(tx, input.now, found, template, "hand");
 });
 
 /** Takes a tab, and the cards that came with it, off its engagement. */
@@ -215,4 +252,22 @@ export const tabUpdate = defineCommand("tab.update", (tx: Tx, input: { now: stri
     if (t && !t._deleted) putCard(tx, tab.event ?? "", t, tab.id, order++);
   }
   tx.put("tabs", tab.id, { version: template.version ?? 0 });
+});
+
+/** Fills a tab's empty fields from another engagement's tab of the same template, except ticks, never across masked items (OUT-88). Returns how many cards gained something. */
+export const tabCopyFrom = defineCommand("tab.copyFrom", (tx: Tx, input: { now: string; tab: string; from: string }) => {
+  requireNow(tx, input);
+  const target = tx.get("tabs", requireText(tx, input.tab, "The tab"));
+  const source = tx.get("tabs", requireText(tx, input.from, "The tab to copy from"));
+  if (!target || target._deleted || !source || source._deleted) tx.fail("That tab has been removed.");
+  if (target.id === source.id || target.tabTemplate !== source.tabTemplate) tx.fail("Copy only from another engagement's tab of the same kind.");
+  const masked = (id: string | undefined) => tx.get("events", id ?? "")?.masked === true;
+  if (masked(target.event) || masked(source.event)) tx.fail("Private engagements can't be copied from or to.");
+  const templates = new Map(tx.list("templates").map((t) => [t.id, t]));
+  const plan = copyPlan(source, target, tx.list("cards"), templates);
+  for (const { card, values } of plan) {
+    const before = valuesOf(card.values);
+    putValues(tx, input.now, card, before, { ...before, ...values });
+  }
+  return plan.length;
 });
