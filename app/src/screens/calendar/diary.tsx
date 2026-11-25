@@ -26,6 +26,7 @@ import { LensMenu } from "./lens-menu";
 import { MoveDialog, proposedRows, type MoveTarget } from "./move-dialog";
 import { ProposeDialog } from "./propose-dialog";
 import { ClashWizard } from "./clash-wizard";
+import { HoverCard, hoverLines } from "./hover-card";
 import { DaySummaryView } from "./day-summary-view";
 import { clashes, clashesByEvent } from "@/domain/clashes";
 import { daySummary } from "@/domain/day-summary";
@@ -113,6 +114,8 @@ export function Diary({ principalId }: { principalId: string }) {
   const suggestions = useRecords("suggestions");
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
   const [onlyClashes, setOnlyClashes] = useState(false);
+  /** The entry whose hover card is open: hovered, or focused from the keyboard. */
+  const [cardFor, setCardFor] = useState<string | undefined>(undefined);
   const [lastSuggestion, setLastSuggestion] = useState<{ title: string; start: string } | null>(null);
 
   const data = useMemo(() => {
@@ -198,7 +201,11 @@ export function Diary({ principalId }: { principalId: string }) {
     );
     return (
       <TagMenu target="event" id={id} own={face.ownTags} onOpen={open} actions={actions}>
-        <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} time={time} timeZone={timezone} /></div>
+        <div className="min-w-0">
+          <HoverCard lines={hoverLines(face, drawnAt(id, event), events, shapesOf(id), timezone)} open={cardFor === event.id} onOpenChange={(next) => setCardFor(next ? event.id : undefined)}>
+            <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} time={time} timeZone={timezone} /></div>
+          </HoverCard>
+        </div>
       </TagMenu>
     );
   };
@@ -272,6 +279,12 @@ export function Diary({ principalId }: { principalId: string }) {
     const title = data.faces.get(entryId)?.title ?? "The meeting";
     const children = pid === undefined ? childrenOf(eventIdOf(entryId)).map((event) => ({ event, before: proposedAt(event) })) : [];
     if (moveTo(entryId, start, end)) setLastMove({ entry: pid !== undefined ? entryId : eventIdOf(entryId), title, start, before, children });
+  };
+
+  /** An engagement as its block draws it: at the proposed time on the Proposed layer. */
+  const drawnAt = (id: string, drawn: DiaryEvent) => {
+    const e = eventById.get(id);
+    return e && { ...e, start: drawn.start, end: drawn.end };
   };
 
   /** What a move of an entry to these instants would clash with, read against the diary as proposed (8.1). */
@@ -355,6 +368,7 @@ export function Diary({ principalId }: { principalId: string }) {
         onMove={isViewer ? onSuggestMove : onMove}
         canMove={canMove}
         clashAt={clashAt}
+        onFocusEntry={setCardFor}
         renderDayHeader={layer === "graveyard" ? undefined : renderDayHeader}
         toolbarExtra={
           <>

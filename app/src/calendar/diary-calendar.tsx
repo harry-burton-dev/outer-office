@@ -55,6 +55,8 @@ export interface DiaryCalendarProps {
   renderDayHeader?: (date: string) => ReactNode;
   /** What a move to these instants would clash with, as words ("Clash with Press call"), or nothing: shown while dragging or moving with the keyboard. */
   clashAt?: (id: string, start: string, end: string) => string | undefined;
+  /** Told which entry has keyboard focus, or none, so its hover card can follow focus. */
+  onFocusEntry?: (id: string | undefined) => void;
 }
 
 const VIEW_TYPES: Record<DiaryView, string> = { day: "timeGridDay", week: "timeGridWeek" };
@@ -203,7 +205,7 @@ function shows(info: { currentStart: Date; currentEnd: Date }, date: string, tim
   return date >= first && date < end;
 }
 
-export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra, onMove, canMove, renderDayHeader, clashAt }: DiaryCalendarProps) {
+export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra, onMove, canMove, renderDayHeader, clashAt, onFocusEntry }: DiaryCalendarProps) {
   const controller = useCalendarController();
   const byId = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
   const moves = onMove !== undefined;
@@ -312,7 +314,8 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="" onKeyDownCapture={onKeyDownCapture}>
+    <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="" onKeyDownCapture={onKeyDownCapture}
+      onFocusCapture={onFocusEntry && ((e) => onFocusEntry(entryIdIn(e.target)))} onBlurCapture={onFocusEntry && (() => onFocusEntry(undefined))}>
       <EventCalendarToolbar className="border-b p-3" controller={controller} availableViews={AVAILABLE_VIEWS}>
         {toolbarExtra}
       </EventCalendarToolbar>
