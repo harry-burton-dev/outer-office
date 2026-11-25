@@ -32,9 +32,9 @@ const notReady = (...ids: string[]) => new Map(ids.map((id) => [id, { required: 
 const ready = (...ids: string[]) => new Map(ids.map((id) => [id, { required: 1, done: 1, ready: true }]));
 
 describe("settingsFor", () => {
-  test("defaults: every rule on except gone and out-of-hours", () => {
+  test("defaults: every rule on except gone, out-of-hours and tagged-changed", () => {
     const s = settingsFor("user-a", [], undefined);
-    expect(RULES.filter((r) => !s.get(r.id)?.on).map((r) => r.id).sort()).toEqual(["gone", "out-of-hours"]);
+    expect(RULES.filter((r) => !s.get(r.id)?.on).map((r) => r.id).sort()).toEqual(["gone", "out-of-hours", "tagged-changed"]);
     expect(s.get("prep-due")?.amount).toBe(24);
     expect(s.get("short-notice")?.amount).toBe(72);
     expect(s.get("sync-health")?.surfaces).toEqual(["home", "needs", "badge"]);
@@ -515,5 +515,65 @@ describe("clash and series-ending (OUT-84, OUT-87)", () => {
       expect(updates({ settings })).toEqual([]);
       expect(updates({ settings, now: at(15) })).toHaveLength(1);
     });
+  });
+});
+
+describe("the rest of the brief's rules (OUT-84, OUT-85, OUT-88)", () => {
+  const ov = (event: string, over: Partial<RowOf<"overlays">> = {}) => ({ ...meta(`o-${event}`), event, ...over }) as RowOf<"overlays">;
+  const keysOf = (i: UpdatesInput, rule: string) =>
+    [...group(i).needs, ...group(i).info].filter((u) => u.cause === rule || u.rules.includes(rule)).map((u) => u.key).sort();
+  const timed = (id: string, start: string, end: string, over: Partial<Ev> = {}) => ev(id, { start, end, showAs: "busy", ...over });
+
+  test("priority-changed posts a meeting set to its amount or higher, p1 being highest", () => {
+    const rows = [
+      log({ at: T(1), area: "overlay", kind: "priority", event: "p1", from: "0", to: "1" }),
+      log({ at: T(1), area: "overlay", kind: "priority", event: "p2", from: "3", to: "2" }),
+      log({ at: T(1), area: "overlay", kind: "priority", event: "p3", from: "2", to: "3" }),
+      log({ at: T(1), area: "overlay", kind: "priority", event: "none", from: "1", to: "0" }),
+    ];
+    expect(keysOf(input({ log: rows }), "priority-changed")).toEqual(["e:p1", "e:p2"]);
+    const tuned = settingsFor("user-a", [{ ...meta("s"), userId: "user-a", rule: "priority-changed", amount: 1 } as RowOf<"ruleSettings">], undefined);
+    expect(keysOf(input({ log: rows, settings: tuned }), "priority-changed")).toEqual(["e:p1"]);
+  });
+
+  test("card-ready, series-changed and (when on) tagged-changed post their rows", () => {
+    const rows = [
+      log({ at: T(1), area: "overlay", kind: "card-ready", event: "c", note: "Briefing" }),
+      log({ at: T(1), area: "calendar", kind: "series-rekeyed", event: "s" }),
+      log({ at: T(1), area: "overlay", kind: "tag-added", event: "t", to: "tag-1", note: "Board" }),
+    ];
+    expect(keysOf(input({ log: rows }), "card-ready")).toEqual(["e:c"]);
+    expect(keysOf(input({ log: rows }), "series-changed")).toEqual(["e:s"]);
+    expect(group(input({ log: rows })).info.find((u) => u.key === "e:s")?.kinds).toEqual(["series-rekeyed"]);
+    expect(keysOf(input({ log: rows }), "tagged-changed")).toEqual([]);
+    const tagsOn = settingsFor("user-a", [{ ...meta("s"), userId: "user-a", rule: "tagged-changed", on: true } as RowOf<"ruleSettings">], undefined);
+    expect(keysOf(input({ log: rows, settings: tagsOn }), "tagged-changed")).toEqual(["e:t"]);
+  });
+
+  test("proposal-superseded stands while a live proposal is marked superseded", () => {
+    const proposal = (id: string, over: Partial<RowOf<"proposals">>) => ({ ...meta(id), principal: "p-a", event: "e", superseded: "", ...over }) as RowOf<"proposals">;
+    const proposals = [proposal("old", { superseded: T(1) }), proposal("fresh", {}), proposal("gone", { superseded: T(1), _deleted: true }), proposal("other", { superseded: T(1), principal: "p-b" })];
+    expect(keysOf(input({ proposals }), "proposal-superseded")).toEqual(["proposal-superseded|old"]);
+  });
+
+  test("linked-outside stands while a linked meeting sits outside its parent", () => {
+    const events = [timed("parent", "2026-11-25T09:00:00Z", "2026-11-25T12:00:00Z"), timed("in", "2026-11-25T10:00:00Z", "2026-11-25T11:00:00Z"), timed("out", "2026-11-25T13:00:00Z", "2026-11-25T14:00:00Z")];
+    const overlays = [ov("in", { parent: "parent" }), ov("out", { parent: "parent" })];
+    const i = input({ events, overlays });
+    expect(keysOf(i, "linked-outside")).toEqual(["linked-outside|out"]);
+    expect(group(i).needs.find((u) => u.cause === "linked-outside")?.with).toBe("parent");
+  });
+
+  test("tab-orphaned stands while a kept tab is orphaned", () => {
+    const tab = (id: string, over: Partial<RowOf<"tabs">>) => ({ ...meta(id), event: "e", orphaned: "", ...over }) as RowOf<"tabs">;
+    const tabs = [tab("kept", { orphaned: T(1) }), tab("fine", {}), tab("removed", { orphaned: T(1), _deleted: true }), tab("elsewhere", { orphaned: T(1), event: "missing" })];
+    expect(keysOf(input({ events: [ev("e")], tabs }), "tab-orphaned")).toEqual(["tab-orphaned|kept"]);
+  });
+
+  test("viewer-suggestion stands while a suggestion is open, for everyone but viewers", () => {
+    const suggestion = (id: string, over: Partial<RowOf<"suggestions">>) => ({ ...meta(id), principal: "p-a", event: "e", kind: "move", state: "open", at: T(1), ...over }) as RowOf<"suggestions">;
+    const suggestions = [suggestion("open", {}), suggestion("taken", { state: "taken" }), suggestion("dismissed", { state: "dismissed" }), suggestion("other", { principal: "p-b" })];
+    expect(keysOf(input({ suggestions }), "viewer-suggestion")).toEqual(["viewer-suggestion|open"]);
+    expect(keysOf(input({ suggestions, isViewer: true }), "viewer-suggestion")).toEqual([]);
   });
 });

@@ -43,6 +43,10 @@ export function updateText(u: Update, subjects: ReturnType<typeof useSubjects>, 
     case "clash":
       if (u.kinds.includes("standing")) return { what: "Standing clash", about: u.note ?? "", detail: "" };
       return { what: u.kinds.includes("hard") ? "Clash" : u.kinds.includes("away") ? "Clash with a day away" : "Possible clash", about, detail: u.with ? `with ${subjects.event(u.with)}, ${when(u.at)}` : when(u.at) };
+    case "proposal-superseded": return { what: "Proposal out of date", about, detail: "the diary changed after it was made" };
+    case "linked-outside": return { what: "Moved outside its parent", about, detail: u.with ? `linked under ${subjects.event(u.with)}` : "" };
+    case "tab-orphaned": return { what: "Tab kept without its tag", about, detail: "remove it or tag the meeting again" };
+    case "viewer-suggestion": return { what: "Viewer suggestion", about, detail: u.note ? `${u.note}` : "" };
     case "series-ending": return { what: "Series ending", about: u.note ?? "", detail: u.to ? `last meeting ${when(u.to)}` : "" };
     case "sync-health":
       if (u.kinds.includes("refused")) return { what: "Diary file can't be used", about: "", detail: u.note ?? "" };

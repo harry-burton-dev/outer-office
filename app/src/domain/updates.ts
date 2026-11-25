@@ -13,7 +13,7 @@ import { FIRST_LOOK_DAYS, ME } from "./home";
 import { isDueToday, isOverdue } from "./selectors";
 import type { PrincipalHealth } from "../automate/flows";
 import type { Readiness } from "./readiness";
-import { clashes } from "./clashes";
+import { clashes, linkedOutside } from "./clashes";
 import { seriesFor, standingClashes } from "./series";
 import { RULES, ruleById, type ChangeContext, type Lane, type RuleSetting, type Surface, SURFACES } from "./rules";
 
@@ -50,6 +50,12 @@ export interface UpdatesInput {
   updateState: readonly UpdateStateRow[];
   /** settingsFor(user, …). */
   settings: ReadonlyMap<string, RuleSetting>;
+  /** Proposals, tabs and viewers' suggestions, for proposal-superseded, tab-orphaned and viewer-suggestion. */
+  proposals?: readonly RowOf<"proposals">[];
+  tabs?: readonly RowOf<"tabs">[];
+  suggestions?: readonly RowOf<"suggestions">[];
+  /** A viewer can't act on a suggestion, so viewer-suggestion is for everyone else. */
+  isViewer?: boolean;
   /** Each engagement's tab readiness, by event id (readinessByEvent, OUT-88): prep-due reads it. */
   readiness: ReadonlyMap<string, Readiness>;
   /** Each principal's diary sync health, by principal id, from principalHealth (OUT-91). */
@@ -175,11 +181,12 @@ function net(rows: readonly LogRow[]): Pick<Update, "kinds" | "from" | "to"> | u
   const moved = moves.length > 0 && from !== to;
   const other = [...new Set(rows.filter((r) => r.area !== "calendar").map((r) => r.kind ?? ""))];
   const changed = calendarRows.some((r) => r.kind === "changed");
+  const rekeyed = calendarRows.some((r) => r.kind === "series-rekeyed");
   let kinds: string[];
   if (!before && !after) kinds = [];
   else if (!before) kinds = [first === "returned" ? "returned" : "added"];
   else if (!after) kinds = ["gone"];
-  else kinds = [...(moved ? ["moved"] : []), ...(changed ? ["changed"] : [])];
+  else kinds = [...(moved ? ["moved"] : []), ...(changed ? ["changed"] : []), ...(rekeyed ? ["series-rekeyed"] : [])];
   kinds = [...kinds, ...other];
   if (kinds.length === 0) return undefined;
   return { kinds, ...(moved && before && after ? { from, to } : {}) };
@@ -414,6 +421,32 @@ function needsUpdates(ctx: Ctx, settings: ReadonlyMap<string, RuleSetting>, user
         // Keyed by the end too: a series that is extended and later ends again posts again.
         add("series-ending", p.id, `${p.id}:${s.key}:${s.end}`, new Date(end - notice).toISOString(), { series: [s.key], note: s.subject, to: s.end });
       }
+    }
+  }
+  if (on("proposal-superseded")) {
+    for (const p of input.proposals ?? []) {
+      if (!live(p) || !p.superseded || !principals.has(p.principal ?? "")) continue;
+      add("proposal-superseded", p.principal ?? "", p.id, p.superseded, { event: p.event || undefined });
+    }
+  }
+  if (on("linked-outside")) {
+    for (const id of linkedOutside(events, input.overlays)) {
+      const e = events.find((x) => x.id === id);
+      add("linked-outside", e?.principal ?? "", id, e?.start ?? "", { event: id, with: overlayOf.get(id)?.parent || undefined });
+    }
+  }
+  if (on("tab-orphaned")) {
+    const eventIds = new Set(events.map((e) => e.id));
+    for (const t of input.tabs ?? []) {
+      if (!live(t) || !t.orphaned || !eventIds.has(t.event ?? "")) continue;
+      const e = events.find((x) => x.id === t.event);
+      add("tab-orphaned", e?.principal ?? "", t.id, t.orphaned, { event: t.event });
+    }
+  }
+  if (on("viewer-suggestion") && !input.isViewer) {
+    for (const s of input.suggestions ?? []) {
+      if (!live(s) || s.state !== "open" || !principals.has(s.principal ?? "")) continue;
+      add("viewer-suggestion", s.principal ?? "", s.id, s.at ?? "", { event: s.event || undefined, note: s.kind ?? "" });
     }
   }
   if (on("gone-no-reason")) {
