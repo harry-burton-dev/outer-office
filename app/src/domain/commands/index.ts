@@ -11,9 +11,10 @@ import { projectSave, sectionSave } from "./projects";
 import { ackPrivacy, setMode } from "./people";
 import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
-import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
+import { proposalDrop, proposalMove, proposalMoveGroup, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
 import { wizardApply } from "./wizard";
+import { suggestionDismiss, suggestionFromWizard, suggestionMake, suggestionTake } from "./suggestions";
 import { automateRecordRun } from "./automate";
 import { ruleSettingSet, updateSet } from "./alerts";
 
@@ -40,6 +41,7 @@ export const commands = {
   tagsSet,
   categorySave,
   proposalMove,
+  proposalMoveGroup,
   proposalWithdraw,
   proposalNew,
   proposalDrop,
@@ -54,6 +56,10 @@ export const commands = {
   updateSet,
   automateRecordRun,
   wizardApply,
+  suggestionMake,
+  suggestionTake,
+  suggestionDismiss,
+  suggestionFromWizard,
 } as const;
 
 export {
@@ -78,6 +84,7 @@ export {
   tagsSet,
   categorySave,
   proposalMove,
+  proposalMoveGroup,
   proposalWithdraw,
   proposalNew,
   proposalDrop,
@@ -93,6 +100,7 @@ export {
   automateRecordRun,
 };
 export { wizardApply } from "./wizard";
+export { suggestionMake, suggestionTake, suggestionDismiss, suggestionFromWizard } from "./suggestions";
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -103,9 +111,10 @@ export type { ProjectSaveInput, SectionSaveInput } from "./projects";
 export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } from "./tags";
 export type { TemplateSaveInput } from "./cards";
-export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
+export type { ProposalMoveInput, ProposalMoveGroupInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
 export type { WizardApplyInput } from "./wizard";
+export type { SuggestionMakeInput, SuggestionKind } from "./suggestions";
 export type { FlowRunInput, FlowOutcome } from "./automate";
 export type { RuleSettingSetInput, UpdateSetInput, UpdateAction } from "./alerts";
 export { OFFICE_ID } from "./office";

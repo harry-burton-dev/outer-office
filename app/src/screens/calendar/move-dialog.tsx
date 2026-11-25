@@ -28,6 +28,8 @@ export interface MoveTarget {
 export interface MoveDialogProps {
   target: MoveTarget;
   timeZone: string;
+  /** A viewer suggests the move (D15) instead of proposing it. */
+  suggest?: boolean;
   onDone(): void;
 }
 
@@ -41,8 +43,9 @@ export function proposedRows(proposals: readonly Proposal[], events: readonly Ev
   });
 }
 
-export function MoveDialog({ target, timeZone, onDone }: MoveDialogProps) {
+export function MoveDialog({ target, timeZone, suggest = false, onDone }: MoveDialogProps) {
   const move = useRun(commands.proposalMove);
+  const suggestion = useRun(commands.suggestionMake);
   const [date, setDate] = useState(() => dateIn(target.start, timeZone));
   const [time, setTime] = useState(() => formatTime(target.start, timeZone));
   const { now } = useApp();
@@ -69,15 +72,17 @@ export function MoveDialog({ target, timeZone, onDone }: MoveDialogProps) {
     if (!date || !time) return;
     const start = instantIn(date, time, timeZone);
     const end = new Date(Date.parse(start) + length).toISOString();
-    if (move.run({ event: target.id, start, end })) onDone();
+    if (suggest ? suggestion.run({ event: target.id, kind: "move", start, end }) : move.run({ event: target.id, start, end })) onDone();
   };
   return (
     <DialogContent>
       <form onSubmit={submit} className="flex flex-col gap-4">
         <DialogHeader>
-          <DialogTitle>Propose a move</DialogTitle>
+          <DialogTitle>{suggest ? "Suggest a move" : "Propose a move"}</DialogTitle>
           <DialogDescription>
-            {target.title} goes to the Proposed layer at the new time. A ghost stays in the live diary until the change is made in Outlook.
+            {suggest
+              ? `An assistant sees your suggestion to move ${target.title} and can take it or dismiss it.`
+              : `${target.title} goes to the Proposed layer at the new time. A ghost stays in the live diary until the change is made in Outlook.`}
           </DialogDescription>
         </DialogHeader>
         <div className="flex gap-3">
@@ -104,9 +109,9 @@ export function MoveDialog({ target, timeZone, onDone }: MoveDialogProps) {
             </div>
           ))}
         </div>
-        <ErrorLine error={move.error} />
+        <ErrorLine error={suggest ? suggestion.error : move.error} />
         <DialogFooter>
-          <Button type="submit">Propose</Button>
+          <Button type="submit">{suggest ? "Suggest" : "Propose"}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

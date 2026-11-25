@@ -165,6 +165,16 @@ describe("series re-key (D9)", () => {
     expect(rows(a, "series")[0]).toMatchObject({ count: 4, exceptions: 0 });
   });
 
+  test("B23: a re-keyed occurrence's proposal moves with it and isn't withdrawn as gone", async () => {
+    const { a, principal } = await setUp();
+    sync(a, principal, weeks.map((w) => occurrence("s1", w)));
+    const [oldId, newId] = [idOf(a, "event", principal, "s1", weeks[1]!), idOf(a, "event", principal, "s1", shifted[1]!)];
+    ok(a, proposalMove, { now: NOW, event: oldId, start: "2026-11-10T15:00:00.000Z", end: "2026-11-10T16:00:00.000Z" });
+    sync(a, principal, shifted.map((w) => occurrence("s1", w)), LATER);
+    expect(byId(a, "proposals", idOf(a, "proposal", newId))).toMatchObject({ event: newId, superseded: "" });
+    expect(rows(a, "log").filter((r) => r.area === "proposal" && r.at === LATER)).toEqual([]);
+  });
+
   test("B7: unequal counts are ambiguous: held back on a sync, listed on a manual import, and office data stays", async () => {
     const { a, principal } = await setUp();
     sync(a, principal, weeks.map((w) => occurrence("s1", w)));

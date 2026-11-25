@@ -40,3 +40,7 @@ test("an event stored before v3 gets its attendee list, series identity and empt
   ]);
   expect(config.migrations.events[2]({ uid: "csv:x", recurrenceId: "" })).toMatchObject({ seriesId: "", kind: "single", source: "csv" });
 });
+
+test("a proposal stored before groups reads ungrouped and not superseded", () => {
+  expect(config.migrations.proposals[2]({ event: "e1", kind: "move" })).toEqual({ event: "e1", kind: "move", group: "", superseded: "" });
+});

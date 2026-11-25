@@ -100,10 +100,21 @@ test("Skip leaves the clash, and with nothing chosen Apply is off", async () => 
   expect((screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
-test("quiet engagements aren't counted, and a viewer sees no count", async () => {
+test("quiet engagements aren't counted", async () => {
   await clashing((s, a) => s.run(overlaySet, { now: MONDAY_NOW, event: eventIdOf(s.device, a, "a2"), quiet: true }));
   expect(screen.queryByRole("button", { name: /^Clashes/ })).toBeNull();
-  cleanupApp();
-  await clashing((s) => s.viewer());
-  expect(screen.queryByRole("button", { name: /^Clashes/ })).toBeNull();
+});
+
+test("a viewer's wizard makes suggestions and changes nothing else (D15)", async () => {
+  const { app, ids } = await clashing((s) => s.viewer());
+  const before = snapshot(app);
+  fireEvent.click(screen.getByRole("button", { name: "Clashes (1)" }));
+  fireEvent.click(screen.getByRole("radio", { name: "Add a note to both" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Note" }), { target: { value: "Ask about the call" } });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(screen.getByText("Suggest these fixes?")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Suggest" }));
+  expect(snapshot(app)).toBe(before);
+  const made = (app.device.data.view("suggestions").rows() as unknown as Array<{ event?: string; kind?: string; note?: string; state?: string }>);
+  expect(made.map((r) => [r.event, r.kind, r.note, r.state]).sort()).toEqual([[ids.budget, "note", "Ask about the call", "open"], [ids.press, "note", "Ask about the call", "open"]].sort());
 });
