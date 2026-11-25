@@ -128,23 +128,43 @@ function toDiaryEvent(raw: unknown): DiaryEvent | string {
 /** A diary-sync file's payload, or why it can't be used. */
 export function readGraphCalendar(
   value: unknown, principal: string, fileName: string,
-): { ok: true; generatedAt: string; payload: DiaryPayload } | { ok: false; reason: string } {
+): { ok: true; generatedAt: string; payload: DiaryPayload; note?: string } | { ok: false; reason: string } {
   const generatedAt = stampOf(fileName);
   if (!generatedAt) return { ok: false, reason: `its name "${fileName}" is not the time the flow ran, as yyyyMMddTHHmmssZ.json` };
   if (isObject(value) && isObject(value.error)) return { ok: false, reason: `it holds an error from Outlook: ${String(value.error.message ?? value.error.code ?? "no message").replace(/\.$/, "")}` };
   if (!isObject(value) || !Array.isArray(value.value)) return { ok: false, reason: "it is not the response of a calendarView request" };
-  if (value["@odata.nextLink"] !== undefined) {
-    return { ok: false, reason: "Outlook sent only the first page of events, so it may be cut off. The flow's URL needs $top=999" };
-  }
   const events: DiaryEvent[] = [];
   for (const raw of value.value) {
     const event = toDiaryEvent(raw);
     if (typeof event === "string") return { ok: false, reason: event };
     events.push(event);
   }
-  return {
-    ok: true,
-    generatedAt,
-    payload: { principal, ...windowOf(generatedAt), count: events.length, masters: mastersOf(events), events },
-  };
+  const window = windowOf(generatedAt);
+  if (value["@odata.nextLink"] !== undefined) {
+    // Outlook can split its answer into pages even with $top=999 (OUT-92). The
+    // flow saves only the first page, so the app uses the part of the window it covers.
+    const cut = firstPageEnd(events, window.windowStart);
+    if (typeof cut !== "string") return { ok: false, reason: cut.reason };
+    const payload = { principal, windowStart: window.windowStart, windowEnd: cut, count: events.length, masters: mastersOf(events), events };
+    const note = `Outlook sent the diary in pages, and the file holds the first ${events.length} events, so only the days before ${cut.slice(0, 10)} were updated`;
+    return { ok: true, generatedAt, payload, note };
+  }
+  return { ok: true, generatedAt, payload: { principal, ...window, count: events.length, masters: mastersOf(events), events } };
+}
+
+/**
+ * Where a first page's events stop, as the window's new end: the UTC day
+ * before its last event's day, so an event on the page's last days that came
+ * on the next page is never marked gone. Needs the events in start order,
+ * which the URL's $orderby=start/dateTime asks for, and times in UTC.
+ */
+function firstPageEnd(events: readonly DiaryEvent[], windowStart: string): string | { reason: string } {
+  const pages = `Outlook sent the diary in pages (${events.length} events in the first)`;
+  if (events.some((e) => (e.timeZone ?? "UTC") !== "UTC")) return { reason: `${pages}, not in UTC, so the app can't tell which days it covers. Add the Prefer header outlook.timezone="UTC"` };
+  const ordered = events.every((e, i) => i === 0 || (events[i - 1]?.start ?? "") <= e.start);
+  if (!ordered) return { reason: `${pages}, not in date order, so the app can't tell which days are missing. Add &$orderby=start/dateTime to the end of the flow's URL` };
+  const last = events[events.length - 1];
+  const end = last ? Math.floor(Date.parse(`${last.start.slice(0, 19)}Z`) / DAY_MS) * DAY_MS - DAY_MS : NaN;
+  if (Number.isNaN(end) || end <= Date.parse(windowStart)) return { reason: `${pages}, too few to cover a whole day` };
+  return new Date(end).toISOString();
 }

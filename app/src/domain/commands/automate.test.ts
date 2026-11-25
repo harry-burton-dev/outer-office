@@ -27,10 +27,10 @@ describe("automate.recordRun", () => {
     expect(rows(device, "flowRuns")[0]).toMatchObject({ fileAt: "2026-11-22T09:00:00Z", readAt: NOW });
   });
 
-  test("keeps the reason only for a refused file, and takes a name that isn't a time", async () => {
+  test("keeps the reason, a refusal's or a partial run's, and takes a name that isn't a time", async () => {
     const device = await oneDevice();
-    ok(device, automateRecordRun, input({ reason: "ignored" }));
-    expect(rows(device, "flowRuns")[0]?.reason).toBe("");
+    ok(device, automateRecordRun, input({ reason: "only the days before 2026-11-30 were updated" }));
+    expect(rows(device, "flowRuns")[0]?.reason).toBe("only the days before 2026-11-30 were updated");
     ok(device, automateRecordRun, input({ file: "notes.json", fileAt: "", outcome: "refused", reason: "the name isn't a time" }));
     expect(rows(device, "flowRuns")[0]).toMatchObject({ outcome: "refused", reason: "the name isn't a time" });
   });

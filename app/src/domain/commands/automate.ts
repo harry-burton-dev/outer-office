@@ -19,7 +19,7 @@ export interface FlowRunInput {
   /** When the flow made it (ISO UTC, from the name), or "" when the name isn't a time. */
   fileAt: string;
   outcome: FlowOutcome;
-  /** Why a refused file was not used. */
+  /** Why a refused file was not used, or why only part of a used one was (OUT-92). */
   reason?: string;
   added?: number;
   changed?: number;
@@ -49,7 +49,7 @@ export const automateRecordRun = defineCommand("automate.recordRun", (tx: Tx, in
   if (current?._deleted) tx.restore("flowRuns", id);
   tx.put("flowRuns", id, {
     flow, principal, file, fileAt: input.fileAt, readAt: now, readBy: tx.user,
-    outcome: input.outcome, reason: input.outcome === "refused" ? (input.reason ?? "") : "",
+    outcome: input.outcome, reason: input.reason ?? "",
     added: count(input.added), changed: count(input.changed), gone: count(input.gone), events: count(input.events),
   });
 });

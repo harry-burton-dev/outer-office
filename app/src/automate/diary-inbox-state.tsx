@@ -84,7 +84,7 @@ export function DiaryInboxProvider({ canApply, timeZone, now, children }: DiaryI
         continue;
       }
       const outcome = applyDiaryUpdate(entry.update, { principals, events, timeZone, privatePolicy, now, run });
-      const base = { now, flow: DIARY_SYNC, principal: entry.update.principal, file, fileAt: entry.update.generatedAt, events: entry.update.payload.events.length };
+      const base = { now, flow: DIARY_SYNC, principal: entry.update.principal, file, fileAt: entry.update.generatedAt, events: entry.update.payload.events.length, reason: entry.update.note };
       if (outcome.kind === "applied") record({ ...base, outcome: "applied", added: outcome.added, changed: outcome.changed, gone: outcome.gone });
       else record(outcome.kind === "refused" ? { ...base, outcome: "refused", reason: outcome.reason } : { ...base, outcome: "unchanged" });
       if (outcome.kind === "refused") setRefused((current) => new Map(current).set(entry.update.path, outcome.reason));

@@ -28,7 +28,7 @@ export function ago(iso: string, now: string): string {
 }
 
 const BADGE: Readonly<Record<FlowState, "secondary" | "destructive" | "outline">> = {
-  off: "outline", never: "outline", arrived: "secondary", waiting: "secondary", ok: "secondary", late: "destructive", refused: "destructive",
+  off: "outline", never: "outline", arrived: "secondary", waiting: "secondary", ok: "secondary", partial: "outline", late: "destructive", refused: "destructive",
 };
 
 function When({ value, now }: { value: string | null; now: string }) {
@@ -46,8 +46,9 @@ function resultText(health: PrincipalHealth): ReactNode {
   const run = health.run;
   if (!run) return <span className="text-muted-foreground">–</span>;
   const events = `${run.events ?? 0} events in the file`;
-  if (run.outcome === "unchanged") return <span>No changes <span className="text-muted-foreground">· {events}</span></span>;
-  return <span>{run.added ?? 0} added, {run.changed ?? 0} changed, {run.gone ?? 0} gone <span className="text-muted-foreground">· {events}</span></span>;
+  const note = run.reason ? <span className="block text-xs text-muted-foreground">{run.reason}.</span> : null;
+  if (run.outcome === "unchanged") return <span>No changes <span className="text-muted-foreground">· {events}</span>{note}</span>;
+  return <span>{run.added ?? 0} added, {run.changed ?? 0} changed, {run.gone ?? 0} gone <span className="text-muted-foreground">· {events}</span>{note}</span>;
 }
 
 function HealthTable({ flow, rows }: { flow: FlowDefinition; rows: readonly PrincipalHealth[] }) {

@@ -52,7 +52,7 @@ describe("readGraphCalendar", () => {
     ["notes.json", { value: [] }, "is not the time the flow ran"],
     [NAME, { error: { code: "ErrorAccessDenied", message: "Access is denied." } }, "error from Outlook: Access is denied"],
     [NAME, { items: [] }, "not the response of a calendarView request"],
-    [NAME, { value: [], "@odata.nextLink": "https://graph.microsoft.com/next" }, "$top=999"],
+    [NAME, { value: [], "@odata.nextLink": "https://graph.microsoft.com/next" }, "too few to cover a whole day"],
     [NAME, { value: [{ ...(graphResponse().value[0] as object), type: undefined }] }, "no type. Check the $select"],
     [NAME, { value: [{ ...(graphResponse().value[0] as object), start: "2026-10-12T08:00:00" }] }, "no start or end"],
     [NAME, { value: [{ ...(graphResponse().value[0] as object), sensitivity: "secret" }] }, "sensitivity"],
@@ -60,6 +60,36 @@ describe("readGraphCalendar", () => {
     const read = readGraphCalendar(value, "PRINCIPAL-A", name);
     expect(read.ok).toBe(false);
     expect(!read.ok && read.reason).toContain(reason);
+  });
+});
+
+describe("a diary Outlook sent in pages (OUT-92)", () => {
+  const NEXT = "https://graph.microsoft.com/v1.0/users/a/calendar/calendarView?$top=999&$skip=999";
+  const byStart = (value: unknown[]) => [...(value as { start: { dateTime: string } }[])].sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));
+
+  test("a first page in date order is used up to the day before its last event's day, and says so", () => {
+    const value = byStart(graphResponse().value);
+    const last = (value[value.length - 1] as { start: { dateTime: string } }).start.dateTime;
+    const read = readGraphCalendar({ value, "@odata.nextLink": NEXT }, "PRINCIPAL-A", NAME);
+    if (!read.ok) throw new Error(read.reason);
+    const end = new Date(Date.parse(`${last.slice(0, 10)}T00:00:00Z`) - 86_400_000).toISOString();
+    expect(read.payload.windowEnd).toBe(end);
+    expect(read.note).toContain(`first ${value.length} events, so only the days before ${end.slice(0, 10)} were updated`);
+    const parsed = parseAutomate(read.payload, MASK);
+    expect(parsed.rangeEnd).toBe(end);
+    expect(parsed.events.every((e) => e.start < end)).toBe(true);
+  });
+
+  test("a first page out of date order is refused and asks for $orderby", () => {
+    const value = byStart(graphResponse().value).reverse();
+    const read = readGraphCalendar({ value, "@odata.nextLink": NEXT }, "PRINCIPAL-A", NAME);
+    expect(!read.ok && read.reason).toContain("not in date order");
+    expect(!read.ok && read.reason).toContain("$orderby=start/dateTime");
+  });
+
+  test("a file with no next page uses the whole window and has no note", () => {
+    const read = readGraphCalendar(graphResponse(), "PRINCIPAL-A", NAME);
+    expect(read.ok && [read.payload.windowEnd, read.note]).toEqual(["2026-12-18T00:00:00.000Z", undefined]);
   });
 });
 

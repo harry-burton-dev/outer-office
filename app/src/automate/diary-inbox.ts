@@ -20,6 +20,8 @@ export interface DiaryUpdate {
   /** When the flow made it (ISO UTC), from the file's name. */
   generatedAt: string;
   payload: DiaryPayload;
+  /** Why only part of the window was used, when Outlook sent the diary in pages (OUT-92). */
+  note?: string;
 }
 
 export type InboxEntry =
@@ -49,7 +51,7 @@ async function readFolder(files: PlainFiles, principal: string, cache: InboxCach
     }
     const checked = readGraphCalendar(read.value, principal, newest.name);
     entry = checked.ok
-      ? { ok: true, update: { principal, path: newest.path, olderPaths, generatedAt: checked.generatedAt, payload: checked.payload } }
+      ? { ok: true, update: { principal, path: newest.path, olderPaths, generatedAt: checked.generatedAt, payload: checked.payload, ...(checked.note ? { note: checked.note } : {}) } }
       : { ok: false, principal, path: newest.path, reason: checked.reason };
     cache.set(newest.path, { size: newest.size, lastModified: newest.lastModified, entry });
   }

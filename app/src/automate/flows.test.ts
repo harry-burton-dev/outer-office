@@ -29,6 +29,11 @@ describe("a principal's diary sync health", () => {
     expect(health({ run: run({ fileAt: "2026-11-24T10:29:00.000Z" }) }).state).toBe("late");
   });
 
+  test("an on-time run that used only part of the window shows as part of the diary, with why", () => {
+    expect(health({ run: run({ reason: "only the days before 2026-11-30 were updated" }) })).toMatchObject({ state: "partial", reason: "only the days before 2026-11-30 were updated" });
+    expect(health({ run: run({ reason: "x", fileAt: "2026-11-24T10:29:00.000Z" }) }).state).toBe("late");
+  });
+
   test("a file the scan can't read is refused with its reason", () => {
     const entry: InboxEntry = { ok: false, principal: "PRINCIPAL-A", path: "x.json", reason: "it holds an error from Outlook" };
     expect(health({ entry, run: run() })).toMatchObject({ state: "refused", reason: "it holds an error from Outlook" });

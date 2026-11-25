@@ -1,0 +1,5 @@
+[
+ {"id":"OUT92-A1","what":"Paged diary: the cut is the last event's day, so an event on that day that came on the next page is marked gone","file":"app/src/automate/graph-calendar.ts","find":"* DAY_MS - DAY_MS : NaN;","replace":"* DAY_MS + DAY_MS : NaN;"},
+ {"id":"OUT92-A2","what":"Paged diary: a first page out of date order is used","file":"app/src/automate/graph-calendar.ts","find":"if (!ordered) return","replace":"if (false) return"},
+ {"id":"OUT92-A3","what":"Paged diary: the whole window is used, so everything after the first page is marked gone","file":"app/src/automate/graph-calendar.ts","find":"windowEnd: cut, count","replace":"windowEnd: window.windowEnd, count"}
+]

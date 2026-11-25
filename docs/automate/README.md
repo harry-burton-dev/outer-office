@@ -30,7 +30,7 @@ The app refuses the whole file, and says why in **Needs action** and on the **Im
 
 - the name isn't a time;
 - the file holds an Outlook error instead of events, such as access denied;
-- Outlook sent only the first page (`@odata.nextLink` is present), so the diary might be cut off;
+- Outlook sent the diary in pages (`@odata.nextLink` is present) and the first page is not in date order, so the app can't tell what is missing. In date order, which `$orderby=start/dateTime` in the URL asks for, the app uses the days the first page covers and the Automate page says so;
 - an event is missing a field the app needs, which usually means the `$select` in the URL was changed;
 - applying it would mark most of the diary gone.
 
