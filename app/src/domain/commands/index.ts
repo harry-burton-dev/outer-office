@@ -13,6 +13,7 @@ import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
 import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
+import { wizardApply } from "./wizard";
 import { automateRecordRun } from "./automate";
 import { ruleSettingSet, updateSet } from "./alerts";
 
@@ -23,9 +24,11 @@ export const commands = {
   proposalMove, proposalWithdraw, proposalNew, proposalDrop,
   templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch,
   ruleSettingSet, updateSet, automateRecordRun,
+  wizardApply,
 } as const;
 
 export { officeSave, principalSave, importApply, overlaySet, seriesOverlaySet, taskAdd, taskUpdate, taskMove, taskComplete, taskAssign, taskLink, taskRemove, projectSave, sectionSave, ackPrivacy, setMode, tagSave, tagRemove, tagsSet, categorySave, proposalMove, proposalWithdraw, proposalNew, proposalDrop, templateSave, templateRemove, cardAdd, cardSet, cardRemove, homeMarkSeen, homeSetWatch, ruleSettingSet, updateSet, automateRecordRun };
+export { wizardApply } from "./wizard";
 export type { OfficeSaveInput, PrincipalSaveInput, PrivatePolicy } from "./office";
 export type { ImportApplyInput, ImportResult } from "./import";
 export type { OverlaySetInput, Prep } from "./overlay";
@@ -38,6 +41,7 @@ export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } fr
 export type { TemplateSaveInput } from "./cards";
 export type { ProposalMoveInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
+export type { WizardApplyInput } from "./wizard";
 export type { FlowRunInput, FlowOutcome } from "./automate";
 export type { RuleSettingSetInput, UpdateSetInput, UpdateAction } from "./alerts";
 export { OFFICE_ID } from "./office";
