@@ -6,6 +6,8 @@ import type { RowOf } from "@trellis/framework";
 
 export type Template = RowOf<"templates">;
 export type Card = RowOf<"cards">;
+export type TabTemplate = RowOf<"tabTemplates">;
+export type Tab = RowOf<"tabs">;
 
 export const FIELD_TYPES = [
   { value: "text", label: "Short text" },
@@ -85,3 +87,30 @@ export const sortedTemplates = (templates: readonly Template[]): Template[] =>
 /** An event's live cards in their order. */
 export const cardsOn = (cards: readonly Card[], eventId: string): Card[] =>
   cards.filter((c) => !c._deleted && c.event === eventId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.id.localeCompare(b.id));
+
+/** A card's own fields: the copy taken when it was added, or its template's for a card older than tabs (OUT-88). */
+export const cardFieldsOf = (card: Pick<Card, "fields">, template: Pick<Template, "fields"> | undefined): TemplateField[] =>
+  (card.fields ?? "") !== "" ? fieldsOf(card.fields) : fieldsOf(template?.fields);
+
+/** True when the card's template has changed its fields since the card copied them. */
+export const cardIsBehind = (card: Pick<Card, "fields">, template: Pick<Template, "fields" | "_deleted"> | undefined): boolean =>
+  template !== undefined && !template._deleted && (card.fields ?? "") !== "" && JSON.stringify(fieldsOf(card.fields)) !== JSON.stringify(fieldsOf(template.fields));
+
+/** A tab template's card templates, in order, from their stored comma list. */
+export const cardTemplatesOf = (list: string | undefined): string[] => (list ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+
+/** True when the tab's template has been edited since the tab was applied or last updated, or one of its cards is behind its own template. */
+export const tabIsBehind = (tab: Pick<Tab, "version">, template: Pick<TabTemplate, "version" | "_deleted"> | undefined, cards: readonly Card[], templates: ReadonlyMap<string, Template>): boolean =>
+  (template !== undefined && !template._deleted && (template.version ?? 0) > (tab.version ?? 0)) ||
+  cards.some((c) => cardIsBehind(c, templates.get(c.template ?? "")));
+
+/** Live tab templates in their order. */
+export const sortedTabTemplates = (templates: readonly TabTemplate[]): TabTemplate[] =>
+  templates.filter((t) => !t._deleted).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (a.name ?? "").localeCompare(b.name ?? ""));
+
+/** An event's live tabs, in their templates' order. */
+export function tabsOn(tabs: readonly Tab[], eventId: string, tabTemplates: readonly TabTemplate[] = []): Tab[] {
+  const order = new Map(tabTemplates.map((t) => [t.id, t.order ?? 0]));
+  const at = (t: Tab) => order.get(t.tabTemplate ?? "") ?? Number.MAX_SAFE_INTEGER;
+  return tabs.filter((t) => !t._deleted && t.event === eventId).sort((a, b) => at(a) - at(b) || a.id.localeCompare(b.id));
+}

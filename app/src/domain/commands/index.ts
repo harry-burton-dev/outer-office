@@ -10,7 +10,7 @@ import { taskAssign } from "./task-assign";
 import { projectSave, sectionSave } from "./projects";
 import { ackPrivacy, setMode } from "./people";
 import { categorySave, tagRemove, tagSave, tagsSet } from "./tags";
-import { cardAdd, cardRemove, cardSet, templateRemove, templateSave } from "./cards";
+import { cardAdd, cardRemove, cardSet, cardUpdate, tabApply, tabRemove, tabUpdate, tabTemplateRemove, tabTemplateSave, templateRemove, templateSave } from "./cards";
 import { proposalDrop, proposalMove, proposalMoveGroup, proposalNew, proposalWithdraw } from "./proposals";
 import { homeMarkSeen, homeSetWatch } from "./home";
 import { wizardApply } from "./wizard";
@@ -52,6 +52,12 @@ export const commands = {
   cardRemove,
   homeMarkSeen,
   homeSetWatch,
+  cardUpdate,
+  tabTemplateSave,
+  tabTemplateRemove,
+  tabApply,
+  tabRemove,
+  tabUpdate,
   ruleSettingSet,
   updateSet,
   automateRecordRun,
@@ -95,6 +101,12 @@ export {
   cardRemove,
   homeMarkSeen,
   homeSetWatch,
+  cardUpdate,
+  tabTemplateSave,
+  tabTemplateRemove,
+  tabApply,
+  tabRemove,
+  tabUpdate,
   ruleSettingSet,
   updateSet,
   automateRecordRun,
@@ -110,7 +122,7 @@ export type { TaskAssignInput, AssignAction } from "./task-assign";
 export type { ProjectSaveInput, SectionSaveInput } from "./projects";
 export type { AckPrivacyInput, SetModeInput, PersonMode } from "./people";
 export type { TagSaveInput, TagRemoveInput, TagsSetInput, CategorySaveInput } from "./tags";
-export type { TemplateSaveInput } from "./cards";
+export type { TemplateSaveInput, TabTemplateSaveInput, TabVia } from "./cards";
 export type { ProposalMoveInput, ProposalMoveGroupInput, ProposalWithdrawInput, ProposalNewInput, NewMeeting } from "./proposals";
 export type { HomeMarkSeenInput, HomeSetWatchInput } from "./home";
 export type { WizardApplyInput } from "./wizard";

@@ -6,7 +6,7 @@ import { diffImport } from "../../import/diff";
 import { importApply } from "./import";
 import { heldBack } from "../../automate/apply-diary";
 import { overlaySet } from "./overlay";
-import { cardAdd, templateSave } from "./cards";
+import { cardAdd, tabApply, tabTemplateSave, templateSave } from "./cards";
 import { taskAdd } from "./tasks";
 import { proposalMove } from "./proposals";
 import { principalSave } from "./office";
@@ -163,6 +163,20 @@ describe("series re-key (D9)", () => {
     const calendar = rows(a, "log").filter((r) => r.area === "calendar" && r.at === LATER).map((r) => r.kind);
     expect(calendar).toEqual(["series-rekeyed"]);
     expect(rows(a, "series")[0]).toMatchObject({ count: 4, exceptions: 0 });
+  });
+
+  test("a tab moves to the new occurrence's tab id, and its cards follow (OUT-88)", async () => {
+    const { a, principal } = await setUp();
+    sync(a, principal, weeks.map((w) => occurrence("s1", w)));
+    const [oldId, newId] = [idOf(a, "event", principal, "s1", weeks[1]!), idOf(a, "event", principal, "s1", shifted[1]!)];
+    const template = ok(a, templateSave, { now: NOW, name: "Visit", shape: "users", fields: [{ id: "host", label: "Host", type: "text" }] });
+    const tabTemplate = ok(a, tabTemplateSave, { now: NOW, name: "Board", cards: [template] });
+    const oldTab = ok(a, tabApply, { now: NOW, event: oldId, tabTemplate });
+    sync(a, principal, shifted.map((w) => occurrence("s1", w)), LATER);
+    const newTab = idOf(a, "tab", newId, tabTemplate);
+    expect(byId(a, "tabs", oldTab)?._deleted).toBe(true);
+    expect(byId(a, "tabs", newTab)).toMatchObject({ event: newId, tabTemplate, via: "hand" });
+    expect(rows(a, "cards").filter((c) => !c._deleted).map((c) => [c.event, c.tab])).toEqual([[newId, newTab]]);
   });
 
   test("B23: a re-keyed occurrence's proposal moves with it and isn't withdrawn as gone", async () => {

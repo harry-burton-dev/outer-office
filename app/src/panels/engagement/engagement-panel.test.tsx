@@ -4,7 +4,7 @@ import { useState } from "react";
 import { afterEach, expect, test } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Sheet } from "@/components/ui/sheet";
-import { overlaySet, templateSave } from "@/domain/commands";
+import { overlaySet, tabTemplateSave, templateSave } from "@/domain/commands";
 import { AppProbe, cleanupApp, probe, renderApp, type Seeder } from "@/app/testing/render-app";
 import { eventIdOf, importEvents, markGone, MONDAY_NOW, moveEvent, syntheticEvent } from "@/screens/calendar/testing/events";
 import { EngagementPanel } from "../engagement-panel";
@@ -46,7 +46,7 @@ function PanelFor({ seeded }: PanelForProps) {
   return <EngagementPanel eventId={seeded.event} />;
 }
 
-const rows = (device: Seeder["device"], table: "overlays" | "log" | "tasks" | "cards") =>
+const rows = (device: Seeder["device"], table: "overlays" | "log" | "tasks" | "cards" | "tabs") =>
   (device.data.view(table).rows() as unknown as ReadonlyArray<Record<string, unknown>>).filter((r) => !r._deleted);
 
 test("the title is the subject and the time is shown in the office zone", async () => {
@@ -77,7 +77,7 @@ test("a card from a template goes on the meeting as its own tab, and fills in", 
   const { app } = await openPanel((s) => {
     s.run(templateSave, { now: MONDAY_NOW, name: "POC", shape: "user", fields: [{ id: "name", label: "Point of contact", type: "text", required: true }] });
   });
-  fireEvent.click(await screen.findByRole("button", { name: "Add a card" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add a tab or card" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "POC" }));
   expect(await screen.findByRole("tab", { name: "POC" })).toBeTruthy();
   expect(screen.getByText("0 of 1 done")).toBeTruthy();
@@ -86,6 +86,25 @@ test("a card from a template goes on the meeting as its own tab, and fills in", 
   fireEvent.blur(contact);
   expect(rows(app.device, "cards")[0]?.values).toBe(JSON.stringify({ name: "Avery Stone" }));
   expect(await screen.findByText("1 of 1 done")).toBeTruthy();
+});
+
+test("a tab from a tab template goes on the meeting with its cards, and can be updated or removed", async () => {
+  const { app } = await openPanel((s) => {
+    const poc = s.run(templateSave, { now: MONDAY_NOW, name: "POC", shape: "user", fields: [{ id: "name", label: "Point of contact", type: "text", required: true }] });
+    const dial = s.run(templateSave, { now: MONDAY_NOW, name: "Dial-in", shape: "phone", fields: [{ id: "num", label: "Number", type: "phone" }] });
+    s.run(tabTemplateSave, { now: MONDAY_NOW, name: "Board meeting", shape: "briefcase", cards: [poc, dial] });
+  });
+  fireEvent.click(await screen.findByRole("button", { name: "Add a tab or card" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Board meeting" }));
+  expect(await screen.findByRole("tab", { name: "Board meeting" })).toBeTruthy();
+  expect(screen.getByText("POC")).toBeTruthy();
+  expect(screen.getByText("Dial-in")).toBeTruthy();
+  expect(screen.getByRole("textbox", { name: "Point of contact *" })).toBeTruthy();
+  expect(rows(app.device, "cards")).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: "Update to the latest" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Remove tab" }));
+  expect(rows(app.device, "cards")).toHaveLength(0);
+  expect(rows(app.device, "tabs")).toHaveLength(0);
 });
 
 test("notes save on blur, not while typing", async () => {
@@ -102,7 +121,7 @@ test("notes and card fields typed and left by pressing Escape are kept", async (
   const { app } = await openPanel((s) => {
     s.run(templateSave, { now: MONDAY_NOW, name: "POC", shape: "user", fields: [{ id: "name", label: "Point of contact", type: "text", required: true }] });
   }, true);
-  fireEvent.click(await screen.findByRole("button", { name: "Add a card" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add a tab or card" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "POC" }));
   fireEvent.change(await screen.findByRole("textbox", { name: "Point of contact *" }), { target: { value: "Avery Stone" } });
   fireEvent.click(screen.getByRole("tab", { name: "Notes" }));
