@@ -36,5 +36,11 @@
  {"id": "OUT85-B37", "what": "import: a moved engagement's proposal isn't marked superseded", "file": "app/src/domain/commands/proposals.ts", "find": "        tx.put(\"proposals\", p.id, { superseded: now });\n", "replace": ""},
  {"id": "OUT85-B38", "what": "import: any change, not only a move, supersedes the proposal", "file": "app/src/domain/commands/proposals.ts", "find": "(before.start !== after.start || before.end !== after.end)", "replace": "true"},
  {"id": "OUT85-B39", "what": "import: a gone engagement's proposal stays", "file": "app/src/domain/commands/proposals.ts", "find": "if (goneIds.has(p.event ?? \"\")) {", "replace": "if (false) {"},
- {"id": "OUT85-B40", "what": "import: a re-keyed occurrence's proposal is withdrawn as gone", "file": "app/src/domain/commands/proposals.ts", "find": " || rekeyed.has(p.event ?? \"\")", "replace": ""}
+ {"id": "OUT85-B40", "what": "import: a re-keyed occurrence's proposal is withdrawn as gone", "file": "app/src/domain/commands/proposals.ts", "find": " || rekeyed.has(p.event ?? \"\")", "replace": ""},
+ {"id": "OUT85-B41", "what": "drag: a move into a clash says nothing", "file": "app/src/calendar/diary-calendar.tsx", "find": "? clashAt?.(keyMove.id, keyLanding.start, keyLanding.end) : undefined", "replace": "? undefined : undefined"},
+ {"id": "OUT85-B42", "what": "marks: an open suggestion isn't marked", "file": "app/src/screens/calendar/calendar-data.ts", "find": "&& layerOn.suggested?.has(id)) lead.push", "replace": "&& false) lead.push"},
+ {"id": "OUT85-B43", "what": "toolbar: Only clashes doesn't filter", "file": "app/src/screens/calendar/diary.tsx", "find": "onlyClashes ? data.events.filter((e) => data.faces.get(e.id)?.clash) : data.events", "replace": "data.events"},
+ {"id": "OUT85-B44", "what": "hover card: a masked engagement shows its place and tags", "file": "app/src/screens/calendar/hover-card.tsx", "find": "  if (event.masked === true) return lines;\n", "replace": ""},
+ {"id": "OUT85-B45", "what": "hover card: gone occurrences count in the series", "file": "app/src/screens/calendar/hover-card.tsx", "find": " && e.gone !== true", "replace": ""},
+ {"id": "OUT85-B46", "what": "hover card: keyboard focus doesn't open it", "file": "app/src/calendar/diary-calendar.tsx", "find": "onFocusEntry(entryIdIn(e.target))", "replace": "onFocusEntry(undefined)"}
 ]
