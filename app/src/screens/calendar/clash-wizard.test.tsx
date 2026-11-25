@@ -42,6 +42,20 @@ test("the toolbar counts the clashes shown and opens the wizard on them", async 
   expect((within(dialog).getAllByRole("radio")[0] as HTMLInputElement).checked).toBe(true);
 });
 
+test("a day header's clash count opens the wizard on that day's clashes only", async () => {
+  await clashing((s, a) => importEvents(s, MONDAY_NOW, a, [
+    syntheticEvent("w1", { subject: "Wednesday one", start: "2026-11-25T10:00:00Z", end: "2026-11-25T11:00:00Z" }),
+    syntheticEvent("w2", { subject: "Wednesday two", start: "2026-11-25T10:30:00Z", end: "2026-11-25T11:30:00Z" }),
+  ]));
+  expect(screen.getByRole("button", { name: "Clashes (2)" })).toBeTruthy();
+  const opens = document.querySelectorAll<HTMLButtonElement>("[data-open-wizard]");
+  expect(opens).toHaveLength(2);
+  fireEvent.click(opens[0]!);
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText("1 of 1")).toBeTruthy();
+  expect(within(dialog).getAllByRole("radio")[0]?.closest("label")?.textContent).toContain("Press call");
+});
+
 test("Cancel, at a step or at the end, changes nothing (B22)", async () => {
   const { app } = await clashing();
   const before = snapshot(app);
