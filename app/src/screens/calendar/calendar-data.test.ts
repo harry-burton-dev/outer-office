@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Event, Overlay } from "@/domain/selectors";
+import { LENS_COLOUR, lensFill, type Lens } from "@/domain/lenses";
 import { diaryData, latestImport, marksFor, type ImportRow } from "./calendar-data";
 
 const event = (over: Partial<Event> = {}): Event =>
@@ -33,6 +34,17 @@ test("an event is coloured by its primary tag; an Outlook category with a tag's 
   expect(data.faces.get("e1")?.tags.map((t) => t.name)).toEqual(["Urgent", "Board"]);
   expect(data.faces.get("e2")?.tags).toEqual([]);
   expect(data.events.map((e) => e.colour)).toEqual(["#f87171", undefined]);
+});
+
+test("a lens colours every event in its hue and fills each by its reading; a masked event stays faint", () => {
+  const lens = { id: "t", name: "Test", category: "prep", hint: "", read: (e: Event) => ({ strength: e.id === "e1" ? 1 : 0.5, text: `read ${e.id}` }) } as unknown as Lens;
+  const data = diaryData([event(), event({ id: "e2" }), event({ id: "e3", masked: true })], [], "p1", [], { lens, now: new Date("2026-11-24T09:00:00Z") });
+  expect(data.events.map((e) => e.colour)).toEqual([LENS_COLOUR, LENS_COLOUR, LENS_COLOUR]);
+  expect(["e1", "e2", "e3"].map((id) => [data.faces.get(id)?.lensFill, data.faces.get(id)?.lensText])).toEqual([
+    [lensFill(1), "read e1"],
+    [lensFill(0.5), "read e2"],
+    [lensFill(0), undefined],
+  ]);
 });
 
 test("the latest import is the principal's newest", () => {
