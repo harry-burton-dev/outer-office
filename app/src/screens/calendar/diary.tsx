@@ -112,6 +112,7 @@ export function Diary({ principalId }: { principalId: string }) {
   const dismiss = useRun(commands.suggestionDismiss);
   const suggestions = useRecords("suggestions");
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
+  const [onlyClashes, setOnlyClashes] = useState(false);
   const [lastSuggestion, setLastSuggestion] = useState<{ title: string; start: string } | null>(null);
 
   const data = useMemo(() => {
@@ -341,7 +342,7 @@ export function Diary({ principalId }: { principalId: string }) {
   return (
     <>
       <DiaryCalendar
-        events={data.events}
+        events={onlyClashes ? data.events.filter((e) => data.faces.get(e.id)?.clash) : data.events}
         view={view}
         date={date}
         timeZone={timezone}
@@ -358,8 +359,11 @@ export function Diary({ principalId }: { principalId: string }) {
         toolbarExtra={
           <>
             {!isViewer && <Button variant="outline" onClick={propose}><PlusIcon />Propose</Button>}
-            {clashCount > 0 && (
-              <Button variant="outline" onClick={() => setDialog({ kind: "wizard", ...shownRange })} data-clash-count="">Clashes ({clashCount})</Button>
+            {(clashCount > 0 || onlyClashes) && (
+              <span className="inline-flex">
+                <Button variant={onlyClashes ? "default" : "outline"} className="rounded-r-none" aria-pressed={onlyClashes} onClick={() => setOnlyClashes(!onlyClashes)}>Only clashes</Button>
+                <Button variant="outline" className="rounded-l-none border-l-0" disabled={clashCount === 0} onClick={() => setDialog({ kind: "wizard", ...shownRange })} data-clash-count="">Clashes ({clashCount})</Button>
+              </span>
             )}
             {layer === "proposed" && <LiveAlpha value={liveAlpha} onChange={setLiveAlpha} />}
             <LensMenu value={lensId} onChange={setLensId} />
