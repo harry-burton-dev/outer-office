@@ -53,6 +53,10 @@ export interface DiaryCalendarProps {
   canMove?: (id: string) => boolean;
   /** Extra content on each day's header, given its date (YYYY-MM-DD in the zone). */
   renderDayHeader?: (date: string) => ReactNode;
+  /** What a move to these instants would clash with, as words ("Clash with Press call"), or nothing: shown while dragging or moving with the keyboard. */
+  clashAt?: (id: string, start: string, end: string) => string | undefined;
+  /** Told which entry has keyboard focus, or none, so its hover card can follow focus. */
+  onFocusEntry?: (id: string | undefined) => void;
 }
 
 const VIEW_TYPES: Record<DiaryView, string> = { day: "timeGridDay", week: "timeGridWeek" };
@@ -201,7 +205,7 @@ function shows(info: { currentStart: Date; currentEnd: Date }, date: string, tim
   return date >= first && date < end;
 }
 
-export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra, onMove, canMove, renderDayHeader }: DiaryCalendarProps) {
+export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, onEventClick, onNavigate, onViewChange, renderEvent, toolbarExtra, onMove, canMove, renderDayHeader, clashAt, onFocusEntry }: DiaryCalendarProps) {
   const controller = useCalendarController();
   const byId = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
   const moves = onMove !== undefined;
@@ -213,6 +217,9 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
   const [keyMove, setKeyMove] = useState<KeyMove | null>(null);
   const keyTarget = keyMove ? byId.get(keyMove.id) : undefined;
   const keyLanding = keyMove && keyTarget ? shifted(keyTarget, keyMove.minutes, keyMove.days, timeZone) : undefined;
+  const keyClash = keyLanding && keyMove ? clashAt?.(keyMove.id, keyLanding.start, keyLanding.end) : undefined;
+  // While dragging: what the slot under the pointer would clash with, drawn on the dragged copy.
+  const [dragClash, setDragClash] = useState<string | undefined>(undefined);
   const grid = useMemo(() => diaryWindow(events, view, date, timeZone, dayStart, dayEnd), [events, view, date, timeZone, dayStart, dayEnd]);
 
   // The props lead: move the calendar when the parent's view or date changes.
@@ -236,15 +243,38 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
   };
 
   const eventContent = renderEvent
-    ? ({ event, timeText }: EventDisplayInfo) => {
+    ? ({ event, timeText, isMirror }: EventDisplayInfo) => {
         const diaryEvent = byId.get(event.id);
-        return diaryEvent ? <div className="min-w-0" data-entry-id={diaryEvent.id} data-movable={movable(diaryEvent) ? "" : undefined}>{renderEvent(diaryEvent, timeText)}</div> : undefined;
+        if (!diaryEvent) return undefined;
+        if (isMirror) {
+          return (
+            <div className="min-w-0" data-drag-copy="">
+              {renderEvent(diaryEvent, timeText)}
+              {dragClash && <span className="mt-0.5 inline-block rounded-sm bg-destructive px-1 text-[0.6875rem] text-white" data-drag-clash="">{dragClash}</span>}
+            </div>
+          );
+        }
+        return <div className="min-w-0" data-entry-id={diaryEvent.id} data-movable={movable(diaryEvent) ? "" : undefined}>{renderEvent(diaryEvent, timeText)}</div>;
       }
     : undefined;
+
+  /** Whether a slot takes the entry (never all-day), noting on the way what a drop there would clash with. */
+  const eventAllow = (span: { allDay: boolean; start: Date }, moving: { id: string } | null) => {
+    if (span.allDay) return false;
+    const entry = moving ? byId.get(moving.id) : undefined;
+    if (entry && clashAt) {
+      const start = span.start.toISOString();
+      const end = new Date(span.start.getTime() + Date.parse(entry.end) - Date.parse(entry.start)).toISOString();
+      const clash = clashAt(entry.id, start, end);
+      setDragClash((current) => (current === clash ? current : clash));
+    }
+    return true;
+  };
 
   // A drop never moves the entry itself: the diary is told, and draws what it then holds.
   const eventDrop = ({ event, revert }: EventDropInfo) => {
     revert();
+    setDragClash(undefined);
     const moved = byId.get(event.id);
     if (!moved || !event.start) return;
     const start = event.start.toISOString();
@@ -284,7 +314,8 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="" onKeyDownCapture={onKeyDownCapture}>
+    <div className="flex h-full min-h-0 flex-col rounded-sm border bg-background shadow-xs" data-diary-calendar="" onKeyDownCapture={onKeyDownCapture}
+      onFocusCapture={onFocusEntry && ((e) => onFocusEntry(entryIdIn(e.target)))} onBlurCapture={onFocusEntry && (() => onFocusEntry(undefined))}>
       <EventCalendarToolbar className="border-b p-3" controller={controller} availableViews={AVAILABLE_VIEWS}>
         {toolbarExtra}
       </EventCalendarToolbar>
@@ -312,7 +343,8 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
           events={inputs}
           eventClick={eventClick}
           eventDrop={eventDrop}
-          eventAllow={(span) => !span.allDay}
+          eventAllow={eventAllow}
+          eventDragStop={() => setDragClash(undefined)}
           eventContent={eventContent}
           datesSet={datesSet}
           popoverCloseContent={() => <EventCalendarCloseIcon />}
@@ -321,7 +353,7 @@ export function DiaryCalendar({ events, view, date, timeZone, dayStart, dayEnd, 
       </div>
       <p role="status" aria-live="polite" className={keyLanding ? "border-t px-3 py-2 text-xs" : "sr-only"} data-key-move="">
         {keyLanding && keyTarget
-          ? `Moving ${keyTarget.title} to ${formatDay(keyLanding.start, timeZone)}, ${formatTime(keyLanding.start, timeZone)} to ${formatTime(keyLanding.end, timeZone)}. Enter proposes it, Escape cancels.`
+          ? `Moving ${keyTarget.title} to ${formatDay(keyLanding.start, timeZone)}, ${formatTime(keyLanding.start, timeZone)} to ${formatTime(keyLanding.end, timeZone)}.${keyClash ? ` ${keyClash}.` : ""} Enter proposes it, Escape cancels.`
           : ""}
       </p>
     </div>

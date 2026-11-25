@@ -118,3 +118,15 @@ test("a viewer's wizard makes suggestions and changes nothing else (D15)", async
   const made = (app.device.data.view("suggestions").rows() as unknown as Array<{ event?: string; kind?: string; note?: string; state?: string }>);
   expect(made.map((r) => [r.event, r.kind, r.note, r.state]).sort()).toEqual([[ids.budget, "note", "Ask about the call", "open"], [ids.press, "note", "Ask about the call", "open"]].sort());
 });
+
+test("Only clashes filters the diary to the clashing engagements, and back (8.1)", async () => {
+  await clashing((s, a) => importEvents(s, MONDAY_NOW, a, [syntheticEvent("a3", { subject: "Quiet lunch", start: "2026-11-24T12:00:00Z", end: "2026-11-24T13:00:00Z" })]));
+  expect(screen.getByText("Quiet lunch")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Only clashes" }));
+  expect(screen.getByRole("button", { name: "Only clashes" }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.queryByText("Quiet lunch")).toBeNull();
+  expect(screen.getByText("Budget review")).toBeTruthy();
+  expect(screen.getByText("Press call")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Only clashes" }));
+  expect(screen.getByText("Quiet lunch")).toBeTruthy();
+});

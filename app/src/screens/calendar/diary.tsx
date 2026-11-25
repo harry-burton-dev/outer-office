@@ -18,16 +18,17 @@ import type { NewMeeting } from "@/domain/commands/proposals";
 import { lensById } from "@/domain/lenses";
 import { TagMenu } from "@/tags/tag-menu";
 import { useRun } from "../tasks/use-run";
-import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, proposalIdOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
+import { DEFAULT_DAY_END, DEFAULT_DAY_START, diaryData, eventIdOf, newId, proposalIdOf, titleOf, type EventFace, type Layer, type Proposal } from "./calendar-data";
 import { CLASH_EDGE, CLASH_LABELS, EventFaceView, type CardShape } from "./event-face";
 import { cardFieldsOf, cardsOn, isComplete, progressOf, valuesOf } from "@/domain/cards";
 import { LayerSwitch } from "./layer-switch";
 import { LensMenu } from "./lens-menu";
-import { MoveDialog, type MoveTarget } from "./move-dialog";
+import { MoveDialog, proposedRows, type MoveTarget } from "./move-dialog";
 import { ProposeDialog } from "./propose-dialog";
 import { ClashWizard } from "./clash-wizard";
+import { HoverCard, hoverLines } from "./hover-card";
 import { DaySummaryView } from "./day-summary-view";
-import { clashes } from "@/domain/clashes";
+import { clashes, clashesByEvent } from "@/domain/clashes";
 import { daySummary } from "@/domain/day-summary";
 
 /** What fills a meeting: the right-click target over all of it, a lens's fill, a ghost's dashes or the slider's veil. */
@@ -112,12 +113,16 @@ export function Diary({ principalId }: { principalId: string }) {
   const dismiss = useRun(commands.suggestionDismiss);
   const suggestions = useRecords("suggestions");
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
+  const [onlyClashes, setOnlyClashes] = useState(false);
+  /** The entry whose hover card is open: hovered, or focused from the keyboard. */
+  const [cardFor, setCardFor] = useState<string | undefined>(undefined);
   const [lastSuggestion, setLastSuggestion] = useState<{ title: string; start: string } | null>(null);
 
   const data = useMemo(() => {
     const lens = lensById(lensId);
-    return diaryData(events, overlays, principalId, tags, lens ? { lens, now: new Date(now) } : undefined, { layer, proposals, liveAlpha }, timezone);
-  }, [events, overlays, principalId, tags, lensId, now, layer, proposals, liveAlpha, timezone]);
+    const suggested = new Set(suggestions.filter((x) => !x._deleted && x.state === "open").map((x) => x.event ?? ""));
+    return diaryData(events, overlays, principalId, tags, lens ? { lens, now: new Date(now) } : undefined, { layer, proposals, liveAlpha, suggested }, timezone);
+  }, [events, overlays, principalId, tags, lensId, now, layer, proposals, liveAlpha, timezone, suggestions]);
 
   // The day summary reads the live diary, whichever layer is shown (5.4).
   const liveClashes = useMemo(() => clashes(events.filter((e) => e.principal === principalId), overlays, timezone), [events, overlays, principalId, timezone]);
@@ -196,7 +201,11 @@ export function Diary({ principalId }: { principalId: string }) {
     );
     return (
       <TagMenu target="event" id={id} own={face.ownTags} onOpen={open} actions={actions}>
-        <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} time={time} timeZone={timezone} /></div>
+        <div className="min-w-0">
+          <HoverCard lines={hoverLines(face, drawnAt(id, event), events, shapesOf(id), timezone)} open={cardFor === event.id} onOpenChange={(next) => setCardFor(next ? event.id : undefined)}>
+            <div className="min-w-0"><Entry face={face} shapes={shapesOf(id)} time={time} timeZone={timezone} /></div>
+          </HoverCard>
+        </div>
       </TagMenu>
     );
   };
@@ -272,6 +281,29 @@ export function Diary({ principalId }: { principalId: string }) {
     if (moveTo(entryId, start, end)) setLastMove({ entry: pid !== undefined ? entryId : eventIdOf(entryId), title, start, before, children });
   };
 
+  /** An engagement as its block draws it: at the proposed time on the Proposed layer. */
+  const drawnAt = (id: string, drawn: DiaryEvent) => {
+    const e = eventById.get(id);
+    return e && { ...e, start: drawn.start, end: drawn.end };
+  };
+
+  /** What a move of an entry to these instants would clash with, read against the diary as proposed (8.1). */
+  const clashAt = useCallback((entryId: string, start: string, end: string): string | undefined => {
+    const pid = proposalIdOf(entryId);
+    const id = pid !== undefined ? newId(pid) : eventIdOf(entryId);
+    const live = events.filter((e) => !e._deleted && e.principal === principalId);
+    const proposed = proposedRows(proposals.filter((p) => p.principal === principalId), live);
+    const at = new Map(proposed.map((p) => [p.id, p]));
+    const diary = [...live.map((e) => at.get(e.id) ?? e), ...proposed.filter((p) => !eventById.has(p.id))];
+    const self = diary.find((e) => e.id === id);
+    if (!self) return undefined;
+    const others = diary.filter((e) => e.id !== id);
+    const found = clashesByEvent(clashes([{ ...self, start, end }, ...others], overlays, timezone)).get(id);
+    if (!found) return undefined;
+    const names = found.with.map((w) => { const e = others.find((o) => o.id === w); return e ? titleOf(e) : "another engagement"; });
+    return `${CLASH_LABELS[found.severity]} with ${names.join(", ")}`;
+  }, [events, proposals, overlays, timezone, principalId, eventById]);
+
   /** A viewer's drag suggests the move (D15); nothing else changes. */
   const onSuggestMove = (entryId: string, start: string, end: string) => {
     const title = data.faces.get(entryId)?.title ?? "The meeting";
@@ -323,7 +355,7 @@ export function Diary({ principalId }: { principalId: string }) {
   return (
     <>
       <DiaryCalendar
-        events={data.events}
+        events={onlyClashes ? data.events.filter((e) => data.faces.get(e.id)?.clash) : data.events}
         view={view}
         date={date}
         timeZone={timezone}
@@ -335,12 +367,17 @@ export function Diary({ principalId }: { principalId: string }) {
         renderEvent={renderEvent}
         onMove={isViewer ? onSuggestMove : onMove}
         canMove={canMove}
+        clashAt={clashAt}
+        onFocusEntry={setCardFor}
         renderDayHeader={layer === "graveyard" ? undefined : renderDayHeader}
         toolbarExtra={
           <>
             {!isViewer && <Button variant="outline" onClick={propose}><PlusIcon />Propose</Button>}
-            {clashCount > 0 && (
-              <Button variant="outline" onClick={() => setDialog({ kind: "wizard", ...shownRange })} data-clash-count="">Clashes ({clashCount})</Button>
+            {(clashCount > 0 || onlyClashes) && (
+              <span className="inline-flex">
+                <Button variant={onlyClashes ? "default" : "outline"} className="rounded-r-none" aria-pressed={onlyClashes} onClick={() => setOnlyClashes(!onlyClashes)}>Only clashes</Button>
+                <Button variant="outline" className="rounded-l-none border-l-0" disabled={clashCount === 0} onClick={() => setDialog({ kind: "wizard", ...shownRange })} data-clash-count="">Clashes ({clashCount})</Button>
+              </span>
             )}
             {layer === "proposed" && <LiveAlpha value={liveAlpha} onChange={setLiveAlpha} />}
             <LensMenu value={lensId} onChange={setLensId} />

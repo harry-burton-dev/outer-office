@@ -8,7 +8,7 @@ import { ARCHIVE_REASONS } from "@/domain/commands/overlay";
 import { LENS_COLOUR, lensFill, type Lens } from "@/domain/lenses";
 import { clashes, clashesByEvent, isInside, type ClashSeverity } from "@/domain/clashes";
 
-export type Mark = "Move proposed" | "Proposed" | "New" | "Gone from Outlook" | "Archived" | `Archived: ${string}` | "Flagged" | "Moved" | "Quiet" | "Outside its parent";
+export type Mark = "Move proposed" | "Proposed" | "New" | "Gone from Outlook" | "Archived" | `Archived: ${string}` | "Flagged" | "Moved" | "Quiet" | "Outside its parent" | "Suggested";
 export type Proposal = RowOf<"proposals">;
 
 /** The diary's layers, top to bottom: proposed changes, the live diary, and the graveyard of events gone from Outlook. */
@@ -99,6 +99,8 @@ export interface LayerOn {
   proposals: readonly Proposal[];
   /** On the Proposed layer: how strongly the unchanged live diary shows, 0 to 1 (default 1). */
   liveAlpha?: number;
+  /** Engagements with an open suggestion from a viewer (D15), marked Suggested. */
+  suggested?: ReadonlySet<string>;
 }
 
 const isArchived = (overlay: Overlay | undefined): boolean => Boolean(overlay?.archived);
@@ -165,6 +167,7 @@ export function diaryData(events: readonly Event[], overlays: readonly Overlay[]
     const ghost = e.id !== id || (layer === "live" && proposed);
     const archived = isArchived(overlay);
     const lead: Mark[] = layer === "graveyard" ? [archived || overlay?.archiveReason === "cancelled" ? archivedMark(overlay?.archiveReason) : "Gone from Outlook"] : isNew ? ["New"] : !proposed ? [] : ghost ? ["Move proposed"] : ["Proposed"];
+    if (layer !== "graveyard" && !isNew && e.masked !== true && layerOn.suggested?.has(id)) lead.push("Suggested");
     const quiet = overlay?.quiet === true;
     // A quiet event shows only its own Quiet mark (D17).
     const layerMarks: Mark[] = e.masked === true ? [] : quiet ? ["Quiet"] : [...(outside(e) ? ["Outside its parent" as const] : []), ...marksFor(e, overlay)];
