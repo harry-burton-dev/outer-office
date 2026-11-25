@@ -4,13 +4,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRecords } from "@trellis/framework";
 import { PlusIcon } from "lucide-react";
-import { DiaryCalendar, type DiaryEvent, type DiaryView } from "@/calendar/diary-calendar";
+import { DiaryCalendar, viewRange, type DiaryEvent, type DiaryView } from "@/calendar/diary-calendar";
 import { Button } from "@/components/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Dialog } from "@/components/ui/dialog";
 import { useApp } from "@/app/app-state";
 import { useOffice } from "@/app/frame-data";
-import { formatDay, formatTime } from "@/domain/dates";
+import { formatDay, formatTime, instantIn } from "@/domain/dates";
+import { wizardClashes } from "@/domain/clash-wizard";
 import { commands } from "@/domain/commands";
 import { ARCHIVE_REASONS } from "@/domain/commands/overlay";
 import type { NewMeeting } from "@/domain/commands/proposals";
@@ -24,6 +25,7 @@ import { LayerSwitch } from "./layer-switch";
 import { LensMenu } from "./lens-menu";
 import { MoveDialog, type MoveTarget } from "./move-dialog";
 import { ProposeDialog } from "./propose-dialog";
+import { ClashWizard } from "./clash-wizard";
 import { DaySummaryView } from "./day-summary-view";
 import { clashes } from "@/domain/clashes";
 import { daySummary } from "@/domain/day-summary";
@@ -59,7 +61,7 @@ function LiveAlpha({ value, onChange }: { value: number; onChange(value: number)
   );
 }
 
-type Dialogs = { kind: "move"; target: MoveTarget } | { kind: "propose"; day: string; editing?: Proposal } | null;
+type Dialogs = { kind: "move"; target: MoveTarget } | { kind: "propose"; day: string; editing?: Proposal } | { kind: "wizard"; from: string; to: string } | null;
 
 /** The last drag or keyboard move, so Ctrl+Z can take it back: the entry, what it was called, where it went, and the proposal it replaced. */
 interface LastMove {
@@ -188,9 +190,9 @@ export function Diary({ principalId }: { principalId: string }) {
 
   const eventById = useMemo(() => new Map(events.filter((e) => !e._deleted).map((e) => [e.id, e])), [events]);
 
-  /** An engagement that isn't masked, gone, archived or all-day can be moved, and so can a proposal; a ghost can't. Viewers can't yet (D15). */
+  /** An engagement that isn't masked, gone, archived or all-day can be moved, and so can a proposal; a ghost can't. Viewers get no onMove at all (their suggestions, D15, come later). */
   const canMove = useCallback((entryId: string): boolean => {
-    if (isViewer || layer === "graveyard") return false;
+    if (layer === "graveyard") return false;
     const face = data.faces.get(entryId);
     if (!face || face.archived) return false;
     const pid = proposalIdOf(entryId);
@@ -198,7 +200,7 @@ export function Diary({ principalId }: { principalId: string }) {
     if (layer === "proposed" && face.ghost) return false;
     const event = eventById.get(eventIdOf(entryId));
     return event !== undefined && event.masked !== true && event.gone !== true && event.allDay !== true;
-  }, [isViewer, layer, data, proposals, eventById]);
+  }, [layer, data, proposals, eventById]);
 
   /** Moves a proposed new meeting, or proposes (or re-proposes) a move; back to where Outlook has it withdraws the proposal. */
   const moveTo = (entryId: string, start: string, end: string): boolean => {
@@ -251,6 +253,16 @@ export function Diary({ principalId }: { principalId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  // The unquiet clashes in the range shown, for the toolbar's count and the wizard.
+  const shownRange = useMemo(() => {
+    const { first, end } = viewRange(view, date);
+    return { from: instantIn(first, "00:00", timezone), to: instantIn(end, "00:00", timezone) };
+  }, [view, date, timezone]);
+  const clashCount = useMemo(
+    () => wizardClashes({ events: events.filter((e) => !e._deleted), overlays: overlays.filter((o) => !o._deleted), zone: timezone }, principalId, shownRange.from, shownRange.to).length,
+    [events, overlays, timezone, principalId, shownRange],
+  );
+
   const propose = () => {
     setLayer("proposed");
     setDialog({ kind: "propose", day: date });
@@ -275,6 +287,9 @@ export function Diary({ principalId }: { principalId: string }) {
         toolbarExtra={
           <>
             {!isViewer && <Button variant="outline" onClick={propose}><PlusIcon />Propose</Button>}
+            {!isViewer && clashCount > 0 && (
+              <Button variant="outline" onClick={() => setDialog({ kind: "wizard", ...shownRange })} data-clash-count="">Clashes ({clashCount})</Button>
+            )}
             {layer === "proposed" && <LiveAlpha value={liveAlpha} onChange={setLiveAlpha} />}
             <LensMenu value={lensId} onChange={setLensId} />
             <LayerSwitch value={layer} onChange={setLayer} />
@@ -283,6 +298,7 @@ export function Diary({ principalId }: { principalId: string }) {
       />
       <Dialog open={dialog !== null} onOpenChange={(next) => !next && setDialog(null)}>
         {dialog?.kind === "move" && <MoveDialog target={dialog.target} timeZone={timezone} onDone={() => setDialog(null)} />}
+        {dialog?.kind === "wizard" && <ClashWizard principal={principalId} from={dialog.from} to={dialog.to} onDone={() => setDialog(null)} />}
         {dialog?.kind === "propose" && (
           <ProposeDialog principal={principalId} timeZone={timezone} day={dialog.day} editing={dialog.editing} onDone={() => setDialog(null)} />
         )}
