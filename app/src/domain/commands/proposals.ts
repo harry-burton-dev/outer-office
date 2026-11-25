@@ -109,8 +109,12 @@ export interface Landed {
  * sits at the proposed time; a new meeting when the principal has an event with its subject
  * and start. Both are removed and logged as found. A command reads the tables as they were
  * before it ran, so the import passes in what it just wrote (`landed`) and what went (`goneIds`).
+ *
+ * A move whose event the import moved somewhere else is marked `superseded`; one whose event
+ * went is withdrawn, with a log row (v0.3 brief section 4, B23). Events a re-key paired
+ * (`rekeyed`) are left alone: the re-key has already moved their proposals.
  */
-export function settleProposals(tx: Tx, now: string, principal: string, landed: readonly Landed[], goneIds: ReadonlySet<string>): number {
+export function settleProposals(tx: Tx, now: string, principal: string, landed: readonly Landed[], goneIds: ReadonlySet<string>, rekeyed: ReadonlySet<string> = new Set()): number {
   const byId = new Map<string, Landed>(tx.list("events").filter((e) => e.principal === principal && !e.gone).map((e) => [e.id, e]));
   for (const e of landed) byId.set(e.id, e);
   for (const id of goneIds) byId.delete(id);
@@ -121,7 +125,21 @@ export function settleProposals(tx: Tx, now: string, principal: string, landed: 
     const found = p.kind === "new"
       ? events.find((e) => e.start === p.start && same(e.subject, p.subject))
       : events.find((e) => e.id === p.event && e.start === p.start && e.end === p.end);
-    if (!found) continue;
+    if (!found) {
+      if (p.kind === "new" || p._deleted || rekeyed.has(p.event ?? "")) continue;
+      if (goneIds.has(p.event ?? "")) {
+        tx.remove("proposals", p.id);
+        writeLog(tx, now, { area: "proposal", kind: "withdraw", principal, event: p.event ?? "", from: p.start ?? "", note: "Gone from Outlook" });
+        continue;
+      }
+      const before = tx.get("events", p.event ?? "");
+      const after = landed.find((e) => e.id === p.event);
+      if (!p.superseded && before && after && (before.start !== after.start || before.end !== after.end)) {
+        tx.put("proposals", p.id, { superseded: now });
+        writeLog(tx, now, { area: "proposal", kind: "superseded", principal, event: p.event ?? "", from: p.start ?? "", to: after.start ?? "" });
+      }
+      continue;
+    }
     tx.remove("proposals", p.id);
     writeLog(tx, now, { area: "proposal", kind: "settled", principal, event: found.id, to: p.start ?? "" });
     settled += 1;
@@ -142,10 +160,37 @@ export const proposalMove = defineCommand("proposal.move", (tx: Tx, input: Propo
   if (input.end <= input.start) tx.fail("The meeting must end after it starts.");
   const event = liveEvent(tx, id);
   if (input.start === event.start && input.end === event.end) tx.fail("That is where the meeting already is.");
-  const pid = proposalId(tx, id);
+  putMove(tx, now, event, input.start, input.end, "");
+});
+
+/** Puts one move proposal and logs it. A move made on its own leaves any group, and is no longer superseded. */
+function putMove(tx: Tx, now: string, event: { id: string; principal?: string; start?: string }, start: string, end: string, group: string): void {
+  const pid = proposalId(tx, event.id);
   if (tx.get("proposals", pid)?._deleted) tx.restore("proposals", pid);
-  tx.put("proposals", pid, { kind: "move", event: id, principal: event.principal ?? "", start: input.start, end: input.end, by: tx.user, at: now });
-  writeLog(tx, now, { area: "proposal", kind: "move", principal: event.principal ?? "", event: id, from: event.start ?? "", to: input.start });
+  tx.put("proposals", pid, { kind: "move", event: event.id, principal: event.principal ?? "", start, end, by: tx.user, at: now, group, superseded: "" });
+  writeLog(tx, now, { area: "proposal", kind: "move", principal: event.principal ?? "", event: event.id, from: event.start ?? "", to: start, note: group ? "With its linked engagements" : "" });
+}
+
+export type ProposalMoveGroupInput = ProposalMoveInput;
+
+/**
+ * Proposes a new time for a parent and, at the same offsets, for each engagement
+ * linked under it (5.2): one proposal each, sharing the parent's id as their group.
+ */
+export const proposalMoveGroup = defineCommand("proposal.moveGroup", (tx: Tx, input: ProposalMoveGroupInput) => {
+  const now = requireNow(tx, input);
+  const id = requireText(tx, input.event, "The engagement");
+  if (!isIsoInstant(input.start) || !isIsoInstant(input.end)) tx.fail("Choose a new date and time.");
+  if (input.end <= input.start) tx.fail("The meeting must end after it starts.");
+  const parent = liveEvent(tx, id);
+  const shift = Date.parse(input.start) - Date.parse(parent.start ?? "");
+  if (shift === 0 && Date.parse(input.end) === Date.parse(parent.end ?? "")) tx.fail("That is where the meeting already is.");
+  const children = tx.list("overlays").filter((o) => !o._deleted && o.parent === id).map((o) => tx.get("events", o.event ?? ""))
+    .filter((e): e is NonNullable<typeof e> => e !== undefined && !e._deleted && e.gone !== true && Boolean(e.start) && Boolean(e.end));
+  putMove(tx, now, parent, input.start, input.end, id);
+  const by = (iso: string) => new Date(Date.parse(iso) + shift).toISOString();
+  for (const child of children) putMove(tx, now, child, by(child.start ?? ""), by(child.end ?? ""), id);
+  return children.length + 1;
 });
 
 /** Withdraws the proposal for an event. */
