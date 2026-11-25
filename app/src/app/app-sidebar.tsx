@@ -1,7 +1,7 @@
 // The left navigation: the app name, the principal switch, the principal's
 // screens (labelled with its code), then the task lists.
 import type { LucideIcon } from "lucide-react";
-import { ChartColumn, CalendarDays, CalendarCheck, FolderOpen, House, Inbox, ScrollText, LayoutTemplate, Printer, Repeat, Tags, Trash2, Upload } from "lucide-react";
+import { ChartColumn, CalendarDays, CalendarCheck, FolderOpen, House, Inbox, ScrollText, LayoutTemplate, Printer, Repeat, Tags, Trash2, Upload, Workflow } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -35,7 +35,7 @@ const PRINCIPAL_ITEMS: readonly NavItem[] = [
 
 const HOME_ITEMS: readonly NavItem[] = [{ screen: "home", label: "Home", icon: House }];
 
-const OFFICE_ITEMS: readonly NavItem[] = [{ screen: "tags", label: "Tags", icon: Tags }, { screen: "templates", label: "Templates", icon: LayoutTemplate }, { screen: "stats", label: "Stats", icon: ChartColumn }];
+const OFFICE_ITEMS: readonly NavItem[] = [{ screen: "tags", label: "Tags", icon: Tags }, { screen: "templates", label: "Templates", icon: LayoutTemplate }, { screen: "stats", label: "Stats", icon: ChartColumn }, { screen: "automate", label: "Automate", icon: Workflow }];
 
 interface NavGroupProps {
   label: string;
