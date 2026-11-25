@@ -51,7 +51,8 @@ function home(d: Device, principal: string, now = LATEST) {
 const flat = (u: Update): string[] => (u.members.length > 0 ? u.members.flatMap(flat) : u.kinds.length > 0 ? u.kinds : [u.rules[0]]);
 const kinds = (d: Device, principal: string, scope: string, now = LATEST) => {
   const g = home(d, principal, now).find((x) => x.scope === scope);
-  return [...(g?.needs ?? []), ...(g?.info ?? [])].flatMap(flat).sort();
+  // The imported diary has clashes of its own; these tests are about what changed.
+  return [...(g?.needs ?? []), ...(g?.info ?? [])].filter((u) => u.cause !== "clash").flatMap(flat).sort();
 };
 
 describe("Home after an import", () => {

@@ -442,3 +442,78 @@ describe("own rules, cover and the preview", () => {
     expect(previewRule({ ...i, ownRules: [rule] }, `own:${rule.id}`).map((u) => u.key)).toEqual(["e:b"]);
   });
 });
+
+describe("clash and series-ending (OUT-84, OUT-87)", () => {
+  const DAY = 86_400_000;
+  const at = (days: number, hour = 10) => new Date(Date.parse("2026-11-30T00:00:00Z") + days * DAY + hour * 3_600_000).toISOString();
+  const meeting = (id: string, start: string, over: Partial<Ev> = {}) =>
+    ev(id, { start, end: new Date(Date.parse(start) + 3_600_000).toISOString(), showAs: "busy", subject: id, ...over });
+  /** A weekly series: `weeks` occurrences from `first` days after 30 Nov, at `hour`. */
+  const weekly = (key: string, weeks: number, first = 0, hour = 10) =>
+    Array.from({ length: weeks }, (_, i) => {
+      const start = at(first + i * 7, hour);
+      return meeting(`${key}-${i}`, start, { seriesId: key, recurrenceId: start, subject: key });
+    });
+  const keys = (i: UpdatesInput) => group(i).needs.filter((u) => u.cause === "clash").map((u) => u.key).sort();
+
+  test("two meetings that clash post one needs-you update, with its severity and partner", () => {
+    const events = [meeting("a", at(0)), meeting("b", at(0)), meeting("c", at(1)), meeting("t", at(2), { showAs: "tentative" }), meeting("u", at(2))];
+    const needs = group(input({ events })).needs.filter((u) => u.cause === "clash");
+    expect(needs.map((u) => [u.key, u.kinds, u.event, u.with])).toEqual([
+      ["clash|a:b", ["hard"], "a", "b"],
+      ["clash|t:u", ["soft"], "t", "u"],
+    ]);
+    expect(group(input({ events, settings: settingsFor("user-a", [{ ...meta("s"), userId: "user-a", rule: "clash", on: false } as RowOf<"ruleSettings">], undefined) })).needs).toEqual([]);
+  });
+
+  test("B9: two overlapping weekly series give one standing clash and one update", () => {
+    const events = [...weekly("weekly-a", 6), ...weekly("weekly-b", 6), meeting("one-off", at(1)), meeting("other", at(1))];
+    expect(keys(input({ events }))).toEqual(["clash|one-off:other", "clash|standing:weekly-a|weekly-b"]);
+    const standing = group(input({ events })).needs.find((u) => u.kinds.includes("standing"))!;
+    expect(standing.series).toEqual(["weekly-a", "weekly-b"]);
+    expect(standing.note).toBe("weekly-a and weekly-b: 6 of 6 meetings");
+  });
+
+  test("series that clash on under half their meetings post each clash on its own", () => {
+    const events = [...weekly("weekly-a", 6), meeting("b-0", at(0), { seriesId: "weekly-b", recurrenceId: at(0) }), ...weekly("weekly-b", 5, 1, 15).slice(1)];
+    expect(keys(input({ events }))).toEqual(["clash|b-0:weekly-a-0"]);
+  });
+
+  describe("B10: series-ending fires once per series, 4 weeks before its last meeting", () => {
+    // NOW is 24 Nov; a weekly series of 4 from 30 Nov ends on 21 Dec, inside 4 weeks.
+    const ending = weekly("ending", 4);
+    const updates = (over: Partial<UpdatesInput> = {}) => group(input({ events: ending, ...over })).info.filter((u) => u.cause === "series-ending");
+    const KEY = `series-ending|p-a:ending:${at(21)}`;
+
+    test("it posts one update, keyed by the series and its end", () => {
+      expect(updates().map((u) => [u.key, u.note, u.to, u.at])).toEqual([[KEY, "ending", at(21), new Date(Date.parse(at(21)) - 28 * DAY).toISOString()]]);
+    });
+
+    test("not before the notice, nor once the last meeting has started", () => {
+      expect(group(input({ events: weekly("long", 8) })).info.filter((u) => u.cause === "series-ending")).toEqual([]);
+      // With a week's notice the update is not yet 14 days old, so only the end hides it.
+      const week = settingsFor("user-a", [{ ...meta("s"), userId: "user-a", rule: "series-ending", amount: 1 } as RowOf<"ruleSettings">], undefined);
+      expect(updates({ settings: week, now: at(21, 9) })).toHaveLength(1);
+      expect(updates({ settings: week, now: at(21, 11) })).toEqual([]);
+    });
+
+    test("seen, dismissed or marked all seen, it does not come back; pinned, it stays", () => {
+      expect(updates({ updateState: [state(KEY, "seen")] })).toEqual([]);
+      expect(updates({ updateState: [state(KEY, "dismissed")] })).toEqual([]);
+      expect(updates({ seen: [{ ...meta("seen"), userId: "user-a", scope: "p-a", at: NOW } as RowOf<"seen">] })).toEqual([]);
+      expect(updates({ updateState: [state(KEY, "pinned")] }).map((u) => u.pinned)).toEqual([true]);
+    });
+
+    test("a series extended to a new end posts again", () => {
+      const longer = [...ending, ...weekly("ending", 5).slice(4)];
+      const again = group(input({ events: longer, now: at(1), updateState: [state(KEY, "dismissed")] })).info.filter((u) => u.cause === "series-ending");
+      expect(again.map((u) => u.key)).toEqual([`series-ending|p-a:ending:${at(28)}`]);
+    });
+
+    test("its amount sets the notice", () => {
+      const settings = settingsFor("user-a", [{ ...meta("s"), userId: "user-a", rule: "series-ending", amount: 1 } as RowOf<"ruleSettings">], undefined);
+      expect(updates({ settings })).toEqual([]);
+      expect(updates({ settings, now: at(15) })).toHaveLength(1);
+    });
+  });
+});

@@ -122,6 +122,12 @@ export const RULES: readonly Rule[] = [
     id: "prep-due", group: "Diary", label: "A meeting needs prep soon", lane: "needs", scope: "principal",
     amount: { label: "Within", unit: "hours", default: 24, min: 1, max: 336 },
   }),
+  // clashes() (OUT-84): one update per clashing pair, and one per standing clash of two series (OUT-87).
+  state({ id: "clash", group: "Diary", label: "Two meetings clash", lane: "needs", scope: "principal" }),
+  state({
+    id: "series-ending", group: "Diary", label: "A series is about to end", lane: "info", scope: "principal",
+    amount: { label: "Before its last meeting", unit: "weeks", default: 4, min: 1, max: 12 },
+  }),
   state({ id: "gone-no-reason", group: "Diary", label: "A gone meeting with office data has no reason", lane: "needs", scope: "principal" }),
   // One update per sync run, holding the engagements it changed.
   change({ id: "sync-applied", group: "Sync", label: "A sync or import changes the diary", lane: "info", scope: "principal", match: is("import", "applied") }),
