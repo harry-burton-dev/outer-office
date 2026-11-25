@@ -49,8 +49,23 @@ interface Principal {
   seed: number;
   /** Rough meetings per working day. */
   density: number;
-  weekly: readonly { subject: string; day: number; at: string; minutes: number; category: Template["category"]; location: string }[];
+  weekly: readonly Weekly[];
 }
+
+/**
+ * A weekly series of 8. plant "exceptions": week 2 moves an hour later
+ * (a RECURRENCE-ID override) in both files, and the update file cancels
+ * week 6 (an EXDATE). plant "rekey": the update file moves the whole series
+ * half an hour later, so its occurrences are re-keyed (OUT-83, B6).
+ */
+interface Weekly {
+  subject: string; day: number; at: string; minutes: number; category: Template["category"]; location: string;
+  plant?: "exceptions" | "rekey";
+}
+
+const SERIES_WEEKS = 8;
+const MOVED_WEEK = 1;
+const CANCELLED_WEEK = 5;
 
 const PRINCIPALS: readonly Principal[] = [
   {
@@ -59,18 +74,18 @@ const PRINCIPALS: readonly Principal[] = [
       { subject: "Executive team", day: 0, at: "0900", minutes: 60, category: "Internal", location: "Board room" },
       // Overlaps Executive team every week: a standing clash (OUT-87, B9).
       { subject: "Operations review", day: 0, at: "0930", minutes: 60, category: "Internal", location: "Room 2.01" },
-      { subject: "Diary meeting", day: 4, at: "1600", minutes: 30, category: "Internal", location: "Office" },
+      { subject: "Diary meeting", day: 4, at: "1600", minutes: 30, category: "Internal", location: "Office", plant: "exceptions" },
     ],
   },
   {
     code: "PRINCIPAL-B", name: "Chair", seed: 23, density: 2,
-    weekly: [{ subject: "Chair and CEO catch-up", day: 2, at: "0830", minutes: 45, category: "Board", location: "Office" }],
+    weekly: [{ subject: "Chair and CEO catch-up", day: 2, at: "0830", minutes: 45, category: "Board", location: "Office", plant: "exceptions" }],
   },
   {
     code: "PRINCIPAL-C", name: "Director of Policy", seed: 37, density: 5,
     weekly: [
-      { subject: "Policy stand-up", day: 0, at: "0930", minutes: 15, category: "Internal", location: VIDEO },
-      { subject: "Policy stand-up", day: 3, at: "0930", minutes: 15, category: "Internal", location: VIDEO },
+      { subject: "Policy stand-up", day: 0, at: "0930", minutes: 15, category: "Internal", location: VIDEO, plant: "exceptions" },
+      { subject: "Policy stand-up", day: 3, at: "0930", minutes: 15, category: "Internal", location: VIDEO, plant: "rekey" },
     ],
   },
 ];
@@ -136,7 +151,35 @@ function meetingLines(m: Meeting, rand: () => number, organizer: string): readon
   return vevent(m.uid, lines);
 }
 
-function diaryFor(p: Principal, monday: Date, now: Date): { base: Meeting[]; series: string[][]; allDay: string[][] } {
+/** What each principal's weekly series plant, for B8 to compare the Series screen against (OUT-87). */
+export const PLANTED_SERIES: Readonly<Record<string, { series: number; exceptions: number; exceptionsAfterUpdate: number }>> = Object.fromEntries(
+  PRINCIPALS.map((p) => {
+    const planted = p.weekly.filter((w) => w.plant === "exceptions").length;
+    return [p.code, { series: p.weekly.length, exceptions: planted, exceptionsAfterUpdate: planted * 2 }];
+  }),
+);
+
+/** A weekly series' VEVENTs: the series itself, and its moved occurrence when it plants exceptions. */
+function seriesLines(w: Weekly, uid: string, firstDay: Date, now: Date, update: boolean): string[][] {
+  const day = addDays(firstDay, w.day);
+  const at = update && w.plant === "rekey" ? localTime(day, w.at, 30).slice(9, 13) : w.at;
+  const details = [`SUMMARY:${w.subject}`, `LOCATION:${w.location}`, `CATEGORIES:${w.category}`, "TRANSP:OPAQUE", "X-MICROSOFT-CDO-BUSYSTATUS:BUSY"];
+  const exdate = update && w.plant === "exceptions" ? [tz("EXDATE", localTime(addDays(day, CANCELLED_WEEK * 7), at))] : [];
+  const master = [...vevent(uid, [
+    ...details, tz("DTSTART", localTime(day, at)), tz("DTEND", localTime(day, at, w.minutes)),
+    `RRULE:FREQ=WEEKLY;COUNT=${SERIES_WEEKS}`, ...exdate, `LAST-MODIFIED:${stamp(addDays(now, -60))}`,
+  ])];
+  if (w.plant !== "exceptions") return [master];
+  const moved = addDays(day, MOVED_WEEK * 7);
+  return [master, [...vevent(uid, [
+    ...details, tz("RECURRENCE-ID", localTime(moved, at)), tz("DTSTART", localTime(moved, at, 60)), tz("DTEND", localTime(moved, at, 60 + w.minutes)),
+    `LAST-MODIFIED:${stamp(addDays(now, -20))}`,
+  ])]];
+}
+
+type SeriesFiles = { base: string[][]; update: string[][] };
+
+function diaryFor(p: Principal, monday: Date, now: Date): { base: Meeting[]; series: SeriesFiles; allDay: string[][] } {
   const rand = random(p.seed);
   const base: Meeting[] = [];
   let n = p.seed * 1000;
@@ -159,14 +202,11 @@ function diaryFor(p: Principal, monday: Date, now: Date): { base: Meeting[]; ser
     base.push({ uid: outlookUid((n += 1)), subject: "Medical appointment", category: "Personal", location: "Private",
       day: addDays(firstDay, week * 7 + 2), at: "0800", minutes: 30, attendees: [], modified: addDays(now, -30), extra: ["CLASS:PRIVATE"] });
   }
-  const series = p.weekly.map((w) => {
-    const day = addDays(firstDay, w.day);
-    return [...vevent(outlookUid((n += 1)), [
-      `SUMMARY:${w.subject}`, tz("DTSTART", localTime(day, w.at)), tz("DTEND", localTime(day, w.at, w.minutes)),
-      "RRULE:FREQ=WEEKLY;COUNT=8", `LOCATION:${w.location}`, `CATEGORIES:${w.category}`,
-      `LAST-MODIFIED:${stamp(addDays(now, -60))}`, "TRANSP:OPAQUE", "X-MICROSOFT-CDO-BUSYSTATUS:BUSY",
-    ])];
-  });
+  const uids = p.weekly.map(() => outlookUid((n += 1)));
+  const series: SeriesFiles = {
+    base: p.weekly.flatMap((w, i) => seriesLines(w, uids[i]!, firstDay, now, false)),
+    update: p.weekly.flatMap((w, i) => seriesLines(w, uids[i]!, firstDay, now, true)),
+  };
   const travel = addDays(monday, 7 + 3);
   const allDay = [[...vevent(outlookUid((n += 1)), [
     "SUMMARY:Travel: Edinburgh", `DTSTART;VALUE=DATE:${ymd(travel)}`, `DTEND;VALUE=DATE:${ymd(addDays(travel, 1))}`,
@@ -284,11 +324,11 @@ export function syntheticDiaries(now: Date): DiaryFile[] {
     const rand = random(p.seed + 2);
     const { base, series, allDay } = diaryFor(p, monday, now);
     const planted = p.code === PLANTED_PRINCIPAL ? plantedEvents(monday, now, (i) => outlookUid(p.seed * 1000 + 800 + i)) : [];
-    const file = (meetings: readonly Meeting[]): string =>
-      calendar([...meetings.map((m) => meetingLines(m, rand, p.name)), ...series, ...allDay, ...planted]);
+    const file = (meetings: readonly Meeting[], weekly: readonly string[][]): string =>
+      calendar([...meetings.map((m) => meetingLines(m, rand, p.name)), ...weekly, ...allDay, ...planted]);
     return [
-      { fileName: `${p.code}.ics`, text: file(base) },
-      { fileName: `${p.code}-update.ics`, text: file(updated(base, p.seed, now)) },
+      { fileName: `${p.code}.ics`, text: file(base, series.base) },
+      { fileName: `${p.code}-update.ics`, text: file(updated(base, p.seed, now), series.update) },
     ];
   });
 }

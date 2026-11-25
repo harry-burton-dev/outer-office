@@ -6,6 +6,11 @@ import { useCommand, useRecord, useRecords, useSession } from "@trellis/framewor
 import { commands, OFFICE_ID } from "@/domain/commands";
 import { applyDiaryUpdate } from "./apply-diary";
 import { AUTOMATE_FOLDER, clearUpdate, scanDiaryInbox, type DiaryUpdate, type InboxCache, type InboxEntry } from "./diary-inbox";
+import { stampOf } from "./graph-calendar";
+
+/** The diary sync's id in flowRuns (OUT-91). */
+export const DIARY_SYNC = "diary-sync";
+const fileName = (path: string): string => path.slice(path.lastIndexOf("/") + 1);
 
 interface DiaryInboxValue {
   entries: readonly InboxEntry[];
@@ -62,19 +67,30 @@ export function DiaryInboxProvider({ canApply, timeZone, now, children }: DiaryI
   const principals = useRecords("principals");
   const events = useRecords("events");
   const run = useCommand(commands.importApply);
+  const record = useCommand(commands.automateRecordRun);
   const tried = useRef(new Set<string>());
   const [refused, setRefused] = useState<ReadonlyMap<string, string>>(new Map());
   const privatePolicy = office?.privatePolicy === "drop" ? "drop" : "mask";
   useEffect(() => {
     if (!canApply) return;
     for (const entry of entries) {
-      if (!entry.ok || tried.current.has(entry.update.path)) continue;
-      tried.current.add(entry.update.path);
+      const path = entry.ok ? entry.update.path : entry.path;
+      if (tried.current.has(path)) continue;
+      tried.current.add(path);
+      // Every file read is a run for the Automate page (OUT-91), an unchanged one too.
+      const file = fileName(path);
+      if (!entry.ok) {
+        record({ now, flow: DIARY_SYNC, principal: entry.principal, file, fileAt: stampOf(file) ?? "", outcome: "refused", reason: entry.reason });
+        continue;
+      }
       const outcome = applyDiaryUpdate(entry.update, { principals, events, timeZone, privatePolicy, now, run });
+      const base = { now, flow: DIARY_SYNC, principal: entry.update.principal, file, fileAt: entry.update.generatedAt, events: entry.update.payload.events.length };
+      if (outcome.kind === "applied") record({ ...base, outcome: "applied", added: outcome.added, changed: outcome.changed, gone: outcome.gone });
+      else record(outcome.kind === "refused" ? { ...base, outcome: "refused", reason: outcome.reason } : { ...base, outcome: "unchanged" });
       if (outcome.kind === "refused") setRefused((current) => new Map(current).set(entry.update.path, outcome.reason));
       else void clear(entry.update);
     }
-  }, [canApply, entries, principals, events, timeZone, privatePolicy, now, run, clear]);
+  }, [canApply, entries, principals, events, timeZone, privatePolicy, now, run, record, clear]);
 
   // What is left to show: updates not yet applied, and why a refused one was not.
   const shown = useMemo(
