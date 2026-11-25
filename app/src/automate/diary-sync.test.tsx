@@ -42,9 +42,9 @@ describe("diary sync", () => {
     expect(syncNotes(app)).toEqual(["Power Automate sync: 23 added, 0 changed, 0 gone, 0 returned"]);
     await app.tick();
     expect([...files.files.keys()]).toEqual([]);
-    // Applied, but the file is from October: late, as the Automate page says.
-    fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
-    expect((await screen.findByTestId("update")).textContent).toMatch(/^Diary sync is late/);
+    // Applied, but the file is from October: late, as the Automate page says. The diary's clashes show too.
+    fireEvent.click(screen.getByRole("button", { name: /^Needs action \d+$/ }));
+    expect((await screen.findAllByTestId("update")).filter((u) => /^Diary sync is late/.test(u.textContent ?? ""))).toHaveLength(1);
   });
 
   test("the next run applies moved, added and gone events", async () => {
@@ -117,8 +117,9 @@ describe("diary sync", () => {
     expect(rows(app.device, "events").filter((e) => e.gone === true)).toHaveLength(0);
     expect(syncNotes(app)).toHaveLength(1);
     expect(files.files.has(HELD)).toBe(true);
-    fireEvent.click(screen.getByRole("button", { name: "Needs action 1" }));
-    fireEvent.click(within(await screen.findByTestId("update")).getByRole("button", { name: "Open" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Needs action \d+$/ }));
+    const refused = (await screen.findAllByTestId("update")).find((u) => /^Diary file can't be used/.test(u.textContent ?? ""));
+    fireEvent.click(within(refused!).getByRole("button", { name: "Open" }));
     expect(screen.getByRole("alert").textContent).toMatch(/would mark \d+ of \d+ events gone, so it was held back/);
   });
 

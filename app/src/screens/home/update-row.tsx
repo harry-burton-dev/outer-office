@@ -40,6 +40,10 @@ export function updateText(u: Update, subjects: ReturnType<typeof useSubjects>, 
     case "task-offered": return { what: "Offered to you", about, detail: "" };
     case "prep-due": return { what: "Prep needed", about, detail: when(u.at) };
     case "gone-no-reason": return { what: "Gone from Outlook with office data", about, detail: "archive it with a reason" };
+    case "clash":
+      if (u.kinds.includes("standing")) return { what: "Standing clash", about: u.note ?? "", detail: "" };
+      return { what: u.kinds.includes("hard") ? "Clash" : u.kinds.includes("away") ? "Clash with a day away" : "Possible clash", about, detail: u.with ? `with ${subjects.event(u.with)}, ${when(u.at)}` : when(u.at) };
+    case "series-ending": return { what: "Series ending", about: u.note ?? "", detail: u.to ? `last meeting ${when(u.to)}` : "" };
     case "sync-health":
       if (u.kinds.includes("refused")) return { what: "Diary file can't be used", about: "", detail: u.note ?? "" };
       return { what: "Diary sync is late", about: "", detail: u.at ? `last file ${when(u.at)}` : "" };
@@ -93,7 +97,9 @@ export function UpdateRow({ update, readOnly = false }: { update: Update; readOn
       ? () => openPanel({ kind: "engagement", id: update.event ?? "" })
       : (SYNC_RULES.has(update.cause ?? "") || update.rules.includes("sync-applied"))
         ? () => { closePanel(); go("import"); }
-        : undefined;
+        : update.series
+          ? () => { closePanel(); go("series"); }
+          : undefined;
   const by = update.lane === "info" ? [...new Set(update.rows.map((r) => r.by ?? "").filter(Boolean))].map(nameOf).join(", ") : "";
   const credit = [
     by && `${by}${update.at ? `, ${valueText(update.at, timezone)}` : ""}`,

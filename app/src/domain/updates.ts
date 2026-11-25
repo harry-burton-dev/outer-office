@@ -13,6 +13,8 @@ import { FIRST_LOOK_DAYS, ME } from "./home";
 import { isDueToday, isOverdue } from "./selectors";
 import type { PrincipalHealth } from "../automate/flows";
 import type { Readiness } from "./readiness";
+import { clashes } from "./clashes";
+import { seriesFor, standingClashes } from "./series";
 import { RULES, ruleById, type ChangeContext, type Lane, type RuleSetting, type Surface, SURFACES } from "./rules";
 
 type LogRow = RowOf<"log">;
@@ -112,6 +114,10 @@ export interface Update {
   from?: string;
   to?: string;
   note?: string;
+  /** A clash's other engagement. */
+  with?: string;
+  /** A standing clash's or an ending series' series, by key (the series UID). */
+  series?: string[];
   /** The change rows it holds, oldest first. */
   rows: LogRow[];
   /** The engagements a series or sync-run update holds. */
@@ -353,7 +359,12 @@ function needsUpdates(ctx: Ctx, settings: ReadonlyMap<string, RuleSetting>, user
   const events = input.events.filter((e) => live(e) && principals.has(e.principal ?? ""));
   const out: Update[] = [];
   const add = (rule: string, scope: string, subject: string, at: string, extra: Partial<Update> = {}) =>
-    out.push({ key: `${rule}|${subject}`, lane: "needs", scope, rules: [rule], cause: rule, at, kinds: [], rows: [], members: [], pinned: false, surfaces: [], ...extra });
+    out.push({ key: `${rule}|${subject}`, lane: ruleById(rule)?.lane ?? "needs", scope, rules: [rule], cause: rule, at, kinds: [], rows: [], members: [], pinned: false, surfaces: [], ...extra });
+  const seriesOfPrincipal = new Map<string, ReturnType<typeof seriesFor>>();
+  const seriesIn = (principal: string) => {
+    if (!seriesOfPrincipal.has(principal)) seriesOfPrincipal.set(principal, seriesFor(events, principal, now));
+    return seriesOfPrincipal.get(principal) ?? [];
+  };
 
   if (on("task-overdue")) {
     for (const t of openTasks) {
@@ -376,6 +387,33 @@ function needsUpdates(ctx: Ctx, settings: ReadonlyMap<string, RuleSetting>, user
       // A tab with required cards not yet complete (v0.3 brief 5.3); overlay.prep is retired.
       if (e.gone || input.readiness.get(e.id)?.ready !== false || !(start >= from && start < until)) continue;
       add("prep-due", e.principal ?? "", e.id, e.start ?? "", { event: e.id });
+    }
+  }
+  if (on("clash")) {
+    const found = clashes(events, input.overlays, input.timezone);
+    for (const p of input.principals) {
+      // A standing clash posts one update; its occurrences post none of their own.
+      const standing = standingClashes(seriesIn(p.id), found);
+      const inStanding = new Set<string>();
+      for (const s of standing) {
+        for (const o of [...s.a.occurrences, ...s.b.occurrences]) inStanding.add(o.event.id);
+        add("clash", p.id, `standing:${s.key}`, s.a.next?.start ?? s.a.end, { kinds: ["standing"], series: [s.a.key, s.b.key], note: `${s.a.subject} and ${s.b.subject}: ${s.clashing} of ${s.a.count} meetings` });
+      }
+      for (const c of found) {
+        if (events.find((e) => e.id === c.first)?.principal !== p.id || (inStanding.has(c.first) && inStanding.has(c.second))) continue;
+        add("clash", p.id, `${c.first}:${c.second}`, c.at, { event: c.first, with: c.second, kinds: [c.severity] });
+      }
+    }
+  }
+  if (on("series-ending")) {
+    const notice = amount("series-ending") * 7 * DAY_MS;
+    for (const p of input.principals) {
+      for (const s of seriesIn(p.id)) {
+        const end = Date.parse(s.end);
+        if (!(end > Date.parse(now) && end - Date.parse(now) <= notice)) continue;
+        // Keyed by the end too: a series that is extended and later ends again posts again.
+        add("series-ending", p.id, `${p.id}:${s.key}:${s.end}`, new Date(end - notice).toISOString(), { series: [s.key], note: s.subject, to: s.end });
+      }
     }
   }
   if (on("gone-no-reason")) {
@@ -448,8 +486,16 @@ export function updatesFor(input: UpdatesInput): UpdateGroup[] {
     return d ? { ...u, dealtWith: d } : u;
   };
   const all = infoUpdates(ctx);
-  const info = all.filter((u) => u.lane === "info" && !snoozed(u) && (u.pinned || u.at >= expiry));
-  const needs = [...stateUpdates(ctx), ...all.filter((u) => u.lane === "needs")].filter((u) => !snoozed(u));
+  const standing = stateUpdates(ctx);
+  // A for-information state update (series-ending) posts once: seen, dismissed or "mark all seen" after it began clears it.
+  const unseen = (u: Update) => {
+    const own = state.get(u.key);
+    if (own?.state === "seen" || own?.state === "dismissed") return false;
+    return (scopeSeen.get(u.scope) ?? "") < u.at;
+  };
+  const pinned = (u: Update): Update => (state.get(u.key)?.state === "pinned" ? { ...u, pinned: true } : u);
+  const info = [...all, ...standing.filter((u) => u.lane === "info").map(pinned).filter((u) => u.pinned || unseen(u))].filter((u) => u.lane === "info" && !snoozed(u) && (u.pinned || u.at >= expiry));
+  const needs = [...standing, ...all].filter((u) => u.lane === "needs" && !snoozed(u));
   const surfaced = (u: Update): Update => ({ ...withDealt(u), surfaces: surfacesOf(ctx, u) });
   const scopes = [...input.principals.map((p) => p.id), ME];
   return scopes.map((scope) => ({
