@@ -87,6 +87,37 @@ describe("a diary Outlook sent in pages (OUT-92)", () => {
     expect(!read.ok && read.reason).toContain("$orderby=start/dateTime");
   });
 
+  // The flow's loop saves every page Outlook sent, in order, as one array.
+  test("a file holding every page uses the whole window, with every page's events and no note", () => {
+    const value = byStart(graphResponse().value);
+    const half = Math.ceil(value.length / 2);
+    const pages = [{ value: value.slice(0, half), "@odata.nextLink": NEXT }, { value: value.slice(half) }];
+    const read = readGraphCalendar(pages, "PRINCIPAL-A", NAME);
+    if (!read.ok) throw new Error(read.reason);
+    expect([read.payload.windowEnd, read.payload.count, read.note]).toEqual(["2026-12-18T00:00:00.000Z", value.length, undefined]);
+    const whole = readGraphCalendar({ value }, "PRINCIPAL-A", NAME);
+    expect(read.ok && whole.ok && read.payload.events).toEqual(whole.ok && whole.payload.events);
+  });
+
+  test("pages whose last still has a next page are used up to their last days, like a first page", () => {
+    const value = byStart(graphResponse().value);
+    const half = Math.ceil(value.length / 2);
+    const pages = [{ value: value.slice(0, half), "@odata.nextLink": NEXT }, { value: value.slice(half, -1), "@odata.nextLink": NEXT }];
+    const read = readGraphCalendar(pages, "PRINCIPAL-A", NAME);
+    if (!read.ok) throw new Error(read.reason);
+    expect(read.payload.count).toBe(value.length - 1);
+    expect(read.note).toContain(`first ${value.length - 1} events`);
+  });
+
+  test.each([
+    [[], "not the response of a calendarView request"],
+    [[{ value: [] }, { items: [] }], "not the response of a calendarView request"],
+    [[{ value: [], "@odata.nextLink": "x" }, { error: { message: "Too many requests." } }], "error from Outlook: Too many requests"],
+  ])("refuses the pages %j, saying why", (pages, reason) => {
+    const read = readGraphCalendar(pages, "PRINCIPAL-A", NAME);
+    expect(!read.ok && read.reason).toContain(reason);
+  });
+
   test("a file with no next page uses the whole window and has no note", () => {
     const read = readGraphCalendar(graphResponse(), "PRINCIPAL-A", NAME);
     expect(read.ok && [read.payload.windowEnd, read.note]).toEqual(["2026-12-18T00:00:00.000Z", undefined]);

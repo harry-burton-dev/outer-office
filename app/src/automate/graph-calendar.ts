@@ -1,5 +1,6 @@
-// Reads one diary-sync file: the body of Graph's calendarView response,
-// exactly as the flow's "Send an HTTP request" returned it. Power Automate does
+// Reads one diary-sync file: the body of Graph's calendarView response, or the
+// list of every page's body, exactly as the flow's "Send an HTTP request"
+// returned them. Power Automate does
 // nothing to it, so everything a flow used to do happens here: the window,
 // the shape check, the series UIDs and the field mapping. Masking private
 // items, keying and the diff stay in parseAutomate and the import. Pure.
@@ -131,6 +132,16 @@ export function readGraphCalendar(
 ): { ok: true; generatedAt: string; payload: DiaryPayload; note?: string } | { ok: false; reason: string } {
   const generatedAt = stampOf(fileName);
   if (!generatedAt) return { ok: false, reason: `its name "${fileName}" is not the time the flow ran, as yyyyMMddTHHmmssZ.json` };
+  if (Array.isArray(value)) {
+    // The flow's loop saves every page Outlook sent, in order (OUT-92). Read as one
+    // response; the last page's nextLink says whether the loop stopped early.
+    const error = value.find((page) => isObject(page) && isObject(page.error));
+    if (error) value = error;
+    else if (value.length > 0 && value.every((page) => isObject(page) && Array.isArray(page.value))) {
+      const pages = value as Json[];
+      value = { value: pages.flatMap((page) => page.value as unknown[]), "@odata.nextLink": pages[pages.length - 1]?.["@odata.nextLink"] };
+    }
+  }
   if (isObject(value) && isObject(value.error)) return { ok: false, reason: `it holds an error from Outlook: ${String(value.error.message ?? value.error.code ?? "no message").replace(/\.$/, "")}` };
   if (!isObject(value) || !Array.isArray(value.value)) return { ok: false, reason: "it is not the response of a calendarView request" };
   const events: DiaryEvent[] = [];
@@ -141,8 +152,9 @@ export function readGraphCalendar(
   }
   const window = windowOf(generatedAt);
   if (value["@odata.nextLink"] !== undefined) {
-    // Outlook can split its answer into pages even with $top=999 (OUT-92). The
-    // flow saves only the first page, so the app uses the part of the window it covers.
+    // Outlook can split its answer into pages even with $top=999 (OUT-92). A flow
+    // built before the loop saves only the first page, and a loop can stop early,
+    // so the app uses the part of the window the pages cover.
     const cut = firstPageEnd(events, window.windowStart);
     if (typeof cut !== "string") return { ok: false, reason: cut.reason };
     const payload = { principal, windowStart: window.windowStart, windowEnd: cut, count: events.length, masters: mastersOf(events), events };

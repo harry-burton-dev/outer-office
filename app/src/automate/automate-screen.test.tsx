@@ -106,4 +106,23 @@ describe("a diary Outlook sent in pages (OUT-92)", () => {
     const a = rowOf("PRINCIPAL-A");
     expect(a.textContent).toContain("only the days before");
   });
+
+  test("a file holding every page is applied to the whole window, and the page doesn't say part of the diary", async () => {
+    const files = memoryPlainFiles("automate", { [FIRST]: graphFile() });
+    const app = await renderApp({ seed: seed(true), plainFiles: files, children: <AppFrame /> });
+    await app.tick();
+    const raw = JSON.parse(graphFile()) as { value: { start: { dateTime: string }; subject: string }[] };
+    const ordered = [...raw.value].sort((a, b) => a.start.dateTime.localeCompare(b.start.dateTime));
+    const half = Math.ceil(ordered.length / 2);
+    const last = { ...ordered[ordered.length - 1]!, subject: "Moved to page two", lastModifiedDateTime: "2026-11-23T21:20:00.0000000Z" };
+    const pages = [{ ...raw, value: ordered.slice(0, half), "@odata.nextLink": "https://graph.microsoft.com/v1.0/next" }, { value: [...ordered.slice(half, -1), last] }];
+    await files.write(`${A}/20261019T213000Z.json`, JSON.stringify(pages));
+    await app.tick();
+    await app.tick();
+    expect(rows(app.device, "events").filter((e) => e.gone === true)).toEqual([]);
+    expect(rows(app.device, "events").some((e) => e.subject === "Moved to page two")).toBe(true);
+    expect(rows(app.device, "flowRuns")[0]).toMatchObject({ outcome: "applied", reason: "" });
+    openAutomate();
+    expect(rowOf("PRINCIPAL-A").textContent).not.toContain("only the days before");
+  });
 });

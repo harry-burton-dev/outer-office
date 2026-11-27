@@ -2,18 +2,18 @@
 
 Power Automate does one thing for Outer Office: it reads a principal's Outlook calendar and saves Outlook's answer, untouched, as a file in the shared folder. The app does everything else.
 
-To build the flow, follow **[set-up-diary-sync.md](../../app/src/automate/guides/set-up-diary-sync.md)**, which the app also shows on its **Automate** page. It has three steps and takes about ten minutes per principal.
+To build the flow, follow **[set-up-diary-sync.md](../../app/src/automate/guides/set-up-diary-sync.md)**, which the app also shows on its **Automate** page. It has three parts and takes about ten minutes per principal.
 
 ## What the flow does
 
 | | |
 |---|---|
 | Trigger | Recurrence, every 30 minutes |
-| Step 1 | Office 365 Outlook **Send an HTTP request**: one `GET` to Microsoft Graph's `calendarView` for the principal's calendar |
-| Step 2 | **Create file**: the request's **Body**, unchanged, into `automate/inbox/diary-sync/<principal code>/` |
+| Step 1 | **Do until** there is no `@odata.nextLink`: Office 365 Outlook **Send an HTTP request**, a `GET` to Microsoft Graph's `calendarView` for the principal's calendar, then the next page's address. Each page's **Body** is appended to an array variable |
+| Step 2 | **Create file**: the array of pages, each **Body** unchanged, into `automate/inbox/diary-sync/<principal code>/` |
 | File name | The run's time in UTC, as `yyyyMMddTHHmmssZ.json`, for example `20261124T090000Z.json` |
 
-The flow uses no Parse JSON, Select, Filter, Condition or loop.
+The flow uses no Parse JSON, Select, Filter or Condition. Its one loop only follows Outlook's pages (OUT-92), because Outlook can split a busy diary into pages even with `$top=999`.
 
 ## What the app does with the file
 
@@ -30,7 +30,7 @@ The app refuses the whole file, and says why in **Needs action** and on the **Im
 
 - the name isn't a time;
 - the file holds an Outlook error instead of events, such as access denied;
-- Outlook sent the diary in pages (`@odata.nextLink` is present) and the first page is not in date order, so the app can't tell what is missing. In date order, which `$orderby=start/dateTime` in the URL asks for, the app uses the days the first page covers and the Automate page says so;
+- the file holds only Outlook's first pages (the last one saved still has an `@odata.nextLink`, as from a flow built before the loop) and they are not in date order, so the app can't tell what is missing. In date order, which `$orderby=start/dateTime` in the URL asks for, the app uses the days those pages cover and the Automate page says so;
 - an event is missing a field the app needs, which usually means the `$select` in the URL was changed;
 - applying it would mark most of the diary gone.
 
@@ -46,3 +46,4 @@ Files in `automate/` are not encrypted. Anyone with access to the shared folder 
 
 - That the series UID worked out from an occurrence's `iCalUId` matches the UID in an `.ics` export. If it doesn't, a recurring meeting's notes don't carry over between `.ics` and the sync. Nothing else changes.
 - How long a file the flow writes takes to reach the laptop.
+- That **Create file** writes the `pages` array variable as JSON text, and that the Outlook connector's **Send an HTTP request** accepts the full `@odata.nextLink` address as its URI. The app's tests read a file of pages, but no real flow has written one yet.
