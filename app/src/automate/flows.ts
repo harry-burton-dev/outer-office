@@ -34,13 +34,14 @@ export interface FlowDefinition {
 export const DIARY_SYNC_FLOW: FlowDefinition = {
   id: "diary-sync",
   name: "Diary sync",
-  summary: "Reads each principal's Outlook calendar every 30 minutes and saves Outlook's answer, untouched, in the shared folder. The app applies it to the diary without a review.",
+  summary: "Reads each principal's Outlook calendar every 30 minutes and saves Outlook's answer, every page of it untouched, in the shared folder. The app applies it to the diary without a review.",
   everyMinutes: 30,
   lateAfterMinutes: 90,
   steps: [
     { label: "Trigger", detail: "Recurrence, every 30 minutes" },
-    { label: "Request", detail: `Office 365 Outlook: Send an HTTP request, one GET to Graph's calendarView, ${WINDOW_DAYS_BEFORE} days back to ${WINDOW_DAYS_AFTER} days ahead, body as plain text` },
-    { label: "Save", detail: "Create file: the request's Body, unchanged" },
+    { label: "Request", detail: `Office 365 Outlook: Send an HTTP request, a GET to Graph's calendarView, ${WINDOW_DAYS_BEFORE} days back to ${WINDOW_DAYS_AFTER} days ahead, body as plain text` },
+    { label: "Pages", detail: "Do until: the request again for each @odata.nextLink, each page's Body appended to an array" },
+    { label: "Save", detail: "Create file: the array of pages, each Body unchanged" },
     { label: "File name", detail: "The run's time in UTC, as yyyyMMddTHHmmssZ.json" },
   ],
   appDoes: [
@@ -49,7 +50,7 @@ export const DIARY_SYNC_FLOW: FlowDefinition = {
     "Reads each meeting's body as plain text, with its links and responses. If the flow's Prefer header is missing, the app turns an HTML body into text itself.",
     "Masks or drops private and confidential meetings, as the office chose. Their real subject never reaches the diary, and they keep no body, links or people.",
     "Applies the changes to the diary and logs them. A run that changes nothing leaves no log entry, but still counts here.",
-    "When Outlook sends the diary in pages, the file holds only the first one. The app then updates only the days that page covers, and says so here.",
+    "Reads every page the flow saved as one answer. When the file holds only the first pages, as from a flow built before the loop, the app updates only the days they cover, and says so here.",
     "Refuses the whole file, and says why, when it holds an Outlook error, a missing field, or would mark most of the diary gone.",
     "Deletes the file it applied and every older one.",
   ],
@@ -130,7 +131,7 @@ export const STATE_HELP: Readonly<Record<FlowState, string>> = {
   arrived: "A new file has arrived and the app is applying it.",
   waiting: "A new file has arrived. Someone who can import applies it when they next open the app.",
   ok: "The last file arrived on time.",
-  partial: "The last file arrived on time, but Outlook sent it in pages, so only its first days were updated.",
+  partial: "The last file arrived on time, but it holds only Outlook's first pages, so only its first days were updated. Rebuild the flow with the loop in the guide.",
   late: "No file has arrived for a while. Check the flow's run history in Power Automate.",
   refused: "The newest file can't be used. The reason is shown. The next good file replaces it.",
 };
